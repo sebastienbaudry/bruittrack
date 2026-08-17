@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Données locales (jamais de PCM brut ni de config machine)
+data/
+!data/.gitkeep
+exemplars/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Config locale (exémple uniquement s'il existe)
+config.toml
+
+# Tests
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Éditeur / OS
+.vscode/
+.idea/
+.DS_Store
