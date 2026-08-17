@@ -1,0 +1,5 @@
+# Fixes de fin de ligne : LF partout (cible Debian)
+* text=auto eol=lf
+
+*.png binary
+*.raw binary
