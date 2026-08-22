@@ -21,7 +21,7 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I6* Corriger le docstring de `tools/module_check.py` L3 (« rows 1..7 » obsolète → sous-ensemble offline réel).
       Fichiers : `tools/module_check.py`.
       OK quand : `python -c "import ast; ..."` n/a ; grep du docstring cohérent et `check.sh` verte.
-- [ ] **I7** Entry decision-log : commande `bruittrack perf` + budgets (CPU_MAX_PCT, RSS_MAX_KB) et codes sortie 0/1/2.
+- [x] **I7* Entry decision-log : commande `bruittrack perf` + budgets (CPU_MAX_PCT, RSS_MAX_KB) et codes sortie 0/1/2.
       Fichiers : `docs/decision-log.md`.
       OK quand : `grep -ci "cmd_perf\|bruittrack perf" docs/decision-log.md` ≥ 1.
 - [ ] **I8** Ajouter la ligne M9 (perf sur MainPID, RC attendu 0) à la matrice de smoke en fin d'install.

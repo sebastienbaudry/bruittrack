@@ -100,3 +100,9 @@
 
 - **Contexte** : un bloc PortAudio en retard (surcharge CPU, I/O USB) demeurait invisible ; la seule consequence etait un silence DSP progressif.
 - **Decision** : temps de lecture par bloc mesure en µs (`last_read_us`) par `update_read_metrics()` — callback PortAudio pour `AudioCapture`, generation simulée (+ `stall_s` injectable) pour `MockAudioCapture`. Seuils nommes `SLOW_READ_US = 15_000` et `SLOW_BLOCK_STREAK = 3` ; `Engine._check_capture_health()` emet un warning apres 3 blocs lents consecutifs puis remet le compteur a zero (anti-spam). Pas de dependance, ~0 cout CPU (2 `time.monotonic()` par bloc) — budget T620 preserve (5020110).
+
+## [2026-08-23] Commande `bruittrack perf` — gate de budget M9 en CLI
+
+- **Contexte** : le respect des budgets T620 (M9, GOAL.md) exigeait une preuve automatisée et machine-readable ; jusqu'ici elle passait par `ps` manuel + comparaison à la main.
+- **Décision** : sous-commande `perf --pid <PID>` (défaut : processus courant). Deux lectures de `/proc/<pid>/stat` espacées de `PERF_SAMPLE_SECONDS = 15 s` → %CPU (diff utime+stime / CLOCK_TICKS) et RSS (field 24, × page size). Seuils nommés `CPU_MAX_PCT = 15`, `RSS_MAX_KB = 153_600` — zéro magic number. Codes sortie machine : **0** « CONFORME », **1** PID illisible / non-Linux (compteur gelé), **2** « NON-CONFORME ». Sur prod, PID canonique = `systemctl show -p MainPID --value bruittrack`.
+- **Justification** : 15 s de fenêtre lisse la variabilité DSP sans allonger le gate ; % dérivés d'entiers /proc (pas de `psutil`, pas de dépendance). Conformes au budget process unique (~48k it/s). Preuves prod : it.64 CPU 12.9 % RC=0 ; it.67 CPU 12.6 % / RSS 123.5 Mo RC=0 (uptime > 10 h) ; couvert par 4 tests unitaires fake-/proc (`tests/test_perf.py`, I5).

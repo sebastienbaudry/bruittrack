@@ -199,3 +199,7 @@ Last updated: 2026-08-22
 ## Itération 71 — I6 close : docstring module_check corrigé
 - `tools/module_check.py` L2-L6 : « matrix rows 1..7 » (obsolète) → description exacte des 5 checks --offline réels.
 - Preuves : py_compile OK ; `module_check --offline` **5/5 OK** ; docstring vérifié par sed.
+
+## Itération 72 — I7 close : entry decision-log `bruittrack perf`
+- `docs/decision-log.md` + entry [2026-08-23] : décision CLI perf (2 lectures /proc, 15 s, CPU_MAX_PCT=15, RSS_MAX_KB=153 600, codes 0/1/2, PID via MainPID) ; preuves it.64/it.67 + I5 citées.
+- Preuves : grep -ci perf ≥ 1 (5 occurrences) ; gate complet **CHECK OK**.
