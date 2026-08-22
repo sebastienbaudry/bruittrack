@@ -185,7 +185,7 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
 
 ### BUG-10 — `load_config` sans validation de cohérence des valeurs
 
-- **Statut** : ✅ corrigé — `Config.validate()` vérifie les invariants (block_size % decimation, freq_max ≤ Nyquist, debounce_ticks ≥ 1, max_duration_s > 0) et `load_config` l'appelle ; tests `TestConfigValidation` (tests TestConfigValidation).
+- **Statut** : ✅ corrigé — `Config.validate()` vérifie les invariants (block_size % decimation, freq_max ≤ Nyquist, debounce_ticks ≥ 1, max_duration_s > 0) et `load_config` l'appelle ; tests `TestConfigValidation`.
 - **Lieu** : `src/bruittrack/config.py` (`load_config`) ; consommés en `src/bruittrack/dsp.py`, `pipeline.py`, `events.py`
 - **Description** : plusieurs combinaisons possibles laissent le pipeline
   démarrer dans un état invalide ou absurde : `block_size % decimation != 0`
