@@ -113,6 +113,9 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
   (vérifié empiriquement avec deux sinus à 23,5 Hz décalés). La valeur
   écrite dans `events.off_ms` (et la classe de délai à ±20 ms du
   fingerprint) a donc le signe **opposé** au contrat documenté.
+- **Statut** : non confirmé — vérifié numériquement (burst déterministe L→R
+  et R→L, `tests/test_dsp.py::TestChannelDelaySign`, commit 4e36373) ; le code
+  est conforme à la docstring, aucune correction requise.
 - **Conséquence** : l'utilisateur/la dashboard voit « Right leads » quand
   c'est Left ; le clustering par classe de délai reste cohérent (symétrie)
   mais la valeur affichée est trompeuse.
@@ -198,7 +201,8 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
   mort qui risque d'induire en erreur.
 - **Correction** : soit supprimer, soit réécrire en résolvant le système
   `z_ss = A z_ss + b·x` (linéaire 2×2 par section) et ajouter un test —
-  état initial → sortie immédiatement plateau.
+- **Statut** : corrigé — méthode supprimée (code mort, jamais appelée ;
+  commit 4e36373).
 
 ### BUG-12 — `MockAudioCapture` : non déterministe + cadence déconnectée du temps réel
 - **Lieu** : `src/bruittrack/capture.py` (classe `MockAudioCapture`)
