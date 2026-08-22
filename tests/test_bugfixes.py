@@ -280,3 +280,26 @@ class TestFlushErrorPreservation:
 
         assert failures["n"] == 2
         assert s.get_stats()["total_events"] == 4
+
+# ---------------------------------------------------------------------------
+# BUG-05: exemplar float16 raw -> int16 WAV conversion
+# ---------------------------------------------------------------------------
+class TestExemplarWav:
+    def test_helper_produces_valid_2ch_wav(self, tmp_path):
+        import io
+        import wave
+
+        from bruittrack.__main__ import _exemplar_to_wav
+
+        t = np.arange(128) / 1000.0
+        sig = (np.sin(2 * np.pi * 40 * t) * 0.5).astype(np.float32)
+        stereo = np.stack([sig, sig], axis=1).astype(np.float16)
+        raw = tmp_path / "ex_7.raw"
+        raw.write_bytes(stereo.tobytes())
+
+        wav = _exemplar_to_wav(raw)
+        wf = wave.open(io.BytesIO(wav), "rb")
+        assert wf.getnchannels() == 2
+        assert wf.getsampwidth() == 2
+        assert wf.getframerate() == 1000
+        assert wf.getnframes() == 128

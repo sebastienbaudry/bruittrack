@@ -166,6 +166,27 @@ def cmd_viz(args: argparse.Namespace) -> int:
     return 0
 
 
+def _exemplar_to_wav(raw_file: Path, sample_rate: int = 1000) -> bytes:
+    """Convert a float16 raw excerpt (2 ch interleaved) to an int16 WAV blob.
+
+    BUG-05: SoX cannot interpret IEEE-754 half directly; emit a proper WAV.
+    """
+    import io
+    import wave
+
+    data = np.frombuffer(raw_file.read_bytes(), dtype=np.float16)
+    if data.size % 2:
+        data = data[:-1]
+    i16 = (np.clip(data, -1.0, 1.0) * 32767).astype(np.int16)
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(2)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(i16.tobytes())
+    return buf.getvalue()
+
+
 def cmd_stats(args: argparse.Namespace) -> int:
     """Display database statistics and top sound clusters."""
     config = load_config(args.config)
@@ -184,27 +205,17 @@ def cmd_stats(args: argparse.Namespace) -> int:
 
         print(f"Lecture de l'exemplaire #{cluster_id} (256 ms @ 1kHz, 2 canaux)...")
         # Convert float16 raw to int16 WAV in a temp file, then play
-        import numpy as np
         import tempfile
-        import wave
-        with open(raw_file, "rb") as f:
-            audio = np.frombuffer(f.read(), dtype=np.float16)
-        # Ensure 2 channels interleaved; trim if odd total samples
-        if audio.size % 2 != 0:
-            audio = audio[:-1]
-        audio_i16 = (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
-        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+
+        wav_path = Path(tempfile.gettempdir()) / f"bruittrack_ex_{cluster_id}.wav"
+        tmp_name = str(wav_path)
         try:
-            with wave.open(tmp.name, "wb") as wf:
-                wf.setnchannels(2)
-                wf.setsampwidth(2)  # int16
-                wf.setframerate(1000)
-                wf.writeframes(audio_i16.tobytes())
-            subprocess.run(["play", tmp.name], check=True)
+            wav_path.write_bytes(_exemplar_to_wav(raw_file))
+            subprocess.run(["play", tmp_name], check=True)
         except FileNotFoundError:
             print("Commande 'play' (SoX) non disponible. Utilisez le serveur web `viz` pour écouter.")
         finally:
-            os.unlink(tmp.name)
+            wav_path.unlink(missing_ok=True)
         return 0
 
     stats = store.get_stats()

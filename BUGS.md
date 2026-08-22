@@ -88,6 +88,7 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
   timer dédié). Documenter dans `docs/decision-log.md`.
 
 ### BUG-05 — `cmd_stats --play` : format de régression… **regression** SoX → exemplaire illisible
+- **Statut** : ✅ corrigé — conversion float16 raw → WAV int16 stdlib (`_exemplar_to_wav`, `__main__.py`) puis `play` sans flags ambiguës ; test `TestExemplarWav`.
 - **Lieu** : écriture `src/bruittrack/events.py:394` ; lecture `src/bruittrack/__main__.py:174-198`
 - **Description** : l'extrait est sauvegardé en **float16 IEEE 754 half**
   (`audio_data.astype(np.float16).tobytes()`). La CLI rejoue avec
