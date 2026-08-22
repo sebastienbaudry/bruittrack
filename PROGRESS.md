@@ -177,3 +177,9 @@ Last updated: 2026-08-22
 - GOAL.md matrice M9 : commande canonique = `bruittrack perf --pid \<MainPID\>` (RC=0 « CONFORME »).
 - Preuves : local 5/5 OK + CHECK OK ; après scp, **prod hpdebian : module_check 5/5 OK**.
 - Commit suivant ce bloc.
+
+## Itération 66 — README : commande perf documentée + budget CPU corrigé à 15 %
+- README quick-start : ajout `python -m bruittrack perf --pid \<PID\>` avec description M9.
+- README matrice (section Vérification modules) : ligne Budget → « Budget M9 », commande canonique `bruittrack perf --pid $MAINPID`, statut **✅ prod it.64 (12.9 %)**.
+- README tête de fichier : budget « < 10 % CPU » corrigé en « < 15 % CPU » (aligné sur décision opérateur f01dc08).
+- Preuves locales : module_check --offline 1 ligne finale affichée ; bash tools/check.sh CHECK OK.

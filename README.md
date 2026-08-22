@@ -5,7 +5,7 @@ structure) → détection d'événements par émergence au-dessus du bruit de fo
 une ligne SQLite par événement → visualisation interactive dans le temps.
 
 Conçu pour tourner **24/7 sur un thin client HP T620** (Debian 13, 1.5 GHz,
-4 Go RAM, 16 Go SSD) avec un budget < 10 % CPU / < 150 Mo RAM.
+4 Go RAM, 16 Go SSD) avec un budget < 15 % CPU / < 150 Mo RAM.
 
 ## Démarrage rapide
 
@@ -19,6 +19,7 @@ python -m bruittrack devices              # trouver le nom ALSA de la M-Track Pl
 python -m bruittrack test --seconds 60    # écouter 60 s en terminal
 # options test : --synthetic (pas de carte son), --verbose-floor (état du FloorTracker /10 s)
 python -m bruittrack start &              # capture daemonisée → data/bruittrack.db
+python -m bruittrack perf --pid \u003cPID>     # M9 : %CPU + RSS sur 15 s vs budget 15%/150 Mo
 python -m bruittrack viz                  # http://localhost:8760
                                                               # clic sur un événement = détail bin/freq/niveaux ; boutons IN1/IN2 = bascule des canaux
 ```
@@ -81,5 +82,5 @@ module est validé isolément sur la cible avec une preuve commandée
 | 5 | Events/store | `stats --json` : DB WAL init, compteur plausible | ✅ (offline store) |
 | 6 | Viz/API | `curl /api/stats` 200 JSON ; `/api/exemplar/<c>` WAV 2ch@1 kHz | ✅ (harness) |
 | 7 | systemd | `active (running)`, enabled, journal sans exception | ❔ (host) |
-| 8 | Budget | après ≥10 min : <10 % CPU et <150 Mo RSS | ❔ (host) |
-❔ = à valider sur cible après l'installation ; ✅ via harness/py tests.
+| 8 | Budget M9 | `bruittrack perf --pid $MAINPID` (≥10 min) : %CPU < 15, RSS < 150 Mo, RC=0 | ✅ prod (it.64 : 12.9 %) |
+❔ = à valider sur cible après l’installation ; ✅ via harness/py tests.
