@@ -105,3 +105,5 @@
 {"ts":"2026-08-22T16:12:30.266Z","iteration":12,"event":"context_compact","stuckStreak":0,"notice":"Emergency context compaction (1/2): stop reason length.","reason":"stop reason length","contextPercent":100}
 {"ts":"2026-08-22T16:13:45.544Z","iteration":12,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
 {"ts":"2026-08-22T16:14:08.566Z","iteration":12,"event":"context_circuit_open","stuckStreak":0,"notice":"Emergency context compaction failed: Cannot read properties of undefined (reading 'signal')."}
+{"ts":"2026-08-22T18:17:38.093Z","iteration":13,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T18:18:45.684Z","iteration":14,"event":"continue","stuckStreak":0}
