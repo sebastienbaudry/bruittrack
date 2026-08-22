@@ -132,6 +132,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <span>Timeline Fréquence / Temps (0 - 48 Hz)</span>
     <span id="canvasTooltip" style="font-size:12px; color:var(--accent);">Survolez un point</span>
   </div>
+  <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
+    <button id="toggleChG" class="btn btn-sm" onclick="toggleChannel(0)">IN1 (Air)</button>
+    <button id="toggleChD" class="btn btn-sm" onclick="toggleChannel(1)">IN2 (Struct)</button>
+    <span id="evtTip" style="font-family:monospace; font-size:12px; color:#e2e8f0; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
+  </div>
   <canvas id="timelineCanvas" width="1000" height="260"></canvas>
 </div>
 
@@ -280,9 +285,52 @@ async function triageCluster(clusterId, flags) {
   refreshAll();
 }
 
+let showCh = { l: true, d: true };
+let timelinePoints = []; // {x, y, ev} pour tooltips/clic
+
+function toggleChannel(idx) {
+  if (idx === 0) showCh.l = !showCh.l; else showCh.d = !showCh.d;
+  document.getElementById('toggleChG').style.opacity = showCh.l ? '1' : '.4';
+  document.getElementById('toggleChD').style.opacity = showCh.d ? '1' : '.4';
+  drawTimeline(eventsData);
+}
+
+function hideEvtTip() { document.getElementById('evtTip').style.display = 'none'; }
+
+// Click/hover sur marker → tooltip bin_i + freq + lvl_g/d (acceptance IMPROVEMENTS)
+(function attachTips() {
+  const canvas = document.getElementById('timelineCanvas');
+  let raf = null;
+  function showTip(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    let best = null, bd = 10 * 10; // rayon 10 px
+    for (const p of timelinePoints) {
+      const dx = p.x - mx, dy = p.y - my;
+      const dd = dx * dx + dy * dy;
+      if (dd < bd) { bd = dd; best = p; }
+    }
+    const tip = document.getElementById('evtTip');
+    if (!best) { hideEvtTip(); return; }
+    const ev = best.ev;
+    tip.textContent = `#${ev.cluster || '-'} · bin ${ev.bin_i} (${ev.freq.toFixed(2)} Hz) · G +${ev.lvl_g.toFixed(1)} / D +${ev.lvl_d.toFixed(1)} dB`;
+    tip.style.display = 'inline';
+  }
+  canvas.addEventListener('mousemove', showTip);
+  canvas.addEventListener('click', function (e) {
+    // clic = détail conservé 6 s après le mouvement de souris
+    showTip(e);
+    const tip2 = document.getElementById('evtTip');
+    if (tip2.textContent) { tip2.dataset.sticky = '1'; setTimeout(function () { if (tip2.dataset.sticky === '1') hideEvtTip(); }, 6000); }
+  });
+  canvas.addEventListener('mouseleave', hideEvtTip);
+})();
+
 function drawTimeline(events) {
   const canvas = document.getElementById('timelineCanvas');
   const ctx = canvas.getContext('2d');
+  hideEvtTip();
   const w = canvas.width;
   const h = canvas.height;
 
@@ -313,7 +361,13 @@ function drawTimeline(events) {
     const x = 40 + ((e.t0 - minT) / timeSpan) * (w - 50);
     const y = h - (e.freq / 48.0) * (h - 40) - 20;
 
+    // toggles de canal: canal caché si l'autre domine de > 2 dB sur celui-ci
+    const onL = !(e.lvl_d > e.lvl_g + 2);
+    const onD = !(e.lvl_g > e.lvl_d + 2);
+    if (!(showCh.l && onL) && !(showCh.d && onD)) continue;
+
     if (x >= 40 && x <= w) {
+      timelinePoints.push({x, y, ev: e});
       const radius = Math.max(3, Math.min(10, (e.lvl_g + e.lvl_d) / 6));
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
