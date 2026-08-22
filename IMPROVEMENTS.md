@@ -8,6 +8,9 @@ Chaque item : fichier(s) + crit√®re d'acceptation en une ligne.
 - [x] **I2** CI GitHub Actions : `ruff check . && ruff format --check . && pytest`.
       Fichier : `.github/workflows/ci.yml` (python 3.12/3.13).
       OK quand : le workflow YAML est pr√©sent et `bash tools/check.sh` locale reste verte.
-- [ ] **I3** `config.toml.example` : documenter `storage.retention_days = 365` (d√©faut dataclass) avec commentaire.
+- [x] **I3** `config.toml.example` : documenter `storage.retention_days = 365` (d√©faut dataclass) avec commentaire.
       Fichier : `config.toml.example`.
       OK quand : `grep -c retention_days config.toml.example` ‚â• 1 et `load_config(config.toml.example).validate()` OK.
+- [x] **I4** Garantir la commande de vÈrification locale `tools/check.sh` (ruff + pytest) citÈe dans I2.
+      Fichier : `tools/check.sh`.
+      OK quand : `bash tools/check.sh` rc=0 avec 55 tests verts (15/15 ‡ Ètendre).
