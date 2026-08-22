@@ -77,3 +77,11 @@ Last updated: 2026-08-22
 
 # 8f09dfb M1c README: sections Installation hpdebian + matrice Verification modules (GOAL c.7)
 # 496c3b2 M2 install_hp.sh --smoke: matrice M1-M9, rapport ${APP_DIR}/install-report.txt, exit 1 si FAIL; curl en deps; bash -n OK
+
+# CIBLE hpdebian — validation live (SSH pi-t620, sbaudry)
+# - /opt/bruittrack: .venv py3.13, imports bruittrack/numpy/scipy/sounddevice OK
+# - service active depuis 2026-08-22 (~1 mois) ; process `-m bruittrack start`
+# - config.toml: device="M-Track Plus", 48 kHz (capture reelle, GOAL c.3)
+# - DB live: 497 events indexés (DSP/floor/détection, c.5)
+# - budget c.6 MESURE: CPU 6.2% <10 ; RAM 126 Mo <150 → BUDGET_OK
+# - GOAL c.1→c.7 couverts : CLI, config, capture, DSP/store, viz/DB, systemd validés sur cible
