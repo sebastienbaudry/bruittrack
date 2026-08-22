@@ -23,8 +23,8 @@ CPU < 10 %, RAM < 150 Mo, 1 process Python DSP (~48k it/s).
   ~7 Mo/an ; `retention_days` optionnel.
 
 ## Pipeline (cadence 100 ms) — porté de docs/reference/gemini-waterfall.py
-ALSA 48k → LP 4 biquads Butter fc=400 Hz (numpy pur ~1 % CPU ; si goulot :
-`scipy.signal.sosfilt` = 1er ajout autorisé) → décim ×48 → 1000 Hz
+ALSA 48k → LP 4 biquads Butter fc=400 Hz via `scipy.signal.sosfilt`
+(1er ajout autorisé, activé — entry decision-log) → décim ×48 → 1000 Hz
 (ring 33k) → blocs 100 ms → Welch 2048 pts (2 s), overlap 50 %, 7 seg →
 EMA α=0.5 → floor = médiane glissante 300 ticks/bin → émergence (dB),
 bins 0..98 (0–48 Hz, 0,49 Hz/bin) → seuil 10 dB, debounce 5 ticks (0,5 s),
@@ -64,8 +64,8 @@ venv + `pip install -e ".[dev]"` ; `pytest` ; `ruff check . && ruff format .` ;
 
 ## Conventions
 - Type hints + docstrings ; code anglais, messages/CLI français.
-- Deps : numpy + sounddevice + stdlib **uniquement** (scipy = 1er candidat,
-  documenté). Dep ou table nouvelle → entry decision-log.md.
+- Deps : numpy + scipy + sounddevice + stdlib **uniquement** (scipy
+  documenté au decision-log). Dep ou table nouvelle → entry decision-log.md.
 - Tests déterministes sans matériel (synthèse, DB :memory:) ; `sounddevice`
   importé seulement dans capture.py.
 - `time.time()` (DB) vs `time.monotonic()` (interne), jamais mélanger.

@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 
+import bruittrack.dsp as dsp_mod
 from bruittrack.dsp import (
     DspPipeline,
     FloorTracker,
@@ -38,6 +39,32 @@ def test_sos_filter_filtering() -> None:
     # Steady state should converge to 1.0
     assert np.isclose(y[-1, 0], 1.0, atol=1e-2)
     assert np.isclose(y[-1, 1], 1.0, atol=1e-2)
+
+
+def test_sos_filter_fastpath_matches_scalar() -> None:
+    """Voie rapide scipy et fallback scalaire doivent produire la même sortie."""
+    if not dsp_mod._HAS_SCIPY:
+        pytest.skip("scipy absent")
+    sos = design_butterworth_lp_sos(cutoff_hz=400.0, fs=48000.0, order=8)
+    x = np.random.default_rng(0).normal(0, 1e-3, size=(1000, 2))
+    fast = SosFilter(sos, n_channels=2)
+    slow = SosFilter(sos, n_channels=2)
+    old_flag = dsp_mod._HAS_SCIPY
+    dsp_mod._HAS_SCIPY = False
+    try:
+        y_slow = slow.filter(x)
+    finally:
+        dsp_mod._HAS_SCIPY = old_flag
+    y_fast = fast.filter(x)
+    assert np.allclose(y_fast, y_slow, atol=1e-9)
+    # continuité d'état entre blocs (pas d'impulsion au jointure)
+    fast.reset()
+    a = fast.filter(x[:500])
+    b = fast.filter(x[500:])
+    slow2 = SosFilter(sos, n_channels=2)
+    ref = slow2.filter(x)
+    assert np.allclose(a, ref[:500], atol=1e-9)
+    assert np.allclose(b, ref[500:], atol=1e-9)
 
 
 def test_dsp_pipeline_frequency_identification() -> None:
