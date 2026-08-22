@@ -209,3 +209,7 @@ Last updated: 2026-08-22
 
 ## Iteration 79-80
 - Fallback PYB layout plat pi-t620 (it.79) ; smoke M9 validée sur cible : RC=0 CONFORME 12.8%/123.5 Mo. A018 documenté.
+
+## Iteration 83-84 — fix CWD db_path (stats --json dependait du CWD)
+- load_config() resout db_path/exemplars_dir relatifs par rapport au dossier du config.toml (resolve_rel).
+- Preuive it.82 cible: depuis /root stats 0 event, depuis /opt/bruittrack 582 ev./326 clusters (live) ; test_storage_relative_paths_resolved_against_config_dir ajouté (65 passed, CHECK OK).

@@ -133,6 +133,7 @@ def load_config(config_path: str | Path | None = None) -> Config:
         Validated Config instance.
     """
     raw_data: dict[str, Any] = {}
+    cfg_dir: Path | None = None  # dossier du config.toml resolu
 
     target_path: Path | None = None
     if config_path is not None:
@@ -144,6 +145,7 @@ def load_config(config_path: str | Path | None = None) -> Config:
                 break
 
     if target_path is not None and target_path.is_file():
+        cfg_dir = target_path.parent
         with open(target_path, "rb") as f:
             raw_data = tomllib.load(f)
 
@@ -185,11 +187,18 @@ def load_config(config_path: str | Path | None = None) -> Config:
         warmup_ticks=int(det_dict.get("warmup_ticks", 300)),
     )
 
+    def resolve_rel(p: Any) -> str:
+        """Resout un chemin relatif de storage par rapport au dossier du config.toml."""
+        pp = Path(str(p))
+        if pp.is_absolute() or cfg_dir is None:
+            return str(pp)
+        return str(cfg_dir / pp)
+
     # Storage
     store_dict = raw_data.get("storage", {})
     store_cfg = StorageConfig(
-        db_path=str(store_dict.get("db_path", "data/bruittrack.db")),
-        exemplars_dir=str(store_dict.get("exemplars_dir", "exemplars")),
+        db_path=resolve_rel(store_dict.get("db_path", "data/bruittrack.db")),
+        exemplars_dir=resolve_rel(store_dict.get("exemplars_dir", "exemplars")),
         batch_size=int(store_dict.get("batch_size", 50)),
         batch_timeout_s=float(store_dict.get("batch_timeout_s", 30.0)),
     )

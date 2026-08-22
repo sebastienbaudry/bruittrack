@@ -1,6 +1,7 @@
 """Tests for configuration parsing and validation."""
 
 from pathlib import Path
+import os
 import tempfile
 import pytest
 
@@ -64,3 +65,25 @@ def test_load_config_from_file() -> None:
         assert cfg.dsp.n_seg == 2048  # Default preserved
     finally:
         Path(temp_path).unlink(missing_ok=True)
+
+
+def test_storage_relative_paths_resolved_against_config_dir() -> None:
+    """db_path/exemplars_dir relatifs sont resolus par rapport au dossier du config.toml."""
+    import pytest
+
+    cfg = load_config()
+    (Path("data").resolve()).mkdir(parents=True, exist_ok=True)
+    rel_toml = "[storage]\ndb_path = 'data/proj.db'\nexemplars_dir = 'projsnap'\n"
+    with tempfile.TemporaryDirectory() as td:
+        cfg_dir = Path(td) / "projroot"
+        cfg_dir.mkdir()
+        toml_file = cfg_dir / "config.toml"
+        toml_file.write_text(rel_toml, encoding="utf-8")
+        prev_cwd = Path.cwd()
+        os.chdir(Path(tempfile.gettempdir()))
+        try:
+            loaded = load_config(toml_file)
+            assert loaded.storage.db_path == str(cfg_dir / "data" / "proj.db")
+            assert loaded.storage.exemplars_dir == str(cfg_dir / "projsnap")
+        finally:
+            os.chdir(prev_cwd)
