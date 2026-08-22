@@ -137,3 +137,26 @@ def test_concurrent_writer_and_readers(tmp_path: Path) -> None:
     assert not errors, f"exceptions during concurrent access: {errors}"
     assert store.get_stats()["total_events"] == n_events
     assert results == sorted(results)  # counters monotonic
+
+
+def test_get_stats_events_last_24h(tmp_path: Path) -> None:
+    """get_stats() expose events_last_24h; 1 for recent event, none for stale."""
+    store = EventStore(db_path=tmp_path / "stats.db", batch_size=3)
+    now = time.time()
+    ev = SoundEvent(
+        t0=now - 60.0,
+        dur=1.0,
+        bin_i=10,
+        freq=4.9,
+        lvl_g=8.0,
+        lvl_d=7.0,
+        off_ms=0.5,
+        fp=b"f" * 16,
+        flags=0,
+        cluster=2,
+    )
+    store.add_event(ev)
+    stats = store.get_stats()
+    assert "events_last_24h" in stats
+    assert stats["events_last_24h"] == 1
+    assert stats["total_events"] == 1

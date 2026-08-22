@@ -264,7 +264,9 @@ class EventStore:
                     COUNT(DISTINCT cluster) as total_clusters,
                     MIN(t0) as min_t0,
                     MAX(t0) as max_t0,
-                    AVG(dur) as avg_dur
+                    AVG(dur) as avg_dur,
+                    SUM(CASE WHEN t0 >= strftime('%s','now','-1 day') THEN 1 ELSE 0 END)
+                        as events_last_24h
                 FROM events;
                 """
             ).fetchone()

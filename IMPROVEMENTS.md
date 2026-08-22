@@ -7,7 +7,7 @@
 - [ ] `src/bruittrack/events.py` ClusterIndex rebuild: rebuild on daemon start should be O(n·k); currently loads all events — cap with `LIMIT 100_000` and log warning when truncated; add test in tests/test_events.py that 200 k synthetic events build in < 8 s
 - [ ] `src/bruittrack/capture.py` InputStream: emit per-block read-time (µs) to RingBuffer metadata so pipeline logs slow ALSA blocks > 15 ms (acceptance: engine.step() logs warning >= 3 consecutive slow blocks; add test with MockAudioCapture injecting 20 ms stall)
 - [ ] `tests/test_pipeline.py` Engine stop() leaks check: assert store buffer flushed and capture._is_running False after engine.stop(); extend existing test_engine_run_stops cleanly (acceptance: no "buffer had events" on exit)
-- [ ] `src/bruittrack/store.py` get_stats(): add `events_last_24h` counter as simple SQL COUNT (acceptance: field present in JSON response, test asserts it > 0 after inserting recent event; update tests/test_store.py and tests/test_bugfixes.py TestRetentionWiring)
+- [x] `src/bruittrack/store.py` get_stats(): add `events_last_24h` counter — SQL CASE strftime('%s','now','-1 day'), test test_get_stats_events_last_24h pass (commit: voir hash du prochain git log --oneline -1)
 - [x] `docs/decision-log.md` : 13 entrées datées (init v0.1.0, sosfilt, fixes BUG-02..12, FFT delay, FloorTracker transposé, budget persistance) (#9950b7b)
 - [ ] `src/bruittrack/__main__.py` cmd_test: add `--verbose-floor` flag that prints floor tracker health each 10 s (acceptance: new argparse flag, test in tests/test_bugfixes.py asserting no exception when flag passed with mock capture)
 
