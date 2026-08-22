@@ -39,7 +39,12 @@ Corriger toutes les erreurs listées dans BUGS.md.
 ## Statut bugs restants
 - BUG-01, 05, 12 : voir BUGS.md pour statut détaillé.
 
-Last updated: 2026-07-08
+## M6 — blocs de capture lents (5020110)
+- Telemetrie read-time par bloc (`last_read_us`, seuils nommes SLOW_READ_US=15 ms,
+  SLOW_BLOCK_STREAK=3) ; warning `Engine.step()` apres 3 lents consecutifs,
+  stall 20 ms injectable MockAudioCapture, 4 tests ; suite 45 pass.
+
+Last updated: 2026-08-22
 
 ## M2/M3 — 2026-08-22
 - check.sh SCORE 7/7 exit=0 ; docs commit 9950b7b ; IMPROVEMENTS prouvé (#b67eaeb, #9950b7b)
@@ -47,8 +52,8 @@ Last updated: 2026-07-08
 ## M4 — events_last_24h
 - get_stats() + SQL COUNT 24h, test pass (#817251e) ; suite 40 pass ; IMPROVEMENTS item [x] prouvé
 
-## M5 � cap ClusterIndex prouv� (#6782d8c)
+## M5 � cap ClusterIndex prouv� (#6782d8c)
 
 - `load_all_cluster_fingerprints(limit=100_000)` : SQL GROUP BY cluster + LIMIT, warning troncature.
-- Test 200 k ev. synth�tiques < 8 s (test_cluster_fingerprints_cap_and_speed pass).
+- Test 200 k ev. synth�tiques < 8 s (test_cluster_fingerprints_cap_and_speed pass).
 - Suite : 41 passed ; check.sh SCORE 7/7.

@@ -4,11 +4,11 @@
 - [x] SosFilter vectorisé — voie `scipy.signal.sosfilt` (4 biquads), 0,88 ms/tick mesuré T620, test d'équivalence scalaire (#b67eaeb)
 - [ ] `src/bruittrack/dsp.py` SosFilter.filter(): replace per-sample Python loop with vectorised stride slicing (acceptance: identical output, <50 ms for 48 k samples × 2 ch; add benchmark test in tests/test_dsp.py)
 - [ ] `src/bruittrack/viz.py` dashboard HTML: add channel-toggles and hover-tooltip with bin/freq (acceptance: clicking a event marker shows bin_i + lvl_g/dl, JS-only in src/bruittrack/viz.py, no new deps; add Playwright-free check that JSON fields `lvl_g`, `lvl_d` present in /api/events response — extend tests/test_viz_api.py)
-- [x] `src/bruittrack/events.py` ClusterIndex rebuild: cap `load_all_cluster_fingerprints(limit=100_000)` via SQL GROUP BY + LIMIT, warning troncature ; test 200 k ev. reconstruits < 8 s � tests/test_store.py::test_cluster_fingerprints_cap_and_speed pass (#6782d8c)
-- [ ] `src/bruittrack/capture.py` InputStream: emit per-block read-time (µs) to RingBuffer metadata so pipeline logs slow ALSA blocks > 15 ms (acceptance: engine.step() logs warning >= 3 consecutive slow blocks; add test with MockAudioCapture injecting 20 ms stall)
+- [x] `src/bruittrack/events.py` ClusterIndex rebuild: cap `load_all_cluster_fingerprints(limit=100_000)` via SQL GROUP BY + LIMIT, warning troncature ; test 200 k ev. reconstruits < 8 s � tests/test_store.py::test_cluster_fingerprints_cap_and_speed pass (#6782d8c)
+- [x] `src/bruittrack/capture.py` InputStream: emit per-block read-time (µs) to RingBuffer metadata so pipeline logs slow ALSA blocks > 15 ms — `last_read_us` + `consecutive_slow` par bloc, warning `Engine.step()` après 3 lents consécutifs ; stall 20 ms MockAudioCapture testé (#5020110)
 - [ ] `tests/test_pipeline.py` Engine stop() leaks check: assert store buffer flushed and capture._is_running False after engine.stop(); extend existing test_engine_run_stops cleanly (acceptance: no "buffer had events" on exit)
 - [x] `src/bruittrack/store.py` get_stats(): add `events_last_24h` counter — SQL CASE strftime('%s','now','-1 day'), test test_get_stats_events_last_24h pass (#817251e)
 - [x] `docs/decision-log.md` : 13 entrées datées (init v0.1.0, sosfilt, fixes BUG-02..12, FFT delay, FloorTracker transposé, budget persistance) (#9950b7b)
 - [ ] `src/bruittrack/__main__.py` cmd_test: add `--verbose-floor` flag that prints floor tracker health each 10 s (acceptance: new argparse flag, test in tests/test_bugfixes.py asserting no exception when flag passed with mock capture)
 
-Last updated: 2026-07-08
+Last updated: 2026-08-22

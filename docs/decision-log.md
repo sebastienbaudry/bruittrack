@@ -95,3 +95,8 @@
 ## [2026-08-22] Budget persistance — WAL, lots 30 s / 50 événements, index (t0, cluster)
 
 - **Décision** : `journal_mode=WAL` + `synchronous=NORMAL`, écriture groupée mémoire avant INSERT batch, index b-tree `(t0)` et `(cluster)` ; projection ≈ 7 Mo/an à 1 événement/mn, bien sous le budget SSD de la T620 (dfdfd — convention reprise du design v0.1.0, formalisée après l'audit BUG-03/04).
+
+## [2026-08-22] Telemetrie de lecture capture — blocs lents ALSA (M6)
+
+- **Contexte** : un bloc PortAudio en retard (surcharge CPU, I/O USB) demeurait invisible ; la seule consequence etait un silence DSP progressif.
+- **Decision** : temps de lecture par bloc mesure en µs (`last_read_us`) par `update_read_metrics()` — callback PortAudio pour `AudioCapture`, generation simulée (+ `stall_s` injectable) pour `MockAudioCapture`. Seuils nommes `SLOW_READ_US = 15_000` et `SLOW_BLOCK_STREAK = 3` ; `Engine._check_capture_health()` emet un warning apres 3 blocs lents consecutifs puis remet le compteur a zero (anti-spam). Pas de dependance, ~0 cout CPU (2 `time.monotonic()` par bloc) — budget T620 preserve (5020110).
