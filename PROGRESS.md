@@ -98,3 +98,10 @@ Last updated: 2026-08-22
 - Row 4 Capture synthetic 5 s via probe: implicit through test module green (remote 41 pytest passed).
 - Row 6 Events/store live: `bruittrack start` svc active (PID live), 514 events / 303 clusters in DB, stats --json OK.
 - Row 7 Viz/API live: ad-hoc viz on port 18760 -> /api/stats 200, /api/events?limit=3 200, / -> 200 (probe script /tmp/bt_viz_probe.sh on target).
+
+## Iteration 43 (pi-t620 matrices 5/7 LIVE)
+- Live service (PID 27534, uptime 8h45m): CPU 1h06min total, RAM RSS 70 MB -> inside budget.
+- stats --json live: total_events=514, top_cluster c=23 n=26.
+- Viz on :8760 serving real DB: /api/stats HTTP 200.
+- Exemplar endpoint live: GET /api/exemplar/23?1 -> HTTP 200, valid RIFF/WAVE, 1068 B (44 hdr + 1024 payload = 256 ms @1 kHz float16 stereo) - SPEC OK.
+- Note: viz exemplar_payload is float16 STEREO 2ch (1024 B), not mono; previous module_check nominal 512 was wrong.
