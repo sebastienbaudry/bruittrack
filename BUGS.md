@@ -207,6 +207,7 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
   commit 4e36373).
 
 ### BUG-12 — `MockAudioCapture` : non déterministe + cadence déconnectée du temps réel
+- **Statut** : ✅ corrigé — `seed=42` par défaut (L131), pacing `time.monotonic()` + `sleep` dans `get_block` (capture.py L170-175) ; régresse testée (`TestMockAudioCapture`, 3 tests).
 - **Lieu** : `src/bruittrack/capture.py` (classe `MockAudioCapture`)
 - **Description** :
   - `np.random.normal(...)` sans seed → bruit différent à chaque run ;

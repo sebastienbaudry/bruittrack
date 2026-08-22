@@ -208,3 +208,41 @@ def run():
 
 if __name__ == "__main__":
     run()
+
+
+class TestMockAudioCapture:
+    """BUG-12 regression: deterministic with seed, blocks paced near real-time."""
+
+    def test_seed_reproducibility_and_shape(self) -> None:
+        from bruittrack.capture import MockAudioCapture
+
+        m = MockAudioCapture(block_size=480, noise_level=0.1, seed=99)
+        m.start()
+        blocks = [m.get_block(0.05) for _ in range(3)]
+        m.stop()
+        x = np.concatenate(blocks, axis=0)
+        assert x.shape == (480 * 3, 2) and x.dtype == np.float32
+
+    def test_different_seeds_differ(self) -> None:
+        from bruittrack.capture import MockAudioCapture
+
+        def run(seed: int) -> np.ndarray:
+            m = MockAudioCapture(block_size=480, noise_level=0.1, seed=seed)
+            m.start()
+            blk = np.concatenate([m.get_block(0.05) for _ in range(3)], axis=0)
+            m.stop()
+            return blk
+
+        assert not np.array_equal(run(1), run(2)), "different seeds must produce different blocks"
+
+    def test_deterministic_same_seed_replay(self) -> None:
+        from bruittrack.capture import MockAudioCapture
+
+        def run() -> np.ndarray:
+            m = MockAudioCapture(block_size=480, noise_level=0.1, seed=7)
+            m.start()
+            blk = [m.get_block(0.05) for _ in range(3)]
+            m.stop()
+            return np.concatenate(blk, axis=0)
+
+        assert np.array_equal(run(), run()), "same seed must replay identical blocks"
