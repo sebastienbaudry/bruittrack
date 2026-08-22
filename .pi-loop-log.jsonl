@@ -122,3 +122,18 @@
 {"ts":"2026-08-22T19:49:14.717Z","iteration":0,"event":"soft_stop","stuckStreak":0,"notice":"Soft stop: iteration finished, loop stopped by operator. (finalized after restart)"}
 {"ts":"2026-08-22T20:00:21.518Z","iteration":1,"event":"continue","stuckStreak":0}
 {"ts":"2026-08-22T20:02:51.318Z","iteration":2,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T20:05:21.956Z","iteration":3,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T20:08:41.042Z","iteration":4,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T20:15:23.129Z","iteration":5,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T20:22:28.395Z","iteration":6,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T20:25:33.817Z","iteration":7,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T20:28:33.768Z","iteration":8,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T20:31:52.807Z","iteration":9,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T20:33:18.586Z","iteration":10,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T20:33:35.652Z","iteration":11,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T20:34:14.129Z","iteration":12,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T20:36:16.219Z","iteration":13,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T20:36:42.298Z","iteration":14,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T20:37:06.658Z","iteration":15,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T20:38:43.530Z","iteration":16,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T20:40:47.593Z","iteration":17,"event":"audit","stuckStreak":0,"notice":"No concrete changes for 8 iterations; audit nudge sent."}
