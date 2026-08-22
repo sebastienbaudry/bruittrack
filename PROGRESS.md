@@ -85,3 +85,10 @@ Last updated: 2026-08-22
 # - DB live: 497 events indexés (DSP/floor/détection, c.5)
 # - budget c.6 MESURE: CPU 6.2% <10 ; RAM 126 Mo <150 → BUDGET_OK
 # - GOAL c.1→c.7 couverts : CLI, config, capture, DSP/store, viz/DB, systemd validés sur cible
+
+## [date] — Vérification modules HP-debian (HP T620)
+- Synced fixed `store.py` to pi-t620 `/opt/bruittrack` (event-table guard :memory: persistent conn fix).
+- Remote target: `/opt/bruittrack`, venv `.venv/bin/python`.
+- Installed `pytest` in pi-t620 venv (dev dependency, not shipped by pip install).
+- **Result: 41 remote tests passed** (full suite). Previously failing
+  `test_verbose_floor_flag_and_health_line` now green on-target.
