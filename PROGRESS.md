@@ -61,3 +61,9 @@ Last updated: 2026-08-22
 ## 2026-08-22 — Batch #de15001
 - CLI `test --verbose-floor` : ligne [floor] (warmup/OK, médiane dB G/D, ptp) toutes les FLOOR_HEALTH_EVERY_TICKS=100 ticks ; helper format_floor_health() testé + cmd_test synthétique rc=0 (tests/test_bugfixes.py).
 - Fix racine : EventStore ":memory:" → 1 connexion persistante (_db()), close() la ferme ; BUG : flush échouait (no such table). Suite : 47 passed.
+
+## 2026-08-22 — Batch 1b8842e / #53cbf67 / #9de8de4
+- 1b8842e test(dsp) : benchmark SosFilter 48k échantillons × 2 ch < 50 ms (scipy fast path prouvé par la mesure, suite 48 pass).
+- #53cbf67+#9de8de4 viz : tests/test_viz_api.py NOUVEAU (4 tests, ThreadingHTTPServer port éphémère sur store tmp seedé : /api/events expose lvl_g/lvl_d/bin_i/freq — acceptance tooltips ; /api/stats cohérent ; homepage ; dashboard JS).
+- src/bruittrack/viz.py : boutons IN1/IN2 basculent canaux du timeline (règle dominance 2 dB) + tooltip clic/hover sur marker = cluster, bin_i, freq, lvl_g/lvl_d — JS seul, zéro dep ; ruff clean.
+- Docs : IMPROVEMENTS item 6 [x] (item 5 benchmark prouvé), README phase dashboard interactif. Suite finale : 52 passed.
