@@ -6,11 +6,14 @@ Acceptance IMPROVEMENTS.md item viz :
 - homepage HTML servie.
 """
 
+import io
 import json
 import http.server
 import threading
 import urllib.request
+import wave
 
+import numpy as np
 import pytest
 
 from bruittrack.config import Config, StorageConfig
@@ -40,11 +43,15 @@ def viz_server(tmp_path_factory):
                                           exemplars_dir=str(tmp / "exemplars")))
 
     handler = type("HandlerT", (BruitTrackHandler,), {"store": store, "config": config})
+    exemplars = tmp / "exemplars"
+    exemplars.mkdir(exist_ok=True)
+    (exemplars / "ex_1.raw").write_bytes(np.random.default_rng(42).normal(0.0, 0.1,
+                                                                          size=512).astype("float16").tobytes())
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    yield f"http://127.0.0.1:{port}", store
+    yield f"http://127.0.0.1:{port}", store, tmp
     server.shutdown()
     server.server_close()
     store.close()
@@ -57,7 +64,7 @@ def _get_json(base, path):
 
 
 def test_events_api_contains_tooltip_fields(viz_server):
-    base, _ = viz_server
+    base, _, _ = viz_server
     events = _get_json(base, "/api/events?limit=10")
     assert isinstance(events, list) and len(events) == 3
     for ev in events:
@@ -68,21 +75,21 @@ def test_events_api_contains_tooltip_fields(viz_server):
 
 
 def test_stats_api_reflects_counted_events(viz_server):
-    base, _ = viz_server
+    base, _, _ = viz_server
     stats = _get_json(base, "/api/stats")
     assert "total_events" in stats
     assert stats["total_events"] >= 3
 
 
 def test_homepage_served(viz_server):
-    base, _ = viz_server
+    base, _, _ = viz_server
     with urllib.request.urlopen(base + "/", timeout=5) as resp:
         body = resp.read().decode("utf-8")
     assert "BruitTrack" in body
 
 
 def test_dashboard_has_channel_toggles_and_tooltip(viz_server):
-    base, _ = viz_server
+    base, _, _ = viz_server
     with urllib.request.urlopen(base + "/", timeout=5) as resp:
         body = resp.read().decode("utf-8")
     # Item 6 : toggles de canal + tooltip bin/freq/niveaux dans le dashboard JS
@@ -90,3 +97,23 @@ def test_dashboard_has_channel_toggles_and_tooltip(viz_server):
         assert needle in body, f"élément JS manquant: {needle}"
     # Le tooltip expose bien les champs requis
     assert "bin ${ev.bin_i}" in body and "lvl_g.toFixed" in body
+
+
+def test_exemplar_wav_endpoint_viz(viz_server):
+    """/api/exemplar/<cid> sert un WAV float16-512 -> PCM16 valide (AGENTS: 256 ms, 2 ch)."""
+    base, _, _ = viz_server
+    with urllib.request.urlopen(base + "/api/exemplar/1", timeout=5) as resp:
+        assert resp.status == 200
+        assert resp.headers["Content-Type"] == "audio/wav"
+        body = resp.read()
+    assert body[:4] == b"RIFF" and b"WAVE" in body[:16]
+    with wave.open(io.BytesIO(body)) as w:
+        assert (w.getnchannels(), w.getframerate()) == (2, 1000)
+        assert w.getnframes() == 256
+
+
+def test_exemplar_missing_returns_404(viz_server):
+    base, _, _ = viz_server
+    with pytest.raises(urllib.error.HTTPError) as ei:
+        urllib.request.urlopen(base + "/api/exemplar/999", timeout=5)
+    assert ei.value.code == 404
