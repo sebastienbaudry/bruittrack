@@ -9,6 +9,7 @@
 - [x] `tests/test_pipeline.py` Engine stop() leaks check: assert store buffer flushed and capture._is_running False after engine.stop() — test_engine_stop_flushes_store_and_stops_capture (#03cf9f7)
 - [x] `src/bruittrack/store.py` get_stats(): add `events_last_24h` counter — SQL CASE strftime('%s','now','-1 day'), test test_get_stats_events_last_24h pass (#817251e)
 - [x] `docs/decision-log.md` : 13 entrées datées (init v0.1.0, sosfilt, fixes BUG-02..12, FFT delay, FloorTracker transposé, budget persistance) (#9950b7b)
-- [ ] `src/bruittrack/__main__.py` cmd_test: add `--verbose-floor` flag that prints floor tracker health each 10 s (acceptance: new argparse flag, test in tests/test_bugfixes.py asserting no exception when flag passed with mock capture)
+- [x] `src/bruittrack/__main__.py` cmd_test: add `--verbose-floor` flag that prints floor tracker health each 10 s — constant FLOOR_HEALTH_EVERY_TICKS=100, format_floor_health() unit-testé (#de15001)
+  - fix lié : EventStore(:memory:) utilisait une connexion éphémère par opération → schéma absent au flush ; connexion persistante + lock (#de15001)
 
-Last updated: 2026-08-22
+Last updated: #de15001 (--verbose-floor + fix store :memory:)

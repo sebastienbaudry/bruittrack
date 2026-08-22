@@ -17,6 +17,7 @@ pip install -e ".[dev]"
 cp config.toml.example config.toml        # puis renseigner `device` (voir ci-dessous)
 python -m bruittrack devices              # trouver le nom ALSA de la M-Track Plus
 python -m bruittrack test --seconds 60    # écouter 60 s en terminal
+# options test : --synthetic (pas de carte son), --verbose-floor (état du FloorTracker /10 s)
 python -m bruittrack start &              # capture daemonisée → data/bruittrack.db
 python -m bruittrack viz                  # http://localhost:8760
 ```

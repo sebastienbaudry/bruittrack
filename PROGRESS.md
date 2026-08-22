@@ -57,3 +57,7 @@ Last updated: 2026-08-22
 - `load_all_cluster_fingerprints(limit=100_000)` : SQL GROUP BY cluster + LIMIT, warning troncature.
 - Test 200 k ev. synth�tiques < 8 s (test_cluster_fingerprints_cap_and_speed pass).
 - Suite : 41 passed ; check.sh SCORE 7/7.
+
+## 2026-08-22 — Batch #de15001
+- CLI `test --verbose-floor` : ligne [floor] (warmup/OK, médiane dB G/D, ptp) toutes les FLOOR_HEALTH_EVERY_TICKS=100 ticks ; helper format_floor_health() testé + cmd_test synthétique rc=0 (tests/test_bugfixes.py).
+- Fix racine : EventStore ":memory:" → 1 connexion persistante (_db()), close() la ferme ; BUG : flush échouait (no such table). Suite : 47 passed.
