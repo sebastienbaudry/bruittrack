@@ -20,6 +20,7 @@ python -m bruittrack test --seconds 60    # écouter 60 s en terminal
 # options test : --synthetic (pas de carte son), --verbose-floor (état du FloorTracker /10 s)
 python -m bruittrack start &              # capture daemonisée → data/bruittrack.db
 python -m bruittrack viz                  # http://localhost:8760
+                                                              # clic sur un événement = détail bin/freq/niveaux ; boutons IN1/IN2 = bascule des canaux
 ```
 
 Service systemd : [systemd/bruittrack.service](systemd/bruittrack.service)
