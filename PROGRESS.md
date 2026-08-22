@@ -92,3 +92,9 @@ Last updated: 2026-08-22
 - Installed `pytest` in pi-t620 venv (dev dependency, not shipped by pip install).
 - **Result: 41 remote tests passed** (full suite). Previously failing
   `test_verbose_floor_flag_and_health_line` now green on-target.
+
+## Iteration 39-41 (pi-t620 matrix rows)
+- Row 3 CLI devices: OK (M-Track Plus hw:2 visible ALSA; PortAudio ID varies per run — see ASSUMPTIONS A-dev).
+- Row 4 Capture synthetic 5 s via probe: implicit through test module green (remote 41 pytest passed).
+- Row 6 Events/store live: `bruittrack start` svc active (PID live), 514 events / 303 clusters in DB, stats --json OK.
+- Row 7 Viz/API live: ad-hoc viz on port 18760 -> /api/stats 200, /api/events?limit=3 200, / -> 200 (probe script /tmp/bt_viz_probe.sh on target).
