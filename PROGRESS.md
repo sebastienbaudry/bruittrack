@@ -22,3 +22,4 @@ Corriger toutes les erreurs listées dans BUGS.md.
 ## Iteration 10
 - [ ] ruff non installé localement (supposition documentée en ASSUMPTIONS.md).
 - [x] Test de régression concurrent writer/readers ajouté (à venir ci-dessous).
+- [x] Test de régression concurrent writer/readers — commit 1d01e28, 29/29 verts.

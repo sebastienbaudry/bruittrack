@@ -13,7 +13,8 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
 ## P0
 
 ### BUG-01 — Serveur de visualisation : connexion SQLite partagée entre threads sans protection → crash dès le 1ᵉʳ affichage
-- **Lieu** : `src/bruittrack/store.py:38,55` ; `src/bruittrack/viz.py:340-343,441-444,454`
+- **Lieu** : `src/bruittrack/store.py` (`cursor()`, `_init_db`) ; `src/bruittrack/viz.py:340-343,441-444,454`
+- **Statut** : corrigé par la refonte `cursor()` courte durée (commit dfd2d08) + test concurrent lecteur / rédacteur (`test_concurrent_writer_and_readers`, 1d01e28).
 - **Description** : `run_viz_server` crée **une seule** `EventStore`, dont la
   connexion `sqlite3.connect(...)` n'est pas ouverte avec
   `check_same_thread=False`, et la classe du handler y accède depuis chaque
@@ -56,7 +57,7 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
   store en silence (argument obligatoire ou mode explicite).
 
 ### BUG-03 — `EventStore.flush()` perd des événements en cas d'erreur SQLite
-- **Lieu** : `src/bruittrack/store.py:107-114` (`flush`), `store.py:93-95` (`add_event`)
+- **Lieu** : `src/bruittrack/store.py` — `EventStore.flush` (L195), `add_event` (L122)
 - **Description** : avant l'insertion, le buffer est **transféré** vers une
   liste locale (`events_to_write = self._buffer; self._buffer = []`). Si
   `cursor.executemany(...)` ou `commit()` lève une exception (disk full,
@@ -71,7 +72,7 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
   vérifie que les événements survivent.
 
 ### BUG-04 — `retention_days` n'a aucun effet : `apply_retention` n'est jamais appelé
-- **Lieu** : `src/bruittrack/store.py:294` (définition) ; aucune occurrence d'appel
+- **Lieu** : `src/bruittrack/store.py` — `EventStore.apply_retention` (L330) ; aucune occurrence d'appel
   dans `src/bruittrack/pipeline.py`, `src/bruittrack/__main__.py`,
   `src/bruittrack/viz.py` (grep confirmé). La valeur est lue dans
   `src/bruittrack/config.py:167,178` mais jamais consommée.
@@ -105,7 +106,7 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
 ## P2
 
 ### BUG-06 — `compute_channel_delay_ms` : signe opposé à la docstring (`off_ms` inversé)
-- **Lieu** : `src/bruittrack/dsp.py:311` (docstring : « Positive delay: Left leads Right ») vs `src/bruittrack/dsp.py:340` (`best_lag_samples = -int(lag_range[best_idx])`)
+- **Lieu** : `src/bruittrack/dsp.py` — `compute_channel_delay_ms` : docstring L296 vs `best_lag_samples = -int(lag_range[best_idx])` L325
 - **Description** : en mode `"full"`, si le canal 0 (Left) est en avance de
   `t` échantillons, le pic de corrélation est en index `mid + t`.
   `int(lag_range[best_idx]) = +t`, puis la négation renvoie `−t` : **négatif
@@ -125,7 +126,7 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
   `off_ms` déjà en base → documenter la migration éventuelle.
 
 ### BUG-07 — Normalisation Welch non conforme : `(Σw)²` au lieu de `Σw²`
-- **Lieu** : `src/bruittrack/dsp.py:157` (`self.window_scale = float(np.sum(self.hann_window) ** 2)`)
+- **Lieu** : `src/bruittrack/dsp.py` — `SpectraEstimator.__init__`, `window_scale = ...hann_window**2` (L142)
 - **Description** : la densité spectrale de puissance standard (Welch) est
   mise à l'échelle par `sum(w**2)`, pas `(sum(w))**2`. Pour une fenêtre de
   Hann de 2048, ces deux factor… **facteurs** ne sont pas égaux (~2.5× la
@@ -145,7 +146,8 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
   dans le decision-log.
 
 ### BUG-08 — `EventStore._buffer` sans verrou : race condition potentiel avec le futur threading
-- **Lieu** : `src/bruittrack/store.py:34` (`self._buffer: list = []`), `:93-95`, `:98-104`, `:107-114`
+- **Lieu** : `src/bruittrack/store.py` — `EventStore.__init__` `_buffer` (L76), `add_event` (L122), `_do_flush` (L137), `flush` (L195)
+- **Statut** : corrigé — verrou `threading.Lock()` sur le buffer + tests de régression 24/08 (`test_add_event_autoflush_no_deadlock`, `test_concurrent_writer_and_readers`).
 - **Description** : aucune synchronisation sur `self._buffer`. Actuellement
   le chemin capture est **mono-threads** (une seule boucle `Engine.step`)
   et `add_event`/`maybe_flush`/`flush` s'appellent séquentiellement → pas
@@ -188,7 +190,7 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
   invariants ; message d'erreur explicite au démarrage (fail fast).
 
 ### BUG-11 — `SosFilter.set_initial_state` : code mort + approximation grossière
-- **Lieu** : `src/bruittrack/dsp.py:73-89`
+- **Lieu** : (supprimée — méthode `SosFilter.set_initial_state`, anciennement `src/bruittrack/dsp.py:73-89`)
 - **Description** : méthode jamais appelée (`DspPipeline` ne l'utilise pas ;
   les filtres démarrent toujours de l'état nul). De plus, la formule
   `zi[0] = (b[1] - a[1]*b[0]) * val`, `zi[1] = (b[2] - a[2]*b[0]) * val` ne
