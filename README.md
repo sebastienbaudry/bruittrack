@@ -55,3 +55,31 @@ Version initiale complète (v0.1.0) :
 - Interface de visualisation Web légère autonome (HTML5 Canvas + API REST).
 - CLI complète (`devices`, `test`, `start`, `viz`, `stats`).
 - Suite de tests unitaires 100 % déterministe sans matériel.
+
+## Installation (hpdebian)
+Cible HP T620 (Debian 13, x86 ~1,5 GHz, 4 Go RAM) pour l'exécution continue :
+```bash
+sudo bash tools/install_hp.sh   # apt deps → /opt/bruittrack/git + .venv → config.toml → systemd enable --now
+```
+Idempotent. Post-install : identifier le périphérique `M-Track Plus` dans
+`${APP_DIR}/config.toml` via `python -m bruittrack devices` (jamais en dur),
+puis `sudo systemctl restart bruittrack`.
+Pre-flight hors ligne avant déploiement : `tools/module_check.py --offline`
+(marge C4) — CLI, config load+validate, fingerprint+ClusterIndex, store
+`:memory:`, viz API (stats/events/exemplar WAV 2ch @1 kHz).
+
+## Vérification des modules
+Matrice cible 1:1 avec GOAL.md c.3–c.5 + lignes M1/M2 locales : chaque
+module est validé isolément sur la cible avec une preuve commandée
+(`output.txt` de PROGRESS.md) et un critère mesurables :
+| # | Module | Check clé (cible) | Pass |
+|---|--------|-----------------|------|
+| 1 | CLI | `--help rc=0`, sous-commandes visibles | ✅ |
+| 2 | Config | load_config()+validate() sans exception | ✅ |
+| 3 | Capture | `test --seconds 60 [--synthetic]` rc=0, no ALSA stall | ❔ (hardware) |
+| 4 | DSP + floor | `--verbose-floor` : les `[floor]` lignes sont OK après ≈10 s | ❔ (hardware) |
+| 5 | Events/store | `stats --json` : DB WAL init, compteur plausible | ✅ (offline store) |
+| 6 | Viz/API | `curl /api/stats` 200 JSON ; `/api/exemplar/<c>` WAV 2ch@1 kHz | ✅ (harness) |
+| 7 | systemd | `active (running)`, enabled, journal sans exception | ❔ (host) |
+| 8 | Budget | après ≥10 min : <10 % CPU et <150 Mo RSS | ❔ (host) |
+❔ = à valider sur cible après l'installation ; ✅ via harness/py tests.
