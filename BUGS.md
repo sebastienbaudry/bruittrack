@@ -40,6 +40,8 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
 ## P1
 
 ### BUG-02 — `bruittrack test` pollut la base de données de production
+
+- **Statut** : ✅ corrigé — store `:memory:` injecté dans `cmd_test` (commit e8d591f), aucun événement de test en base de production.
 - **Lieu** : `src/bruittrack/__main__.py:55,85` ; `src/bruittrack/pipeline.py` (`Engine.__init__`) ; `src/bruittrack/store.py:29` (chemin par défaut)
 - **Description** : `cmd_test` construit `Engine(config=config, capture=MockAudioCapture(...))`
   **sans injecter** `store`. `Engine.__init__` crée alors automatiquement
@@ -182,6 +184,8 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
   s'appliquer ; `None` devient l'unique « désactiver » explicite.
 
 ### BUG-10 — `load_config` sans validation de cohérence des valeurs
+
+- **Statut** : ✅ corrigé — `Config.validate()` vérifie les invariants (block_size % decimation, freq_max ≤ Nyquist, debounce_ticks ≥ 1, max_duration_s > 0) et `load_config` l'appelle ; tests `TestConfigValidation` (tests TestConfigValidation).
 - **Lieu** : `src/bruittrack/config.py` (`load_config`) ; consommés en `src/bruittrack/dsp.py`, `pipeline.py`, `events.py`
 - **Description** : plusieurs combinaisons possibles laissent le pipeline
   démarrer dans un état invalide ou absurde : `block_size % decimation != 0`
