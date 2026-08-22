@@ -93,3 +93,47 @@ def test_store_crud_and_batching() -> None:
         assert len(events_after) == 0
 
         store.close()
+
+
+def test_concurrent_writer_and_readers(tmp_path: Path) -> None:
+    """One writer + two readers must not corrupt the DB or deadlock (BUG-08)."""
+    n_events = 120
+    n_batch = 7
+    store = EventStore(db_path=str(tmp_path / "cc.db"), batch_size=n_batch)
+    errors: list[BaseException] = []
+    results: list[int] = []
+    import threading as _t
+
+    def writer() -> None:
+        try:
+            t0 = time.time()
+            for i in range(n_events):
+                store.add_event(
+                    SoundEvent(t0=t0 + i, dur=1.0, bin_i=i % 20, freq=float(i),
+                               lvl_g=5.0, lvl_d=4.0, off_ms=0.0, fp=b"\x01" * 16)
+                )
+            store.flush()
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    def reader(tag: int) -> None:
+        try:
+            for _ in range(150):
+                results.append(store.get_stats()["total_events"])
+                store.get_events(limit=10)
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [_t.Thread(target=writer), _t.Thread(target=reader, args=(1,)),
+               _t.Thread(target=reader, args=(2,))]
+    for t in threads:
+        t.start()
+    deadline = time.time() + 30
+    for t in threads:
+        t.join(timeout=max(0.1, deadline - time.time()))
+        if t.is_alive():
+            pytest.fail(f"thread {t.name} deadlocked")
+
+    assert not errors, f"exceptions during concurrent access: {errors}"
+    assert store.get_stats()["total_events"] == n_events
+    assert results == sorted(results)  # counters monotonic

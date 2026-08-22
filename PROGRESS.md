@@ -18,3 +18,7 @@ Corriger toutes les erreurs listées dans BUGS.md.
 ## Notes
 - get_stats/get_events appellent flush() en préambule (comportement couvert par test_add_event_autoflush_no_deadlock).
 - Tests top-level `tests/`, DB temp via fixtures tmp_path.
+
+## Iteration 10
+- [ ] ruff non installé localement (supposition documentée en ASSUMPTIONS.md).
+- [x] Test de régression concurrent writer/readers ajouté (à venir ci-dessous).
