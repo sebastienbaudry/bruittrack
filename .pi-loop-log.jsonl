@@ -77,3 +77,6 @@
 {"ts":"2026-08-22T15:15:30.531Z","iteration":6,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
 {"ts":"2026-08-22T15:16:08.544Z","iteration":7,"event":"continue","stuckStreak":0}
 {"ts":"2026-08-22T15:17:04.025Z","iteration":7,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
+{"ts":"2026-08-22T15:18:46.985Z","iteration":8,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T15:20:29.872Z","iteration":8,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
+{"ts":"2026-08-22T15:22:32.104Z","iteration":8,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}

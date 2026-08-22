@@ -43,3 +43,6 @@ Last updated: 2026-07-08
 
 ## M2/M3 — 2026-08-22
 - check.sh SCORE 7/7 exit=0 ; docs commit 9950b7b ; IMPROVEMENTS prouvé (#b67eaeb, #9950b7b)
+
+## M4 — events_last_24h
+- get_stats() + SQL COUNT 24h, test pass (#817251e) ; suite 40 pass ; IMPROVEMENTS item [x] prouvé
