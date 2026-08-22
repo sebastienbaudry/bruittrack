@@ -290,11 +290,11 @@ class TestFlushErrorPreservation:
         real_cursor = store_mod.cursor
         failures = {"n": 0}
 
-        def failing(path):
+        def failing(path, *args, **kwargs):
             failures["n"] += 1
             if failures["n"] == 1:
                 raise RuntimeError("simulated sqlite failure")
-            return real_cursor(path)
+            return real_cursor(path, *args, **kwargs)
 
         store_mod.cursor = failing
         try:
@@ -329,3 +329,30 @@ class TestExemplarWav:
         assert wf.getsampwidth() == 2
         assert wf.getframerate() == 1000
         assert wf.getnframes() == 128
+
+
+def test_verbose_floor_flag_and_health_line(tmp_path, capsys) -> None:
+    """--verbose-floor: format sans exception + cmd_test synthétique rc=0."""
+    import numpy as np
+    from types import SimpleNamespace
+
+    from bruittrack.__main__ import cmd_test, format_floor_health
+    from bruittrack.dsp import FloorTracker
+
+    def tracker(warmed: bool, n_bins: int = 99) -> FloorTracker:
+        ft = FloorTracker(warmup_ticks=2 if warmed else 100)
+        psd = np.zeros(n_bins, dtype=np.float32)
+        for _ in range(10):
+            ft.update(psd.copy(), psd.copy())
+        return ft
+
+    line_warm = format_floor_health(tracker(True))
+    assert "OK" in line_warm and "médiane" in line_warm
+    line_cold = format_floor_health(tracker(False))
+    assert "warmup" in line_cold
+
+    cfg = tmp_path / "empty.toml"
+    cfg.touch()
+    args = SimpleNamespace(config=str(cfg), seconds=1, synthetic=True, verbose_floor=True)
+    assert cmd_test(args) == 0
+    capsys.readouterr()  # les lignes de test sont tolérées

@@ -21,6 +21,19 @@ import numpy as np
 
 from bruittrack import __version__
 from bruittrack.capture import AudioCapture, MockAudioCapture, list_audio_devices
+
+# Fréquence de la ligne d'état FloorTracker en mode --verbose-floor (10 s à 100 ms/tick).
+FLOOR_HEALTH_EVERY_TICKS = 100
+
+
+def format_floor_health(floor_tracker) -> str:
+    """Une ligne lisible de l'état du FloorTracker (G / D) pour --verbose-floor."""
+    f1, f2 = floor_tracker.get_floor()
+    status = "OK" if floor_tracker.is_warmed_up else "warmup"
+    return (
+        f"[floor] {status} | médiane {float(np.median(f1)):.1f} / {float(np.median(f2)):.1f} dB"
+        f" | ptp {float(np.ptp(f1)):.1f} / {float(np.ptp(f2)):.1f} dB"
+    )
 from bruittrack.config import load_config
 from bruittrack.pipeline import Engine
 from bruittrack.store import EventStore
@@ -110,6 +123,9 @@ def cmd_test(args: argparse.Namespace) -> int:
             max_em2 = float(np.max(em2))
             peak_bin = int(np.argmax(np.maximum(em1, em2)))
             peak_freq = peak_bin * engine.dsp.bin_resolution
+
+            if getattr(args, "verbose_floor", False) and tick % FLOOR_HEALTH_EVERY_TICKS == 0:
+                print(f"{tick:6d}  | {format_floor_health(engine.floor_tracker)}")
 
             warm_str = "OK" if engine.floor_tracker.is_warmed_up else f"{tick}/{config.detector.warmup_ticks}"
             event_str = f"DETECTÉ ! #{events[0].cluster} ({events[0].dur}s)" if events else ""
@@ -263,6 +279,8 @@ def main() -> int:
     test_p = subparsers.add_parser("test", help="Test live en terminal sans GUI")
     test_p.add_argument("--seconds", "-s", type=int, default=30, help="Durée du test en secondes (défaut: 30)")
     test_p.add_argument("--synthetic", action="store_true", help="Utiliser un signal de test synthétique")
+    test_p.add_argument("--verbose-floor", dest="verbose_floor", action="store_true",
+                        help="Imprimer l'état du FloorTracker (chaud, médiane) toutes les 10 s")
 
     # start
     subparsers.add_parser("start", help="Démarrer le démon de capture et détection")

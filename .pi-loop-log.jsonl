@@ -107,3 +107,5 @@
 {"ts":"2026-08-22T16:14:08.566Z","iteration":12,"event":"context_circuit_open","stuckStreak":0,"notice":"Emergency context compaction failed: Cannot read properties of undefined (reading 'signal')."}
 {"ts":"2026-08-22T18:17:38.093Z","iteration":13,"event":"continue","stuckStreak":0}
 {"ts":"2026-08-22T18:18:45.684Z","iteration":14,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T18:22:22.849Z","iteration":15,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T18:28:50.453Z","iteration":16,"event":"continue","stuckStreak":0}

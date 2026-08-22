@@ -38,6 +38,9 @@ def cursor(
         readonly: Open with ``PRAGMA query_only=ON`` for read queries.
         timeout_s: Busy-timeout in seconds before raising on lock contention.
     """
+    if db_path == ":memory:":
+        yield sqlite3.connect(":memory:")
+        return
     path = Path(db_path)
     if not readonly:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -77,6 +80,14 @@ class EventStore:
         self._last_flush_time = time.monotonic()
         self._lock = threading.Lock()
 
+        # Mode :memory: — schéma non persistant entre connexions éphémères,
+        # donc une seule connexion partagée (protégée par self._lock en écriture).
+        self._is_memory = str(db_path) == ":memory:"
+        self._mem_conn: sqlite3.Connection | None = None
+        if self._is_memory:
+            self._mem_conn = sqlite3.connect(":memory:")
+            self._mem_conn.row_factory = sqlite3.Row
+
         # WAL mode is set on every connection inside cursor(); the schema
         # itself migrates from any prior (non-WAL) database on first open.
         self._init_db()
@@ -87,9 +98,24 @@ class EventStore:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
 
+    @contextmanager
+    def _db(
+        self,
+        readonly: bool = False,
+        timeout_s: float = 10.0,
+    ) -> Iterator[sqlite3.Connection]:
+        """Connexion : persistante en mode :memory:, éphémère sinon (WAL)."""
+        if self._is_memory:
+            with self._lock:
+                assert self._mem_conn is not None
+                yield self._mem_conn
+            return
+        with cursor(self.db_path, readonly=readonly, timeout_s=timeout_s) as conn:
+            yield conn
+
     def _init_db(self) -> None:
         """Initialize tables and indices if not present."""
-        with cursor(self.db_path) as conn:
+        with self._db() as conn:
             conn.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS events (
@@ -158,7 +184,7 @@ class EventStore:
         ]
 
         try:
-            with cursor(self.db_path) as conn:
+            with self._db() as conn:
                 cursor_obj = conn.cursor()
                 cursor_obj.executemany(
                     """
@@ -207,7 +233,7 @@ class EventStore:
 
         Capped at ``limit`` groups (safeguard RAM T620) ; logged warning if truncated.
         """
-        with cursor(self.db_path, readonly=True) as conn:
+        with self._db(readonly=True) as conn:
             rows = conn.execute(
                 """
                 SELECT cluster, MIN(id) AS first_id
@@ -257,7 +283,7 @@ class EventStore:
         query += " ORDER BY t0 DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
 
-        with cursor(self.db_path, readonly=True) as conn:
+        with self._db(readonly=True) as conn:
             results = []
             for row in conn.execute(query, params).fetchall():
                 d = dict(row)
@@ -270,7 +296,7 @@ class EventStore:
     def get_stats(self) -> dict[str, Any]:
         """Get aggregate statistics (thread-safe read)."""
         self.flush()
-        with cursor(self.db_path, readonly=True) as conn:
+        with self._db(readonly=True) as conn:
             row = conn.execute(
                 """
                 SELECT
@@ -293,7 +319,7 @@ class EventStore:
     def get_clusters_summary(self) -> list[dict[str, Any]]:
         """Get summary list of all clusters (thread-safe read)."""
         self.flush()
-        with cursor(self.db_path, readonly=True) as conn:
+        with self._db(readonly=True) as conn:
             return [
                 dict(row)
                 for row in conn.execute(
@@ -321,7 +347,7 @@ class EventStore:
         self, cluster_id: int, flags: int, label: str | None = None
     ) -> bool:
         """Set triage flags (known/ignored) and optional label on a cluster."""
-        with cursor(self.db_path) as conn:
+        with self._db() as conn:
             if label is not None:
                 rowcount = conn.execute(
                     """
@@ -349,7 +375,7 @@ class EventStore:
             return 0
 
         cutoff = time.time() - (retention_days * 86400.0)
-        with cursor(self.db_path) as conn:
+        with self._db() as conn:
             deleted = conn.execute(
                 "DELETE FROM events WHERE t0 < ?", (cutoff,)
             ).rowcount
@@ -357,5 +383,8 @@ class EventStore:
             return deleted
 
     def close(self) -> None:
-        """Flush pending buffer; connections are already short-lived."""
+        """Flush pending buffer, then release the persistent :memory: connection."""
         self.flush()
+        if self._mem_conn is not None:
+            self._mem_conn.close()
+            self._mem_conn = None
