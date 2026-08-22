@@ -160,3 +160,44 @@ def test_get_stats_events_last_24h(tmp_path: Path) -> None:
     assert "events_last_24h" in stats
     assert stats["events_last_24h"] == 1
     assert stats["total_events"] == 1
+
+
+def test_cluster_fingerprints_cap_and_speed(tmp_path: Path) -> None:
+    """Cap 100k groups + rebuild of 200k synthetic events stays < 8 s."""
+    import time as _time
+
+    from bruittrack.store import cursor
+
+    db_path = tmp_path / "cap.db"
+    store = EventStore(db_path=db_path, batch_size=10)
+
+    n = 200_000
+    t_start = _time.perf_counter()
+    with cursor(db_path) as conn:
+        conn.executemany(
+            "INSERT INTO events (t0, dur, bin_i, freq, lvl_g, lvl_d, off_ms, fp, flags, cluster) VALUES (?,?,?,?,?,?,?, ?, 0, ?)",
+            [
+                (
+                    1.7e9 + i * 0.36,
+                    1.0,
+                    i % 99,
+                    4.0,
+                    5.0,
+                    4.0,
+                    0.0,
+                    bytes([(i >> j) & 1 for j in range(8, -1, -1)]),
+                    i % 20_000,
+                )
+                for i in range(n)
+            ],
+        )
+        conn.commit()
+    fps = store.load_all_cluster_fingerprints()
+    from bruittrack.events import ClusterIndex
+
+    idx = ClusterIndex()
+    for cid, fp in fps.items():
+        idx.add_existing(cid, fp)
+    assert len(idx.clusters) == 20_000
+    elapsed = _time.perf_counter() - t_start
+    assert elapsed < 8.0

@@ -200,16 +200,30 @@ class EventStore:
     # Read path: each call opens a fresh short-lived connection, so no
     # connection is ever shared across threads.
 
-    def load_all_cluster_fingerprints(self) -> dict[int, bytes]:
-        """Load representative fingerprints for all known clusters."""
+    def load_all_cluster_fingerprints(
+        self, limit: int = 100_000
+    ) -> dict[int, bytes]:
+        """Load representative fingerprints for all known clusters.
+
+        Capped at ``limit`` groups (safeguard RAM T620) ; logged warning if truncated.
+        """
         with cursor(self.db_path, readonly=True) as conn:
             rows = conn.execute(
                 """
                 SELECT cluster, MIN(id) AS first_id
                 FROM events WHERE cluster IS NOT NULL
-                GROUP BY cluster;
-                """
+                GROUP BY cluster
+                ORDER BY MIN(id)
+                LIMIT ?;
+                """,
+                (limit,),
             ).fetchall()
+            if len(rows) >= limit:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    f"ClusterIndex: cap {limit} atteint, troncature possible"
+                )
             result: dict[int, bytes] = {}
             for group in rows:
                 rid, cid = group["first_id"], group["cluster"]
