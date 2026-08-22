@@ -1,0 +1,80 @@
+# Configuration BruitTrack
+# Copier ce fichier vers config.toml et adapter selon votre matériel.
+
+[audio]
+# Nom ou index du périphérique PortAudio / ALSA (ex: "M-Track Plus", "hw:CARD=Plus,DEV=0", ou None pour défaut)
+# Exécuter `python -m bruittrack devices` pour lister les périphériques disponibles.
+device = ""
+
+# Taux d'échantillonnage de capture (Hz)
+sample_rate = 48000
+
+# Facteur de décimation exacte (48000 / 48 = 1000 Hz)
+decimation = 48
+
+# Taille de bloc brut à 48 kHz (4800 = 100 ms)
+block_size = 4800
+
+# Nombre de canaux (IN1: Air, IN2: Structure)
+channels = 2
+
+[dsp]
+# Taille des sous-segments pour Welch à 1000 Hz (2048 pts = 2.048 s => résolution ~0.488 Hz/bin)
+n_seg = 2048
+
+# Recouvrement des segments Welch (1024 pts = 50%)
+noverlap = 1024
+
+# Taille du tampon glissant basse fréquence (8192 pts = 8.192 s, 7 segments Welch)
+n_buffer = 8192
+
+# Fréquence maximale d'analyse infrasons (Hz)
+freq_max = 48.0
+
+# Facteur de lissage exponentiel temporel (0 = lissage max, 1 = pas de lissage)
+ema_alpha = 0.5
+
+# Nombre de blocs pour le calcul de la médiane glissante du bruit de fond (300 blocs = 30 s)
+floor_history_len = 300
+
+# Fréquence de coupure du filtre passe-bas anti-repliement (Hz)
+lp_cutoff_hz = 400.0
+
+[detector]
+# Seuil d'émergence en dB au-dessus du plancher de bruit pour déclencher un événement
+threshold_db = 10.0
+
+# Hystérésis en dB pour relâcher l'événement (arrêt si émergence < seuil - hysteresis)
+hysteresis_db = 3.0
+
+# Durée minimale requise (en blocs de 100 ms) avant de valider l'événement (5 = 0.5 s)
+debounce_ticks = 5
+
+# Durée maximale d'un segment d'événement avant découpage forcé (secondes)
+max_duration_s = 30.0
+
+# Nombre de blocs d'échauffement au démarrage avant d'autoriser les détections (300 = 30 s)
+warmup_ticks = 300
+
+[storage]
+# Chemin de la base de données SQLite
+db_path = "data/bruittrack.db"
+
+# Répertoire de stockage des extraits audio exemplaires (256 ms @ 1kHz)
+exemplars_dir = "exemplars"
+
+# Nombre d'événements à accumuler en mémoire avant écriture SQLite
+batch_size = 50
+
+# Délai maximal (secondes) avant vidage forcé du lot d'événements vers SQLite
+batch_timeout_s = 30.0
+
+# Rétention des données en jours (0 ou null = conservation infinie)
+retention_days = 365
+
+[viz]
+# Adresse IP d'écoute du serveur web léger
+host = "0.0.0.0"
+
+# Port d'écoute du serveur web
+port = 8760

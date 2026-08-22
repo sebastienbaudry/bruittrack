@@ -1,0 +1,25 @@
+[Unit]
+Description=BruitTrack - Traqueur de bruits récurrents (DSP & Capture)
+After=sound.target network.target
+
+[Service]
+Type=simple
+User=bruittrack
+Group=audio
+WorkingDirectory=/opt/bruittrack
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/opt/bruittrack/.venv/bin/python -m bruittrack start --config /opt/bruittrack/config.toml
+Restart=always
+RestartSec=5s
+
+# Priorité et isolation
+Nice=-5
+LimitRTPRIO=50
+LimitMEMLOCK=infinity
+
+# Journalisation
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

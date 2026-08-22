@@ -1,0 +1,39 @@
+[build-system]
+requires = ["flit_core >=3.8,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "bruittrack"
+version = "0.1.0"
+description = "Traqueur d'événements sonores récurrents (basses fréquences / infrasons) pour thin client 24/7"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "BruitTrack Contributors"}
+]
+keywords = ["audio", "infrasound", "dsp", "sounddevice", "sqlite", "thin-client"]
+dependencies = [
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+audio = [
+    "sounddevice>=0.4.6",
+]
+dev = [
+    "pytest>=7.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+bruittrack = "bruittrack.__main__:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+pythonpath = ["src"]

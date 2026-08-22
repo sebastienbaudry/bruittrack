@@ -45,5 +45,10 @@ optionnel **un seul** par cluster (256 ms basse fréquence).
 
 ## État
 
-Squelette fonctionnel (v0.1) : pipeline DSP et détection implémentés et testés
-sans matériel ; capture, store et viz à compléter. Voir `TODO` dans le code.
+Version initiale complète (v0.1.0) :
+- Pipeline DSP pur NumPy (Butterworth 400 Hz, décimation x48, Welch, EMA, FloorTracker).
+- Détection d'émergence, empreintes acoustiques 16 octets et clustering (`ClusterIndex`).
+- Persistance SQLite WAL avec insertion par lots et politique de rétention.
+- Interface de visualisation Web légère autonome (HTML5 Canvas + API REST).
+- CLI complète (`devices`, `test`, `start`, `viz`, `stats`).
+- Suite de tests unitaires 100 % déterministe sans matériel.
