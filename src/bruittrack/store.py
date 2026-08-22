@@ -78,7 +78,9 @@ class EventStore:
 
         self._buffer: list[SoundEvent] = []
         self._last_flush_time = time.monotonic()
-        self._lock = threading.Lock()
+        # RLock : _db() is re-entered by flush()/add_event() which already
+        # hold the lock; a plain Lock would self-deadlock (:memory: path).
+        self._lock = threading.RLock()
 
         # Mode :memory: — schéma non persistant entre connexions éphémères,
         # donc une seule connexion partagée (protégée par self._lock en écriture).

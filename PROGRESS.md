@@ -70,3 +70,6 @@ Last updated: 2026-08-22
 
 ## 2026-08-23 — Batch #6411d23
 - tests/test_viz_api.py: fixture expose tmp (yield 3-tuple), seed ex_1.raw (512 float16) ; nouvelles tests /api/exemplar/1 (RIFF/WAVE, PCM16 2 ch @1000 Hz, 256 frames) + /api/exemplar/999 → 404. Suite: 54 passed.
+# de15006 M1 tools/module_check.py: 5 checks offline OK
+#         fix store :memory: deadlock Lock->RLock (flush()->_db)
+
