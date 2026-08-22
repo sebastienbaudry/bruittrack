@@ -356,3 +356,31 @@ def test_verbose_floor_flag_and_health_line(tmp_path, capsys) -> None:
     args = SimpleNamespace(config=str(cfg), seconds=1, synthetic=True, verbose_floor=True)
     assert cmd_test(args) == 0
     capsys.readouterr()  # les lignes de test sont tolérées
+
+
+def test_stats_json_flag(tmp_path, monkeypatch):
+    """I1: stats --json produit une sortie JSON machine parseable (M6)."""
+    import io
+    import json as _json
+    import sys as _sys
+
+    from bruittrack.__main__ import main
+
+    store = _make_store(tmp_path)
+    ev = SoundEvent(t0=1_000.0, dur=1.5, bin_i=18, freq=18 * 0.49, lvl_g=12.0, lvl_d=3.0, off_ms=-1.2,
+                    fp=b"\x01" * 16, flags=0)
+    store.add_event(ev)
+    store.flush()
+    cfg = tmp_path / "cfg.toml"
+    cfg.write_text(
+        "[storage]\ndb_path = \"%s\"\nexemplars_dir = \"%s\"\n"
+        % ((tmp_path / "t.db").as_posix(), (tmp_path / "ex").as_posix())
+    )
+    buf = io.StringIO()
+    monkeypatch.setattr(_sys, "argv", ["bruittrack", "--config", str(cfg), "stats", "--json"])
+    with contextlib.redirect_stdout(buf):
+        rc = main()
+    assert rc == 0
+    data = _json.loads(buf.getvalue())
+    assert data["total_events"] >= 1
+    assert "top_clusters" in data and "db_path" in data

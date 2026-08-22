@@ -11,6 +11,7 @@ Subcommands:
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import signal
 import subprocess
@@ -237,6 +238,18 @@ def cmd_stats(args: argparse.Namespace) -> int:
     stats = store.get_stats()
     clusters = store.get_clusters_summary()
 
+    if getattr(args, "json", False):
+        payload = {
+            "db_path": str(config.storage.db_path),
+            "total_events": stats.get("total_events", 0),
+            "total_clusters": stats.get("total_clusters", 0),
+            "db_size_bytes": stats.get("db_size_bytes", 0),
+            "avg_dur": stats.get("avg_dur"),
+            "top_clusters": [dict(c) for c in clusters[:15]],
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
+        return 0
+
     print(f"=== Statistiques BruitTrack ({config.storage.db_path}) ===")
     print(f"Total événements enregistrés : {stats.get('total_events', 0)}")
     print(f"Nombre de clusters distincts : {stats.get('total_clusters', 0)}")
@@ -293,6 +306,7 @@ def main() -> int:
     # stats
     stats_p = subparsers.add_parser("stats", help="Afficher les statistiques de la base")
     stats_p.add_argument("--play", type=int, default=None, help="Rejouer l'extrait audio d'un cluster")
+    stats_p.add_argument("--json", action="store_true", help="Sortie JSON machine (conforme matrice de vérification M6)")
 
     args = parser.parse_args()
 
