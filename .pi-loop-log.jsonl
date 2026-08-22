@@ -156,3 +156,29 @@
 {"ts":"2026-08-22T21:08:45.746Z","iteration":34,"event":"continue","stuckStreak":0}
 {"ts":"2026-08-22T21:08:49.528Z","iteration":35,"event":"continue","stuckStreak":0}
 {"ts":"2026-08-22T21:12:12.462Z","iteration":35,"event":"context_compact","stuckStreak":0,"notice":"Emergency context compaction (1/2): stop reason length.","reason":"stop reason length","contextPercent":100}
+{"ts":"2026-08-22T21:16:42.930Z","iteration":36,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:21:23.912Z","iteration":37,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:30:12.424Z","iteration":37,"event":"error","stuckStreak":0,"notice":"Model/provider error (This operation was aborted); retry #1 in 5s.","reason":"This operation was aborted"}
+{"ts":"2026-08-22T21:31:28.704Z","iteration":37,"event":"context_compact_complete","stuckStreak":0,"notice":"Emergency context compaction completed (stop reason length).","reason":"stop reason length"}
+{"ts":"2026-08-22T21:33:48.729Z","iteration":37,"event":"error","stuckStreak":0,"notice":"Model/provider error (This operation was aborted); retry #2 in 10s.","reason":"This operation was aborted"}
+{"ts":"2026-08-22T21:36:20.042Z","iteration":38,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:36:31.688Z","iteration":39,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:36:41.318Z","iteration":40,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:37:46.179Z","iteration":41,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:42:26.872Z","iteration":42,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:49:24.565Z","iteration":43,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:53:02.873Z","iteration":44,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:55:29.401Z","iteration":45,"event":"done","stuckStreak":0,"notice":"Done signal #2; continuing with improvements."}
+{"ts":"2026-08-22T21:59:00.172Z","iteration":46,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T22:05:41.549Z","iteration":47,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T22:08:07.932Z","iteration":48,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T22:08:19.852Z","iteration":49,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T22:08:29.547Z","iteration":50,"event":"stuck","stuckStreak":1,"notice":"no tool usage for 3 turns (narration only)","reason":"no tool usage for 3 turns (narration only)"}
+{"ts":"2026-08-22T22:08:37.045Z","iteration":51,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T22:08:58.988Z","iteration":52,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T22:14:19.068Z","iteration":52,"event":"context_compact","stuckStreak":0,"notice":"Emergency context compaction (1/2): stop reason length.","reason":"stop reason length","contextPercent":100}
+{"ts":"2026-08-22T22:16:34.751Z","iteration":53,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T22:16:52.769Z","iteration":54,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T22:18:00.491Z","iteration":55,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T22:24:34.011Z","iteration":56,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T22:25:01.462Z","iteration":57,"event":"continue","stuckStreak":0}

@@ -51,6 +51,48 @@ def list_audio_devices() -> list[dict[str, Any]]:
                 }
             )
     return input_devices
+def resolve_device_input(device_spec: str) -> int | str:
+    """Resolves a device specification to a sounddevice-usable identifier.
+
+    Accepts an explicit ALSA path (string containing ':') or integer index,
+    returning them as-is. Otherwise, performs exact name match on sd.query_devices(),
+    falling back to case-insensitive substring if that fails. Raises ValueError
+    if no audio input device is found matching the spec.
+    """
+
+    spec = device_spec.strip()
+
+    # Explicit numeric index
+    if spec.isdigit():
+        return int(spec)
+
+    try:
+        import sounddevice as sd  # type: ignore[import-untyped]
+    except ModuleNotFoundError:
+        # Headless (no PortAudio): only explicit ALSA paths can pass through.
+        if ":" in spec:
+            return spec
+        raise
+
+    devices = sd.query_devices()
+
+    # 1. Exact name match (PortAudio names may contain ':', e.g.
+    # "M-Track Plus: USB Audio (hw:2,0)"), so check before ALSA passthrough.
+    for idx, dev in enumerate(devices):
+        if dev.get("name", "") == spec:
+            return idx
+
+    # 2. Explicit ALSA path (e.g., "hw:2", "plughw:2,0") that has no exact
+    # matching device name — pass through as an ALSA string.
+    if ":" in spec:
+        return spec
+
+    # 3. Substring match
+    for idx, dev in enumerate(devices):
+        if spec.lower() in dev.get("name", "").lower():
+            return idx
+
+    raise ValueError(f"No audio input device matching: {spec!r}")
 
 
 class AudioCapture:
@@ -104,9 +146,14 @@ class AudioCapture:
                 "sounddevice is required for audio capture. Run `pip install sounddevice`."
             ) from e
 
+        if isinstance(self.device, str):
+            resolved_device = resolve_device_input(self.device)
+        else:
+            resolved_device = self.device
+
         self._is_running = True
         self._stream = sd.InputStream(
-            device=self.device,
+            device=resolved_device,
             channels=self.channels,
             samplerate=self.sample_rate,
             blocksize=self.block_size,

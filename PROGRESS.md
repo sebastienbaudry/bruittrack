@@ -120,3 +120,21 @@ Last updated: 2026-08-22
 | 9 | Replay sox | ⚠️ | `/usr/bin/sox` présent ; lecture non auditionnée (machine headless) — hypothèse A017 |
 
 → Objectif GOAL.md atteint : tous modules installés et vérifiés sur hpdebian.
+
+## Iteration 52 — état & plan (reprise après blocage narration)
+**État**: matrice M1-M9 ✅ sur pi-t620. `resolve_device_input()` existe capture.py:56 mais NON CABLÉ dans AudioCapture.start(). Device prod = "M-Track Plus" (nom exact PortAudio: 'M-Track Plus: USB Audio (hw:2,0)'; sounddevice match sous-nom OK en live).
+**Tenté**: probing ssh, sudo indispo (password), service tient le PCM 8h45m.
+**Échoué/isolé**: test HW isolé impossible sans stopper service.
+### Plan
+1. [x] Écrire ce bloc PROGRESS.md
+2. Câbler resolve_device_input dans capture.py start() + tests unitaires (mock sd)
+3. Bash tools/check.sh vert + commit; scp diff vers pi-t620 et run pytest là-bas
+
+## Iteration 58 — resolve_device_input fiabilisé (#à_committer)
+- Ordre de résolution corrigé : entier → nom exact (les noms PortAudio peuvent
+  contenir « : ») → passe ALSA (« plughw:2,0 » etc.) → substring → ValueError.
+- Dégénérescence gracieuse sans PortAudio (dev Windows) : chaîne ALSA passe
+  quand même ; résolution de nom lève une erreur.
+- Wired dans AudioCapture.start() avant InputStream.
+- tests/test_resolve_device.py : 5 tests avec fake module sounddevice (aucun
+  PortAudio requis). **Suite complète : 60 passed, check.sh CHECK OK.**
