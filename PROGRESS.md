@@ -46,3 +46,9 @@ Last updated: 2026-07-08
 
 ## M4 â€” events_last_24h
 - get_stats() + SQL COUNT 24h, test pass (#817251e) ; suite 40 pass ; IMPROVEMENTS item [x] prouvÃ©
+
+## M5 — cap ClusterIndex prouvé (#6782d8c)
+
+- `load_all_cluster_fingerprints(limit=100_000)` : SQL GROUP BY cluster + LIMIT, warning troncature.
+- Test 200 k ev. synthétiques < 8 s (test_cluster_fingerprints_cap_and_speed pass).
+- Suite : 41 passed ; check.sh SCORE 7/7.
