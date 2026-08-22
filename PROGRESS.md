@@ -183,3 +183,10 @@ Last updated: 2026-08-22
 - README matrice (section Vérification modules) : ligne Budget → « Budget M9 », commande canonique `bruittrack perf --pid $MAINPID`, statut **✅ prod it.64 (12.9 %)**.
 - README tête de fichier : budget « < 10 % CPU » corrigé en « < 15 % CPU » (aligné sur décision opérateur f01dc08).
 - Preuves locales : module_check --offline 1 ligne finale affichée ; bash tools/check.sh CHECK OK.
+
+## Itération 67 — Cohérence des seuils vérifiée + 2e preuve M9 conforme (uptime 10 h 09)
+- Audit croisé 4 fichiers : README L8/L22/L85, GOAL.md L22/L51, AGENTS.md L17, `__main__..py` C:30-31 —
+  tous alignés sur **CPU < 15 % / RSS < 150 Mo (153 600 Ko)** ; aucun seuil stale restant.
+- 2e mesure M9 via commande canonique (PID 27534, uptime 10:09:14) :
+  CPU **12.6 %**, RSS **123.5 Mo** → CONFORME (RC=0).
+- M9 validée sur > 10 h de stabilité ; matrice GOAL.md c.1–c.7 entièrement close sur cible.
