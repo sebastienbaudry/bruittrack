@@ -26,6 +26,11 @@ from bruittrack.capture import AudioCapture, MockAudioCapture, list_audio_device
 # Fréquence de la ligne d'état FloorTracker en mode --verbose-floor (10 s à 100 ms/tick).
 FLOOR_HEALTH_EVERY_TICKS = 100
 
+# Budget performances (matrice M9 / GOAL.md c.5) — zéro constant magique.
+CPU_MAX_PCT = 15
+RSS_MAX_KB = 153_600
+PERF_SAMPLE_SECONDS = 15
+
 
 def format_floor_health(floor_tracker) -> str:
     """Une ligne lisible de l'état du FloorTracker (G / D) pour --verbose-floor."""
@@ -274,6 +279,42 @@ def cmd_stats(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_perf(args: argparse.Namespace) -> int:
+    """Échantillonner le CPU/RSS d'un PID et les comparer aux budgets M9."""
+    import os as _os
+
+    import platform
+
+    pid = args.pid or _os.getpid()
+    if platform.system() != "Linux":
+        print("La commande perf nécessite /proc (Linux).")
+        return 1
+
+    def sample() -> tuple[int, int]:
+        stat = Path(f"/proc/{pid}/stat").read_text()
+        fields = stat.rsplit(")", 1)[1].split()
+        cps = int(fields[11]) + int(fields[12])  # utime+stime en jiffies
+        rss_kb = int(fields[21]) * 4  # pages de 4 Ko
+        return cps, rss_kb
+
+    t0, _rss0 = sample()
+    print(f"Échantillonnage PID {pid}... (fenêtre {PERF_SAMPLE_SECONDS})")
+    time.sleep(PERF_SAMPLE_SECONDS)
+    t1, rss1 = sample()
+    if t1 == t0:
+        print("Impossible de mesurer le CPU (PID absent ou accès /proc refusé). Code: 1")
+        return 1
+    cpu_pct = (t1 - t0) * 100 / (PERF_SAMPLE_SECONDS * 100)
+    rss_mb = rss1 / 1024
+    ok = cpu_pct < CPU_MAX_PCT and rss1 < RSS_MAX_KB
+    print(
+        f"CPU: {cpu_pct:.1f} % (budget < {CPU_MAX_PCT} %) | "
+        f"RSS: {rss_mb:.1f} Mo (budget < {RSS_MAX_KB / 1024:.0f} Mo)"
+    )
+    print(f"État du budget M9: {'CONFORME' if ok else 'NON-CONFORME'}")
+    return 0 if ok else 2
+
+
 def main() -> int:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -308,6 +349,13 @@ def main() -> int:
     stats_p.add_argument("--play", type=int, default=None, help="Rejouer l'extrait audio d'un cluster")
     stats_p.add_argument("--json", action="store_true", help="Sortie JSON machine (conforme matrice de vérification M6)")
 
+    # perf
+    perf_p = subparsers.add_parser(
+        "perf", help=f"Vérifier le budget CPU/RSS d'un PID sur {PERF_SAMPLE_SECONDS} s (matrice M9)"
+    )
+    perf_p.add_argument("--pid", type=int, default=None,
+                        help="PID à mesurer (défaut: le processus courant)")
+
     args = parser.parse_args()
 
     if args.command == "devices":
@@ -320,6 +368,8 @@ def main() -> int:
         return cmd_viz(args)
     elif args.command == "stats":
         return cmd_stats(args)
+    elif args.command == "perf":
+        return cmd_perf(args)
     else:
         parser.print_help()
         return 0
