@@ -67,3 +67,6 @@ Last updated: 2026-08-22
 - #53cbf67+#9de8de4 viz : tests/test_viz_api.py NOUVEAU (4 tests, ThreadingHTTPServer port éphémère sur store tmp seedé : /api/events expose lvl_g/lvl_d/bin_i/freq — acceptance tooltips ; /api/stats cohérent ; homepage ; dashboard JS).
 - src/bruittrack/viz.py : boutons IN1/IN2 basculent canaux du timeline (règle dominance 2 dB) + tooltip clic/hover sur marker = cluster, bin_i, freq, lvl_g/lvl_d — JS seul, zéro dep ; ruff clean.
 - Docs : IMPROVEMENTS item 6 [x] (item 5 benchmark prouvé), README phase dashboard interactif. Suite finale : 52 passed.
+
+## 2026-08-23 — Batch #6411d23
+- tests/test_viz_api.py: fixture expose tmp (yield 3-tuple), seed ex_1.raw (512 float16) ; nouvelles tests /api/exemplar/1 (RIFF/WAVE, PCM16 2 ch @1000 Hz, 256 frames) + /api/exemplar/999 → 404. Suite: 54 passed.

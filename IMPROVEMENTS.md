@@ -13,3 +13,4 @@
   - fix lié : EventStore(:memory:) utilisait une connexion éphémère par opération → schéma absent au flush ; connexion persistante + lock (#de15001)
 
 Last updated: #de15001 (--verbose-floor + fix store :memory:)
+- [x] test(viz): exemplar WAV endpoint RIFF/PCM16 2ch@1000Hz 256f + 404 manquant — `tests/test_viz_api.py` (port éphémère, fixture expose tmp) (#6411d23)
