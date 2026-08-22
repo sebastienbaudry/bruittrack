@@ -73,5 +73,7 @@ Last updated: 2026-08-22
 # de15006 M1 tools/module_check.py: 5 checks offline OK
 #         fix store :memory: deadlock Lock->RLock (flush()->_db)
 
-# 3a7c114 M1b tools/install_hp.sh (idempotent, bash -n OK) pour hpdebian c.1/c.2/c.4
+# c761b81 M1b tools/install_hp.sh (idempotent, bash -n OK) pour hpdebian c.1/c.2/c.4
 
+# 8f09dfb M1c README: sections Installation hpdebian + matrice Verification modules (GOAL c.7)
+# 496c3b2 M2 install_hp.sh --smoke: matrice M1-M9, rapport ${APP_DIR}/install-report.txt, exit 1 si FAIL; curl en deps; bash -n OK
