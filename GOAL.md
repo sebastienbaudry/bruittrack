@@ -1,74 +1,124 @@
-# GOAL — Coherence doc ↔ code + amélioration continue
+# GOAL — Installation et vérification module par module sur hpdebian
 
-## Objectif refiné
-1. Rendre `README.md`, `IMPROVEMENTS.md`, `PROGRESS.md` strictement
-   cohérents avec l'état réel du code (tests, dépendances, performances).
-2. Continuer l'amélioration : finir les items restants de `IMPROVEMENTS.md`
-   un à un, chacun = 1 commit + tests verts.
-3. Maintenir le budget HP T620 : boucle DSP < 10 % CPU / < 150 Mo RAM
-   (mesuré via `tools/bench_ticks.py` : processus total ~< 50 ms/s),
-   et l'état déployé sur `pi-t620` aligné sur `main` (si SSH dispo).
+## Objectif raffiné
+Déployer bruittrack de production sur **hpdebian** (thin client HP T620,
+Debian 13, x86 ~1,5 GHz, 4 Go RAM) et prouver que **chaque module**
+tourne correctement côté cible :
+capture → dsp → events → store → viz → CLI/pipeline, avec preuves
+écrites (sorties de commandes, métriques) consignées dans PROGRESS.md.
 
 ## Périmètre (IN)
-- Docs repo racine : README.md, AGENTS.md, IMPROVEMENTS.md, PROGRESS.md,
-  docs/decision-log.md, BUGS.md — faits seulement vérifiables dans le code/commits.
-- Items IMPROVEMENTS.md non cochés : viz tooltips, cap ClusterIndex (LIMIT),
-  read-time capture, leak stop() engine, stats `events_last_24h`,
-  `--verbose-floor`, entry decision-log. Chacune : code + test minimal.
-- Lint : `ruff check . && ruff format --check` (ruff non dispo localement →
-  installer via venv ou linter disponible ; documenter sinon).
+c.1. Pré-requis côté cible : paquetages apt (`python3-venv`, `python3-dev`,
+    `portaudio19-dev`, `sox`, `alsa-utils`), utilisateur système `bruittrack`
+    (groupe `audio`), répertoire `/opt/bruittrack/snapshot/git + venv`.
+c.2. Installation : dépôt dans /opt/bruittrack (`git clone/copy + checkout main`),
+    `.venv`, `pip install -e .` (deps numpy/scipy/sounddevice strictes, budget AGENTS.md),
+    `config.toml` généré depuis `config.toml.example` avec la `audio.device` réel
+    détectée via `python -m bruittrack devices` (jamais en dur).
+c.3. Vérification fonctionnelle module par module sur cible (matrice ci-dessous),
+    chacune avec critère de succès mesurable + preuve (sortie commande) dans PROGRESS.md.
+c.4. Service systemd `systemd/bruittrack.service` installé, enabled, healthy
+    (`systemctl is-active/enable/is-active bruittrack` OK après démarrage).
+c.5. Vérification budget perf 24/7 : CPU < 10 % et RSS < 150 Mo sur le
+    processus DSP (mesures `top`/`ps` après ≥ 10 min de `start`).
+c.6. Script d'installation reproductible `tools/install_hp.sh` (idempotent,
+    `bash -n` propre) et harnais local de pré-vol `tools/module_check.py`
+    (même matrice en mode hors ligne : config/store/viz/tests sans matériel).
+c.7. Docs : section « Installation (hpdebian) » + « Vérification des modules »
+    dans README.md ; `ASSUMPTIONS.md` à jour ; PROGRESS.md avec une entrée par
+    étape réalisée (hash commit, sortie clé).
 
 ## Non-objectifs
-- Pas de changements d'architecture DSP (spec AGENTS.md figée) ni de dépendance.
-- Pas de travail Windows/macOS/GUI/cloud. Pas de refonte de tests existants
-  sauf bug démontré.
-- Pas de push/merge distant hors `origin` GitHub ; pas d'action destructive
-  (reset, rebase publique).
+- Pas d'ajout de dépendance DSP (numpy/scipy/sounddevice + stdlib uniquement).
+- Pas de changement du pipeline ou des seuils (spec AGENTS.md figée) sauf bug.
+- Pas de travail Windows/macOS ; hpdebian = Debian 13 uniquement.
+- Pas de multi-carte, cloud, GUI native. Si le matériel audio (M-Track Plus)
+  est absent/désconnecté : on documente et on passe en `test --synthetic`
+        hypothèse (voir Hypothèses) ; le but reste « installation OK »,
+        la validation audio live est un bonus mesurable, non bloquant.
 
-## Critères de fin mesurables (check.sh, SCORE = nb critères OK /7)
-1. `pytest -q` : 100 % pass (exit 0).
-2. README.md ne contient pas "numpy" pour le filtre LP (scipy.signal.sosfilt)
-   et mentionne budget < 10 % CPU.
-3. IMPROVEMENTS.md : chaque item `[x]` a un commit de preuve ; chaque `[ ]`
-   a une acceptance testable et est réalisable sans matériel.
-4. PROGRESS.md : sections Done/Next reflètent les commits réels
-   (dernier entry = dernier travail fait ; aucun item "Done" sans commit de preuve).
-5. docs/decision-log.md existe avec une entrée par bug corrigé de BUGS.md
-   et par fix DSP majeur (≥ 12 entrées datées/hashées).
-6. `tools/bench_ticks.py` existe et son résultat documenté dans PROGRESS.md
-   : process_block ≈ < 4,5 ms/tock sur cible (note "mesuré sur pi-t620").
-7. Ruff : pas d'erreurs syntaxique/usage détectées par `python -m py_compile`
-   sur tous les .py (+ ruff si dispo). Exit 0.
+## Matrice de vérification des modules (chacune = preuve dans PROGRESS.md)
+| #  | Module / surface      | Commande (sur cible, venv activé)                              | Critère de succès                                                                 |
+|----|-----------------------|-----------------------------------------------------------------|-----------------------------------------------------------------------------------|
+| 1  | Packaging/install     | `python -m bruittrack --help`                                    | exit 0, sous-commandes devices/test/start/viz/stats visibles                     |
+| 2  | Config                | `python -m py_compile src/bruittrack/*.py`; load+validate config.toml | exit 0 ; validate() n'élève aucune erreur ; device non vide si audio présent      |
+| 3  | CLI devices           | `python -m bruittrack devices`                                    | liste ≥ 1 périphérique ; M-Track Plus identifiée OU hypothèse « no hardware »     |
+| 4  | Capture               | `timeout 70 python -m bruittrack test --seconds 60 [--synthetic]`  | rc=0 ; blocs lus sans stall ALSA continu (warnings OK)                            |
+| 5  | DSP + floor           | idem avec `--verbose-floor`                                       | lignes [floor] apparaissent après ~10 s et médiane finit en état « OK »           |
+| 6  | Events/store          | `python -m bruittrack stats --json` (ou sortie équivalente)      | DB créée (WAL), compteur plausible ; un événement synthétique présent si stimulusé |
+| 7  | Viz/API               | `python -m bruittrack viz --port 8760 & sleep 2; curl -s localhost:8760/api/stats; kill %1` | HTTP 200 JSON ; dashboard HTML contient timeline + toggles IN1/IN2 + tooltip |
+| 8  | systemd               | `sudo systemctl daemon-reload; sudo systemctl enable --now bruittrack; sleep 30; systemctl status bruittrack` | active (running), enabled, journal sans exception Python répétée                   |
+| 9  | Budget CPU/RAM        | `ps -o pct=,rss= -C python \| tail -1` (ou proc du service) après ≥ 10 min | %CPU < 10 ; RSS < ~150 000 Ko                                                     |
 
-## Feuille de route (petites étapes, chacune = 1 commit)
-- M0 Inspecter README/IMPROVEMENTS/PROGRESS, lister divergences → notes dans
-  PROGRESS.md section "Divergences".
-- M1 Corriger pipeline README (scipy, budget < 10 % CPU, commandes CLI réelles).
-- M2 Recalibrer IMPROVEMENTS.md : cocher items faits avec preuve, laisser le reste
-  avec acceptance non ambiguë.
-- M3 docs/decision-log.md : +1 entrée par fix BUGS.md et par fix DSP
-  (sosfilt, compute_channel_delay, FloorTracker)
-- M4-10 Implementer dans l'ordre les items IMPROVEMENTS.md restants
-  (items faciles d'abord : get_stats last_24h → ClusterIndex cap →
-  --verbose-floor → stop() leak test → capture read-time → viz tooltips).
-- M11 ruff check + format sur repo ; corriger findings triviaux.
-- M12 Commit final "docs: coherence README/IMPROVEMENTS/PROGRESS" + push si
-  état stable (tests verts).
+## Critères de fin mesurables (check.sh, `SCORE: <n>/7`, exit 0 si 7/7)
+note : check.sh s'exécute sur la poste dev (Windows) et mesure ce qui y est
+vérifiable ; les lignes « sur cible » sont prouvées via PROGRESS.md.
+1. C pytest : `python -m pytest -q` → 100 % pass.
+2. C compilation : `py_compile` ok sur tous les .py de src/ et tests/.
+3. C install locale : `python -m bruittrack --help` exit 0 (editable install fonctionnant).
+4. C config : script Python charge `config.toml.example` via load_config() +
+   validate() dans un tmpdir — aucune exception ; harnais `tools/module_check.py
+   --offline` exit 0 (matrice hors ligne : store :memory:, viz API port éphémère,
+   events synthétiques, exemplar WAV).
+5. C deployment prêt : `tools/install_hp.sh` existe, `bash -n` propre, contient
+   les 7 sections minimales (apt users venv config systemd smoke matrix docs).
+6. C matrice PROGRESS.md : une section « Vérification modules hpdebian » recense
+   les 9 lignes de la matrice avec statut ✅/⚠️/❌ et preuve (ou ASSUMPTIONS liés
+   pour le HW manquante).
+7. C docs README : sections présentes — install HP Debian (venv + apt + systemd),
+   tableau/checklist matrice, budget CPU/RAM ; aucun « À faire » contradictoire.
+
+## Feuille de route (petites étapes, chacune = 1 commit si possible)
+- M0 Audit local : état branch main, pytest vert, diffs config/example ↔ code
+  → notes PROGRESS.md § « Phase hpdebian — M0 ».
+- M1 Harnais `tools/module_check.py` : mode `--offline` (critère C4) — tests du
+  chemin d'installation sans matériel ; commit.
+- M2 `tools/install_hp.sh` idempotent (apt/user/clone/venv/pip/config/systemd)
+  + option `--smoke` lançant la matrice 1-9 sur cible et sortant rapport
+  `install-report.txt` ; `bash -n` local ; commit.
+- M3 SSH → hpdebian : exécuter le script de la configuration, capturer les
+  sorties, réconcilier config.toml (device via `devices`) ; commit docs/PROGRESS
+  avec preuves (§ « Phase hpdebian »).
+- M4 Matrice complète sur cible : lignes 1→9 dans l'ordres, chaque ligne
+  consignée ✅/⚠️/❌ + preuve ; si HW absent → hypothèse no-hardware (voir
+  Hypothèses) et bascule `--synthetic` ; commits de preuves + docs.
+- M5 systemd : installer le service, daemon-reload, enable + start, vérifier
+  after-boot persistentia (`systemctl is-enabled`) ; journal scan exception
+  (grep -iE "Traceback|Error"); commit proof.
+- M6 Budget perf ≥ 10 min de run : mesures CPU/RMS du processus DSP ; si hors
+  budget → entry decision-log + remediation ; commit preuve.
+- M7 README section « Installation (hpdebian) » + matrice copiée + liens vers
+  scripts ; ASSUMPTIONS.md réconcilié ; final check.sh = SCORE 7/7, dernier
+  commit « feats goal : instal hpdebian validé (SCORE 7/7) ».
 
 ## Normes de qualité
-- Python : type hints + docstring ; messages CLI français, code anglais.
-- 1 item = 1 commit en format `type(scope): sujet` ; commit après chaque état
-  vérifié — jamais cumuler > 2 items sans test.
-- Nouveau test par feature ; `pytest -q` vert avant chaque push.
-- Zéro magic numbers : config via dataclasses (config.py) ou constants nommées.
+- Chaque étape = 1 commit `type(scope): sujet` (type : feat/docs/test/chore),
+  message avec preuve (sortie clé hachée ou citée) quand possible.
+- `python -m pytest -q` vert avant chaque push ; ruff/py_compile propres.
+- Zero magic number : seuils dans `module_check.py` / `install_hp.sh` comme
+  constantes nommées au top du fichier (CPU_MAX_PCT=10, RSS_MAX_KB=153600…).
+- Français pour messages/proves ; code en anglais type-hinté + docstrings.
+- Tout échec SSH/hardware → hypothèse documentée dans ASSUMPTIONS.md avant
+  de poursuivre ; jamais casser main au passage.
 
 ## Hypothèses explicites
-- Python local = `python` (Windows, numpy/scipy installés) ; pas de `python3`
-  (alias Store). Pas de ruff local → step M11 peut laisser "non vérifié"
-  documenté si impossible.
-- État déployé pi-t620 (`/opt/bruittrack`) est hors périmètre du check si
-  SSH indispo ; notes dans PROGRESS.md suffisent.
-- SCORE maximum = 7 ; au-dessous de 7 → itérer les milestones restants.
+- **H1** « hpdebian » = la machine HP T620 (Debian 13) visée par AGENTS.md,
+  accessible en SSH depuis la poste dev après `ssh hpdebian` (alias ~/.ssh/config)
+  ou `ssh <user>@<ip>` ; si non atteignable → LOOP_BLOCKED provisoire sur M3-M6
+  uniquement, poursuite M1/M2/M7 locales.
+- **H2** Comptes cibles : utilisateur système dédié `bruittrack` (service)
+  + utilisateur dev ayant sudo (apt/usermgmt) ; user déjà existant par défaut,
+  sinon le script le crée.
+- **H3** Réseau cible : apt + pip fonctionnent (internet direct ou proxy
+  système déjà configuré). Pas de pin de version au-delà de pyproject.
+- **H4** Si M-Track Plus non branchée en M4 : matrice passe auto en mode
+  `--synthetic` pour les lignes 4/5/6, marquées ⚠️(no-hardware), l'objectif
+  « installation opérationnelle » reste atteint si le service tourne avec la
+  config et un device valide absent est accepté OU par défaut système.
+- **H5** Le check.sh local note seulement ce qu'il peut exécuter sur poste dev ;
+  une 7/7 locale n'implique pas le matériel — la preuve HW vient de PROGRESS.md
+  (critère C6 en vérifie la présence/la conformité formelle).
 
 ## Check
-`bash check.sh --check` → affiche `SCORE: <0..7>` ; exit 0 si 7/7, else 1.
+`bash check.sh --check` → affiche `SCORE: <0..7>` ; exit 0 si 7/7 sinon 1.
+Les lignes C4/C5/C6/C7 sont les vrais jalons du but ; C1-C3 gardent la base saine.
