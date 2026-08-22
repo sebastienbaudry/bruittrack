@@ -69,3 +69,6 @@
 {"ts":"2026-08-22T15:07:44.458Z","iteration":2,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
 {"ts":"2026-08-22T15:10:11.749Z","iteration":2,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
 {"ts":"2026-08-22T15:11:00.333Z","iteration":3,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T15:12:36.606Z","iteration":3,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
+{"ts":"2026-08-22T15:13:21.720Z","iteration":4,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T15:14:16.507Z","iteration":4,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
