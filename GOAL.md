@@ -48,7 +48,7 @@ c.7. Docs : section « Installation (hpdebian) » + « Vérification des modules
 | 6  | Events/store          | `python -m bruittrack stats --json` (ou sortie équivalente)      | DB créée (WAL), compteur plausible ; un événement synthétique présent si stimulusé |
 | 7  | Viz/API               | `python -m bruittrack viz --port 8760 & sleep 2; curl -s localhost:8760/api/stats; kill %1` | HTTP 200 JSON ; dashboard HTML contient timeline + toggles IN1/IN2 + tooltip |
 | 8  | systemd               | `sudo systemctl daemon-reload; sudo systemctl enable --now bruittrack; sleep 30; systemctl status bruittrack` | active (running), enabled, journal sans exception Python répétée                   |
-| 9  | Budget CPU/RAM        | `ps -o pct=,rss= -C python \| tail -1` (ou proc du service) après ≥ 10 min | %CPU < 15 ; RSS < ~150 000 Ko                                                     |
+| 9  | Budget CPU/RAM        | `MAIN=$(systemctl show -p MainPID --value bruittrack); python -m bruittrack perf --pid $MAIN` (après ≥ 10 min) | %CPU < 15 ; RSS < 150 Mo ; RC=0 « CONFORME »                                      |
 
 ## Critères de fin mesurables (check.sh, `SCORE: <n>/7`, exit 0 si 7/7)
 note : check.sh s'exécute sur la poste dev (Windows) et mesure ce qui y est

@@ -53,7 +53,7 @@ def check_cli(res: CheckResult) -> None:
                          capture_output=True, text=True, timeout=10)
     text = out.stdout + out.stderr
     cmd_ok = all(c in text for c in ("devices", "test", "start", "viz",
-                                     "stats"))
+                                     "stats", "perf"))
     res.add("cli --help", out.returncode == 0 and cmd_ok,
             f"rc={out.returncode} cmds={cmd_ok}")
 

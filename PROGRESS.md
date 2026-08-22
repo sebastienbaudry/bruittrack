@@ -171,3 +171,9 @@ Last updated: 2026-08-22
   `CPU: 12.9 % | RSS: 123.5 Mo` → État du budget M9 : **CONFORME** (RC=0).
 - M9 désormais mesurable de façon automatisable via `bruittrack perf --pid <PID>` ;
   prochaine itération : entrée module_check + documentation README/GOAL.md.
+
+## Itération 65 — perf intégré au harnais + matrice GOAL.md à jour
+- `tools/module_check.py` : la checklist CLI attend désormais les 6 sous-commandes (dont `perf`).
+- GOAL.md matrice M9 : commande canonique = `bruittrack perf --pid \<MainPID\>` (RC=0 « CONFORME »).
+- Preuves : local 5/5 OK + CHECK OK ; après scp, **prod hpdebian : module_check 5/5 OK**.
+- Commit suivant ce bloc.
