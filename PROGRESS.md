@@ -203,3 +203,9 @@ Last updated: 2026-08-22
 ## Itération 72 — I7 close : entry decision-log `bruittrack perf`
 - `docs/decision-log.md` + entry [2026-08-23] : décision CLI perf (2 lectures /proc, 15 s, CPU_MAX_PCT=15, RSS_MAX_KB=153 600, codes 0/1/2, PID via MainPID) ; preuves it.64/it.67 + I5 citées.
 - Preuves : grep -ci perf ≥ 1 (5 occurrences) ; gate complet **CHECK OK**.
+
+## Iteration 75
+- I8: matrice smoke M9 canonicalisee via `bruittrack perf --pid $MAIN` (MainPID), fallback WARN. bash -n OK, occ=4, CHECK OK local.
+
+## Iteration 79-80
+- Fallback PYB layout plat pi-t620 (it.79) ; smoke M9 validée sur cible : RC=0 CONFORME 12.8%/123.5 Mo. A018 documenté.

@@ -75,6 +75,7 @@ Dispositif a configurer : sudo-edit ${APP_DIR}/config.toml (audio.device via 'py
 if [ "${SMOKE_FLAG}" = "1" ]; then
     SMOKE_REPORT="${INSTALL_REPORT:-${APP_DIR}/install-report.txt}"
     PYB="${APP_DIR}/git/.venv/bin/python"
+    [ -x "$PYB" ] || PYB="${APP_DIR}/.venv/bin/python"   # layout plat (pi-t620)
     SM_OK=0; SM_WARN=0; SM_FAIL=0
     printf '
 == SMOKE-MATRIX %s ==
