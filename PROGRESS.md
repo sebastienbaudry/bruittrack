@@ -150,3 +150,8 @@ Last updated: 2026-08-22
 - Pas de `git` sur la cible → déploiement par scp de src/tests/tools (snapshot, pas repo).
 - Après sync complète : `py_compile` OK, **pytest 60 passed en 17,7 s** sur Debian 13
   (était 46 — arbre distant rattrapé au niveau local exact).
+
+## Iteration 61 — M9 perf: RSS OK, CPU à investiguer
+- RSS = 126 652 KB (~124 Mo) < 150 Mo ✓ ; compteur DB prod **events = 539** ✓.
+- CPU: Δtime=+8 s CPU / 60 s paroi = **13.3 % > budget 10 %** (seuil = 6 s sur 60).
+- Prochain lot : profiler sur cible (py-spy/strace) pour isoler la dépense.
