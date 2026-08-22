@@ -1,9 +1,9 @@
 """Harness pre-vol BruitTrack -- GOAL.md M1 (criterium check.sh C4).
 
-Mode --offline: replication out-of-hardware of the matrix rows 1..7
-(CLI, config example, fingerprint/cluster, store :memory:, viz API +
-exemplar WAV). No system network access; usable on dev post / CI before
-any hpdebian deploy.
+Mode --offline: 5 checks hors materiel (CLI --help, config exemple,
+fingerprint/cluster, store :memory:, viz API + exemplar WAV).
+No system network access; usable on dev post / CI before any
+hpdebian deploy.
 
 Usage: python tools/module_check.py --offline
 Exit 0 if all the checks pass; else 1.

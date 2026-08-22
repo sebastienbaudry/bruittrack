@@ -18,7 +18,7 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I5** Tests unitaires `cmd_perf` (M9) : budget CPU/RSS, PID mort.
       Fichiers : `tests/test_perf.py`, `src/bruittrack/__main__.py`.
       OK quand : `pytest tests/test_perf.py -q` vert (4 tests).
-- [ ] **I6** Corriger le docstring de `tools/module_check.py` L3 (« rows 1..7 » obsolète → sous-ensemble offline réel).
+- [x] **I6* Corriger le docstring de `tools/module_check.py` L3 (« rows 1..7 » obsolète → sous-ensemble offline réel).
       Fichiers : `tools/module_check.py`.
       OK quand : `python -c "import ast; ..."` n/a ; grep du docstring cohérent et `check.sh` verte.
 - [ ] **I7** Entry decision-log : commande `bruittrack perf` + budgets (CPU_MAX_PCT, RSS_MAX_KB) et codes sortie 0/1/2.

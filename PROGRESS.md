@@ -195,3 +195,7 @@ Last updated: 2026-08-22
 - Nouveau `tests/test_perf.py` : 4 cas (conforme, CPU > budget rc=2, RSS > budget rc=2, PID mort rc=1) via fake /proc + no-op sleep ; sans matériel, Windows-safe.
 - IMPROVEMENTS.md : I5 ✓ ; ajouts I6 (docstring module_check), I7 (entry decision-log perf), I8 (matrice smoke install_hp.sh → ligne M9).
 - Preuves : `pytest tests/test_perf.py` 4 passed ; gate complet **64 passed, CHECK OK**.
+
+## Itération 71 — I6 close : docstring module_check corrigé
+- `tools/module_check.py` L2-L6 : « matrix rows 1..7 » (obsolète) → description exacte des 5 checks --offline réels.
+- Preuves : py_compile OK ; `module_check --offline` **5/5 OK** ; docstring vérifié par sed.
