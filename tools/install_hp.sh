@@ -97,7 +97,7 @@ if [ "${SMOKE_FLAG}" = "1" ]; then
         } | tee -a "${SMOKE_REPORT}"
     }
 
-    # M1 — CLI --help : rc=0 + sous-commands visibles.
+    # M1 â€” CLI --help : rc=0 + sous-commands visibles.
     SMOKE_RC=0; H_OUT=$("$PYB" -m bruittrack --help 2>&1) || SMOKE_RC=$?
     if [ "$SMOKE_RC" -eq 0 ] && printf '%s' "$H_OUT" | grep -q "viz"; then
         sm_row M1 "CLI --help" OK "$(printf '%s
@@ -106,7 +106,7 @@ if [ "${SMOKE_FLAG}" = "1" ]; then
         sm_row M1 "CLI --help" FAIL "rc=${SMOKE_RC} out=${H_OUT}"
     fi
 
-    # M2 — py_compile de src/ + load_config().validate() sur copie tmp.
+    # M2 â€” py_compile de src/ + load_config().validate() sur copie tmp.
     SMOKE_RC=0; PC_OUT=$("$PYB" -m py_compile $(find src -name '*.py' | tr '
 ' ' ') 2>&1) || SMOKE_RC=$?
     CFG_RC=0
@@ -121,22 +121,22 @@ print("CFG_OK")
 SMOKECFGEOF
     ) || CFG_RC=$?
     if [ "$SMOKE_RC" -eq 0 ] && [ "$CFG_RC" -eq 0 ] && printf '%s' "$CFG_OUT" | grep -q CFG_OK; then
-        sm_row M2 "py_compile + config validate" OK "config.toml.example — load_config().validate() sans exception"
+        sm_row M2 "py_compile + config validate" OK "config.toml.example â€” load_config().validate() sans exception"
     else
         sm_row M2 "py_compile + config validate" FAIL "pc=${PC_OUT} cfg_rc=${CFG_RC} cfg=${CFG_OUT}"
     fi
 
-    # M3 — devices : peripherique audio list (sinon fallback synthetique M4/M5).
+    # M3 â€” devices : peripherique audio list (sinon fallback synthetique M4/M5).
     DEV_RC=0; D_OUT=$("$PYB" -m bruittrack devices 2>&1) || DEV_RC=$?
     SYN_FLAG=""
     if [ "$DEV_RC" -eq 0 ] && [ -n "$D_OUT" ]; then
         sm_row M3 "devices (ALSA list)" OK "$(printf '%s' "$D_OUT" | head -5)"
     else
-        sm_row M3 "devices (ALSA list)" WARN "pas de liste HW — fallback --synthetic | rc=${DEV_RC} out=${D_OUT}"
+        sm_row M3 "devices (ALSA list)" WARN "pas de liste HW â€” fallback --synthetic | rc=${DEV_RC} out=${D_OUT}"
         SYN_FLAG="--synthetic"
     fi
 
-    # M4 — test pipeline 60 s (debut + DSP + store)
+    # M4 â€” test pipeline 60 s (debut + DSP + store)
     SMOKE_RC=0
     T_OUT=$(timeout 70 "$PYB" -m bruittrack test --seconds 60 ${SYN_FLAG} 2>&1) || SMOKE_RC=$?
     if [ "$SMOKE_RC" -eq 0 ]; then
@@ -147,7 +147,7 @@ SMOKECFGEOF
         sm_row M4 "test pipeline 60s" FAIL "rc=${SMOKE_RC} | $(printf '%s' "$T_OUT" | tail -5)"
     fi
 
-    # M5 — floor tracker : lignes [floor] et etat de convergence OK
+    # M5 â€” floor tracker : lignes [floor] et etat de convergence OK
     SMOKE_RC=0
     F_OUT=$(timeout 120 "$PYB" -m bruittrack test --seconds 90 --verbose-floor ${SYN_FLAG} 2>&1) || SMOKE_RC=$?
     if [ "$SMOKE_RC" -eq 0 ] && printf '%s' "$F_OUT" | grep -q '\[floor\]' && printf '%s' "$F_OUT" | grep -qi "OK"; then
@@ -156,7 +156,7 @@ SMOKECFGEOF
         sm_row M5 "floor tracker (verbose-floor)" FAIL "rc=${SMOKE_RC} | $(printf '%s' "$F_OUT" | tail -5)"
     fi
 
-    # M6 — store/stats : rc=0, sortie parseable
+    # M6 â€” store/stats : rc=0, sortie parseable
     SMOKE_RC=0; S_OUT=$("$PYB" -m bruittrack stats 2>&1) || SMOKE_RC=$?
     if [ "$SMOKE_RC" -eq 0 ]; then
         sm_row M6 "store/stats CLI" OK "$(printf '%s' "$S_OUT" | head -4)"
@@ -164,7 +164,7 @@ SMOKECFGEOF
         sm_row M6 "store/stats CLI" FAIL "rc=${SMOKE_RC} out=${S_OUT}"
     fi
 
-    # M7 — viz/API : /api/stats 200 JSON + timeline HTML
+    # M7 â€” viz/API : /api/stats 200 JSON + timeline HTML
     "$PYB" -m bruittrack viz --port 8760 >/dev/null 2>&1 &
     VIZ_PID=$!
     sleep 3
@@ -178,7 +178,7 @@ SMOKECFGEOF
         sm_row M7 "viz/API" FAIL "curl_rc=${SMOKE_RC} body=${VJS_OUT} timeline=$NTIMES"
     fi
 
-    # M8 — systemd : active + enabled + journal sans exception
+    # M8 â€” systemd : active + enabled + journal sans exception
     SMOKE_RC=0; J_ACT=$(systemctl is-active bruittrack 2>&1) || SMOKE_RC=$?
     SMOKE_RC=0; J_EN=$(systemctl is-enabled bruittrack 2>&1) || SMOKE_RC=$?
     ERR_N=$(journalctl -u bruittrack --no-pager 2>/dev/null | grep -cE 'Traceback|Error') || ERR_N=0
@@ -188,17 +188,20 @@ SMOKECFGEOF
         sm_row M8 "systemd + journal" WARN "active=${J_ACT} enabled=${J_EN} exceptions=${ERR_N}"
     fi
 
-    # M9 — budget CPU/RAM du processus (non mesurable si service non active)
-    BT_PID=$(pgrep -f "bruittrack start" | head -1 || true)
-    if [ -n "$BT_PID" ]; then
-        BUDGET_OK=$(ps -o pct=,rss= -p "$BT_PID" | awk '{print ($1 < 10 && $2 < 150000) ? "yes" : "no"}')
-        if [ "$BUDGET_OK" = "yes" ]; then
-            sm_row M9 "budget CPU/RAM (mesure live)" OK
+    # M9 â€” budget CPU/RAM du processus : mesure canonique `bruittrack perf --pid`
+    # (fenetre 15 s, budgets CPU_MAX_PCT=15 / RSS_MAX_KB=153 600 ; rc 0 = CONFORME).
+    MAIN=$(systemctl show -p MainPID --value bruittrack 2>/dev/null || true)
+    if [ -n "$MAIN" ] && kill -0 "$MAIN" 2>/dev/null; then
+        PERF_RC=0
+        B_OUT=$("$PYB" -m bruittrack perf --pid "$MAIN" 2>&1) || PERF_RC=$?
+        if [ "$PERF_RC" -eq 0 ]; then
+        B_CPU=$(printf '%s\n' "$B_OUT" | grep CPU | head -1)
+        sm_row M9 "budget CPU/RAM (bruittrack perf, rc=0)" OK "$B_CPU"
         else
-            sm_row M9 "budget CPU/RAM (mesure live)" FAIL
+            sm_row M9 "budget CPU/RAM (bruittrack perf)" FAIL "rc=${PERF_RC} out=${B_OUT}"
         fi
     else
-        sm_row M9 "budget CPU/RAM" WARN "pas de process actif — rexecuter apres 10 min (phase M6)"
+        sm_row M9 "budget CPU/RAM" WARN "pas de process actif â€” rexecuter apres 10 min (phase M6)"
     fi
 
     {
@@ -206,8 +209,8 @@ SMOKECFGEOF
 '             "$SM_OK" "$SM_WARN" "$SM_FAIL" "${SMOKE_REPORT}"
     } | tee -a "${SMOKE_REPORT}"
     if [ "${SM_FAIL:-0}" -ne 0 ]; then
-        echo "SMOKE FAIL (fail=${SM_FAIL}) — voir ${SMOKE_REPORT}"
+        echo "SMOKE FAIL (fail=${SM_FAIL}) â€” voir ${SMOKE_REPORT}"
         exit 1
     fi
-    echo "SMOKE PASS (ok=${SM_OK} warn=${SM_WARN}) — rapport : ${SMOKE_REPORT}"
+    echo "SMOKE PASS (ok=${SM_OK} warn=${SM_WARN}) â€” rapport : ${SMOKE_REPORT}"
 fi

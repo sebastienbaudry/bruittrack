@@ -11,9 +11,9 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I3** `config.toml.example` : documenter `storage.retention_days = 365` (défaut dataclass) avec commentaire.
       Fichier : `config.toml.example`.
       OK quand : `grep -c retention_days config.toml.example` ≥ 1 et `load_config(config.toml.example).validate()` OK.
-- [x] **I4** Garantir la commande de v�rification locale `tools/check.sh` (ruff + pytest) cit�e dans I2.
+- [x] **I4** Garantir la commande de v�rification locale `tools/check.sh` (ruff + pytest) cit�e dans I2.
       Fichier : `tools/check.sh`.
-      OK quand : `bash tools/check.sh` rc=0 avec 55 tests verts (15/15 � �tendre).
+      OK quand : `bash tools/check.sh` rc=0 avec 55 tests verts (15/15 � �tendre).
 
 - [x] **I5** Tests unitaires `cmd_perf` (M9) : budget CPU/RSS, PID mort.
       Fichiers : `tests/test_perf.py`, `src/bruittrack/__main__.py`.
@@ -24,6 +24,6 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I7* Entry decision-log : commande `bruittrack perf` + budgets (CPU_MAX_PCT, RSS_MAX_KB) et codes sortie 0/1/2.
       Fichiers : `docs/decision-log.md`.
       OK quand : `grep -ci "cmd_perf\|bruittrack perf" docs/decision-log.md` ≥ 1.
-- [ ] **I8** Ajouter la ligne M9 (perf sur MainPID, RC attendu 0) à la matrice de smoke en fin d'install.
+- [x] **I8** Ajouter la ligne M9 (perf sur MainPID, RC attendu 0) à la matrice de smoke en fin d'install.
       Fichiers : `tools/install_hp.sh`.
       OK quand : `grep -c "bruittrack perf" tools/install_hp.sh` ≥ 1 et `bash -n tools/install_hp.sh` sans erreur.
