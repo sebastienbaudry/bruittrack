@@ -23,3 +23,7 @@
 {"ts":"2026-08-22T01:10:40.245Z","iteration":10,"event":"continue","stuckStreak":0}
 {"ts":"2026-08-22T01:13:04.078Z","iteration":11,"event":"continue","stuckStreak":0}
 {"ts":"2026-08-22T01:20:15.888Z","iteration":12,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T01:27:17.124Z","iteration":12,"event":"context_compact","stuckStreak":0,"notice":"Emergency context compaction (1/2): stop reason length.","reason":"stop reason length","contextPercent":100}
+{"ts":"2026-08-22T01:27:49.150Z","iteration":13,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T01:29:37.392Z","iteration":14,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T01:31:36.373Z","iteration":15,"event":"continue","stuckStreak":0}

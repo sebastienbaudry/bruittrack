@@ -73,6 +73,7 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
   vérifie que les événements survivent.
 
 ### BUG-04 — `retention_days` n'a aucun effet : `apply_retention` n'est jamais appelé
+- **Statut** : ✅ corrigé — appliqué au démarrage du daemon puis quotidiennement dans la boucle `step()` (`pipeline.py` L89-92, L138-145) ; test `TestRetentionWiring`.
 - **Lieu** : `src/bruittrack/store.py` — `EventStore.apply_retention` (L330) ; aucune occurrence d'appel
   dans `src/bruittrack/pipeline.py`, `src/bruittrack/__main__.py`,
   `src/bruittrack/viz.py` (grep confirmé). La valeur est lue dans
@@ -127,6 +128,7 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
   `off_ms` déjà en base → documenter la migration éventuelle.
 
 ### BUG-07 — Normalisation Welch non conforme : `(Σw)²` au lieu de `Σw²`
+- **Statut** : ✅ corrigé — `DspPipeline.window_scale = Σ(hann²)` (`dsp.py` L142), utilisé dans les deux PSD ; test `TestWelchNormalization::test_window_sum_used`.
 - **Lieu** : `src/bruittrack/dsp.py` — `SpectraEstimator.__init__`, `window_scale = ...hann_window**2` (L142)
 - **Description** : la densité spectrale de puissance standard (Welch) est
   mise à l'échelle par `sum(w**2)`, pas `(sum(w))**2`. Pour une fenêtre de
@@ -165,6 +167,7 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
   (threads écrivants en parallèle).
 
 ### BUG-09 — Défaut `retention_days` écrasé par `None` : la retenue est désactivée silencieusement par défaut
+- **Statut** : ✅ corrigé — défaut dataclass 365 jours, conservé si le TOML omet la clé (`config.py` L181-183) ; validation `> 0 ou None` ; test `TestRetentionDefault`.
 - **Lieu** : `src/bruittrack/config.py:62` (défaut dataclass `= 365`) vs `src/bruittrack/config.py:167,178` (`store_dict.get("retention_days")` → `None` si la clé est absente)
 - **Description** : l'absence de la clé `retention_days` dans `config.toml`
   donne `None`, pas le défaut du dataclass (365). Le dataclass présente
