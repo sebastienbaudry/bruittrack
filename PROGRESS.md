@@ -73,3 +73,5 @@ Last updated: 2026-08-22
 # de15006 M1 tools/module_check.py: 5 checks offline OK
 #         fix store :memory: deadlock Lock->RLock (flush()->_db)
 
+# 3a7c114 M1b tools/install_hp.sh (idempotent, bash -n OK) pour hpdebian c.1/c.2/c.4
+
