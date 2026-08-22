@@ -69,25 +69,6 @@ class SosFilter:
         """Reset filter internal state."""
         self.zi.fill(0.0)
 
-    def set_initial_state(self, initial_values: np.ndarray) -> None:
-        """Set initial filter state to avoid transients (steady-state for DC value).
-
-        Args:
-            initial_values: shape (n_channels,) array of initial values.
-        """
-        self.reset()
-        for s in range(self.n_sections):
-            b0, b1, b2, _, a1, a2 = self.sos[s]
-            # Exact steady-state for constant input x (DC gain H1 = sum(b)/sum(a))
-            h_dc = (b0 + b1 + b2) / (1.0 + a1 + a2)
-            y_ss_coef = h_dc          # output scale vs input
-            z0_coef = h_dc - b0       # from y[n] = b0*x[n] + z0
-            z1_coef = b2 - a2 * h_dc  # from z1 = b2*x[n] - a2*y[n]
-            for ch in range(self.n_channels):
-                val = initial_values[ch]
-                self.zi[s, 0, ch] = z0_coef * val
-                self.zi[s, 1, ch] = z1_coef * val
-
     def filter(self, x: np.ndarray) -> np.ndarray:
         """Filter input array of shape (N, n_channels).
 

@@ -122,3 +122,34 @@ def test_channel_delay_cross_correlation() -> None:
 
     delay_ms = compute_channel_delay_ms(buf, max_lag_ms=8.0, fs_low=fs_low)
     assert np.isclose(delay_ms, 3.0, atol=1.0)
+
+
+class TestChannelDelaySign:
+    """BUG-06: explicit sign convention — ch0 leading ch1 returns +ms."""
+
+    @staticmethod
+    def _pulse_buf(n: int, shift: int, fs_low: float = 500.0) -> np.ndarray:
+        pulse = (np.arange(128) % 37 == 7).astype(np.float32)
+        buf = np.zeros((n, 2), dtype=np.float32)
+        if shift >= 0:  # ch0 leads by `shift` samples
+            buf[:, 0] = np.tile(pulse, n // len(pulse) + 1)[:n]
+            buf[shift:, 1] = buf[: n - shift, 0]
+        else:  # ch1 leads
+            d = -shift
+            buf[:, 1] = np.tile(pulse, n // len(pulse) + 1)[:n]
+            buf[d:, 0] = buf[: n - d, 1]
+        return buf
+
+    def test_left_leads_positive(self) -> None:
+        delay = compute_channel_delay_ms(
+            self._pulse_buf(256, shift=4), max_lag_ms=8.0, fs_low=500.0
+        )
+        assert delay > 0, f"expected positive (Left leads Right), got {delay}"
+        assert np.isclose(delay, 4 / 500 * 1000, atol=2.5)
+
+    def test_right_leads_negative(self) -> None:
+        delay = compute_channel_delay_ms(
+            self._pulse_buf(256, shift=-3), max_lag_ms=8.0, fs_low=500.0
+        )
+        assert delay < 0, f"expected negative (Right leads Left), got {delay}"
+        assert np.isclose(delay, -3 / 500 * 1000, atol=2.5)
