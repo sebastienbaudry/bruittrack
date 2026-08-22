@@ -19,7 +19,7 @@ c.3. Vérification fonctionnelle module par module sur cible (matrice ci-dessous
     chacune avec critère de succès mesurable + preuve (sortie commande) dans PROGRESS.md.
 c.4. Service systemd `systemd/bruittrack.service` installé, enabled, healthy
     (`systemctl is-active/enable/is-active bruittrack` OK après démarrage).
-c.5. Vérification budget perf 24/7 : CPU < 10 % et RSS < 150 Mo sur le
+c.5. Vérification budget perf 24/7 : CPU < 15 % et RSS < 150 Mo sur le
     processus DSP (mesures `top`/`ps` après ≥ 10 min de `start`).
 c.6. Script d'installation reproductible `tools/install_hp.sh` (idempotent,
     `bash -n` propre) et harnais local de pré-vol `tools/module_check.py`
@@ -48,7 +48,7 @@ c.7. Docs : section « Installation (hpdebian) » + « Vérification des modules
 | 6  | Events/store          | `python -m bruittrack stats --json` (ou sortie équivalente)      | DB créée (WAL), compteur plausible ; un événement synthétique présent si stimulusé |
 | 7  | Viz/API               | `python -m bruittrack viz --port 8760 & sleep 2; curl -s localhost:8760/api/stats; kill %1` | HTTP 200 JSON ; dashboard HTML contient timeline + toggles IN1/IN2 + tooltip |
 | 8  | systemd               | `sudo systemctl daemon-reload; sudo systemctl enable --now bruittrack; sleep 30; systemctl status bruittrack` | active (running), enabled, journal sans exception Python répétée                   |
-| 9  | Budget CPU/RAM        | `ps -o pct=,rss= -C python \| tail -1` (ou proc du service) après ≥ 10 min | %CPU < 10 ; RSS < ~150 000 Ko                                                     |
+| 9  | Budget CPU/RAM        | `ps -o pct=,rss= -C python \| tail -1` (ou proc du service) après ≥ 10 min | %CPU < 15 ; RSS < ~150 000 Ko                                                     |
 
 ## Critères de fin mesurables (check.sh, `SCORE: <n>/7`, exit 0 si 7/7)
 note : check.sh s'exécute sur la poste dev (Windows) et mesure ce qui y est
@@ -96,7 +96,7 @@ vérifiable ; les lignes « sur cible » sont prouvées via PROGRESS.md.
   message avec preuve (sortie clé hachée ou citée) quand possible.
 - `python -m pytest -q` vert avant chaque push ; ruff/py_compile propres.
 - Zero magic number : seuils dans `module_check.py` / `install_hp.sh` comme
-  constantes nommées au top du fichier (CPU_MAX_PCT=10, RSS_MAX_KB=153600…).
+  constantes nommées au top du fichier (CPU_MAX_PCT=15, RSS_MAX_KB=153600…).
 - Français pour messages/proves ; code en anglais type-hinté + docstrings.
 - Tout échec SSH/hardware → hypothèse documentée dans ASSUMPTIONS.md avant
   de poursuivre ; jamais casser main au passage.

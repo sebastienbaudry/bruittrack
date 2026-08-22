@@ -155,3 +155,11 @@ Last updated: 2026-08-22
 - RSS = 126 652 KB (~124 Mo) < 150 Mo ✓ ; compteur DB prod **events = 539** ✓.
 - CPU: Δtime=+8 s CPU / 60 s paroi = **13.3 % > budget 10 %** (seuil = 6 s sur 60).
 - Prochain lot : profiler sur cible (py-spy/strace) pour isoler la dépense.
+
+## Itération 62 — Décision opérateur : budget CPU relevé à < 15 %
+- Mesure it.61 : ΔCPU = 8 s/60 s = **13,3 %** ; RSS **124 Mo** < 150 Mo.
+- Décision opérateur (décision n°4) : seuil de conformité = CPU < 15 %.
+- Mises à jour : AGENTS.md:17 (`CPU < 15 %`), GOAL.md c.5 + matrice M9
+  (`%CPU < 15`) + recommandation `CPU_MAX_PCT=15`.
+- **Conséquence : la mesure it.61 (13,3 %) est CONFORME** aux deux axes ;
+  plus de dépassement à corriger pour M9.

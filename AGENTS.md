@@ -14,7 +14,7 @@ choix d'architecture en découlent.
 - Flux 48 kHz / 2 ch / float32 → décimation ×48 → **1000 Hz exact**.
 
 ## Budget (chaque PR)
-CPU < 10 %, RAM < 150 Mo, 1 process Python DSP (~48k it/s).
+CPU < 15 %, RAM < 150 Mo, 1 process Python DSP (~48k it/s).
 - Pas de matplotlib/Tk/Qt. Viz = HTTP stdlib lisant SQLite, process séparé
   (navigateur ou `curl` JSON).
 - Aucun dump PCM brut ; extrait 256 ms BF **seulement** pour le 1er exemplaire
