@@ -180,3 +180,23 @@ class TestChannelDelaySign:
         )
         assert delay < 0, f"expected negative (Right leads Left), got {delay}"
         assert np.isclose(delay, -3 / 500 * 1000, atol=2.5)
+
+
+def test_sos_filter_benchmark_48k_under_50ms() -> None:
+    """48 000 échantillons × 2 ch (1 s audio) doivent passer en < 50 ms.
+
+    Acceptance IMPROVEMENTS.md: SosFilter.filter() vectorisé via scipy
+    reste bien au-dessous du budget CPU de l'HP T620 (~1 % / bloc 100 ms).
+    """
+    if not dsp_mod._HAS_SCIPY:
+        pytest.skip("scipy absent → pas de mesure fast-path")
+    sos = design_butterworth_lp_sos(cutoff_hz=400.0, fs=48000.0, order=8)
+    x = np.random.default_rng(1).normal(0, 1e-3, size=(48_000, 2))
+    filt = SosFilter(sos, n_channels=2)
+    import time
+
+    t0 = time.perf_counter()
+    y = filt.filter(x)
+    elapsed = time.perf_counter() - t0
+    assert y.shape == (48_000, 2)
+    assert elapsed < 0.050, f"SosFilter trop lent: {elapsed*1000:.1f} ms > 50 ms"
