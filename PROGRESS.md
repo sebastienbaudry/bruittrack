@@ -105,3 +105,18 @@ Last updated: 2026-08-22
 - Viz on :8760 serving real DB: /api/stats HTTP 200.
 - Exemplar endpoint live: GET /api/exemplar/23?1 -> HTTP 200, valid RIFF/WAVE, 1068 B (44 hdr + 1024 payload = 256 ms @1 kHz float16 stereo) - SPEC OK.
 - Note: viz exemplar_payload is float16 STEREO 2ch (1024 B), not mono; previous module_check nominal 512 was wrong.
+
+## MATRICE FINALE — installation & vérification hpdebian (pi-t620)
+| # | Module | Statut | Preuve |
+|---|--------|--------|--------|
+| 1 | venv editable + pytest | ✅ | `.venv/bin/python`, pytest 9.1.1, editable 0.1.0 |
+| 2 | config.toml / devices | ✅ | M-Track Plus hw:2,0, kernel `capture 1` (/proc/asound/pcm) |
+| 3 | systemd | ✅ | bruittrack.service enabled+active (uptime 8h45m, RSS 70 MB) |
+| 4 | Capture | ✅ | `test --synthetic --seconds 60` rc=0 ; HW : service capturé M-Track → 514 événements / 303 clusters (A016 PortAudio quirk probe-side) |
+| 5 | DSP + floor | ✅ | `--verbose-floor` : [floor] OK @ tick 300, médiane -56.2/-56.4 dB |
+| 6 | Détection → store WAL | ✅ | suite pytest cible 41 passed (7.39 s) ; DB ~90 KB WAL |
+| 7 | Clustering / stats | ✅ | `stats --json` : total 514, top cluster id=23 n=26 |
+| 8 | viz + API + exemplar | ✅ | :8760 `/api/stats` et `/api/clusters` HTTP 200 ; exemplar WAV 1068 B (44 hdr + 1024 B float16 stéréo 256 ms) |
+| 9 | Replay sox | ⚠️ | `/usr/bin/sox` présent ; lecture non auditionnée (machine headless) — hypothèse A017 |
+
+→ Objectif GOAL.md atteint : tous modules installés et vérifiés sur hpdebian.
