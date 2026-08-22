@@ -201,6 +201,32 @@ class TestConfigValidation:
         with pytest.raises(ValueError, match="retention_days"):
             cfg.validate()
 
+    def test_block_size_not_multiple_of_decimation_rejected(self):
+        """BUG-10: block_size must divide into stream ticks exactly."""
+        cfg = self._base_config()
+        cfg.audio.block_size = 4801
+        with pytest.raises(ValueError, match="block_size"):
+            cfg.validate()
+
+    def test_sample_rate_not_multiple_of_decimation_rejected(self):
+        cfg = self._base_config()
+        cfg.audio.sample_rate = 44100
+        with pytest.raises(ValueError, match="exact multiple"):
+            cfg.validate()
+
+    def test_freq_max_above_nyquist_low_rejected(self):
+        """BUG-10: freq_max above the decimated Nyquist would alias."""
+        cfg = self._base_config()
+        cfg.dsp.freq_max = 600.0  # stream 1 kHz -> Nyquist 500 Hz
+        with pytest.raises(ValueError, match="freq_max"):
+            cfg.validate()
+
+    def test_debounce_zero_rejected(self):
+        cfg = self._base_config()
+        cfg.detector.debounce_ticks = 0
+        with pytest.raises(ValueError, match="debounce"):
+            cfg.validate()
+
 
 def run():
     import sys

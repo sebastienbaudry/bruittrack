@@ -82,10 +82,25 @@ class Config:
             raise ValueError(f"Audio channels must be 2 (got {self.audio.channels})")
         if self.audio.sample_rate <= 0:
             raise ValueError("Audio sample_rate must be > 0")
-        if self.audio.decimation <= 0 or self.audio.sample_rate % self.audio.decimation != 0:
+        if self.audio.decimation <= 0:
+            raise ValueError(f"Audio decimation must be > 0 (got {self.audio.decimation})")
+        if self.audio.sample_rate % self.audio.decimation != 0:
             raise ValueError(
                 f"Sample rate {self.audio.sample_rate} must be an exact multiple of decimation {self.audio.decimation}"
             )
+        if self.audio.block_size % self.audio.decimation != 0:
+            raise ValueError(
+                f"Audio block_size ({self.audio.block_size}) must be an exact multiple of decimation ({self.audio.decimation})"
+            )
+        fs_low = self.audio.sample_rate / self.audio.decimation
+        if not 0 < self.dsp.freq_max <= fs_low / 2.0:
+            raise ValueError(
+                f"DSP freq_max ({self.dsp.freq_max} Hz) must be in (0, {fs_low / 2:.1f} Hz]"
+            )
+        if self.detector.debounce_ticks < 1:
+            raise ValueError("Detector debounce_ticks must be >= 1")
+        if self.detector.max_duration_s <= 0:
+            raise ValueError("Detector max_duration_s must be > 0")
         if self.dsp.n_seg <= 0 or (self.dsp.n_seg & (self.dsp.n_seg - 1)) != 0:
             raise ValueError(f"DSP n_seg must be a power of 2 (got {self.dsp.n_seg})")
         if self.dsp.noverlap >= self.dsp.n_seg:
