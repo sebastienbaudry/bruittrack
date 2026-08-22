@@ -57,6 +57,7 @@ fonction majeure cassée, **P2** = comportement déviant de la spec,
   store en silence (argument obligatoire ou mode explicite).
 
 ### BUG-03 — `EventStore.flush()` perd des événements en cas d'erreur SQLite
+- **Statut** : ✅ corrigé — `_do_flush` ne vide le buffer qu'après `commit()` réussi, échec loggué et réessayé au flush suivant ; régresse testée (`TestFlushErrorPreservation`).
 - **Lieu** : `src/bruittrack/store.py` — `EventStore.flush` (L195), `add_event` (L122)
 - **Description** : avant l'insertion, le buffer est **transféré** vers une
   liste locale (`events_to_write = self._buffer; self._buffer = []`). Si

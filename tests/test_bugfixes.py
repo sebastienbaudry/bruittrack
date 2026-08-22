@@ -246,3 +246,37 @@ class TestMockAudioCapture:
             return np.concatenate(blk, axis=0)
 
         assert np.array_equal(run(), run()), "same seed must replay identical blocks"
+
+
+class TestFlushErrorPreservation:
+    """BUG-03: a failing flush must not drop buffered events."""
+
+    @staticmethod
+    def _ev(bin_i: int):
+        return SoundEvent(t0=1.0, dur=1.0, bin_i=bin_i, freq=float(bin_i),
+                          lvl_g=5.0, lvl_d=4.0, off_ms=0.0, fp=b"\x02" * 16)
+
+    def test_flush_error_preserves_buffer(self, tmp_path) -> None:
+        s = EventStore(db_path=str(tmp_path / "f.db"), batch_size=3)
+        for i in range(2):
+            s.add_event(self._ev(i))
+
+        real_cursor = store_mod.cursor
+        failures = {"n": 0}
+
+        def failing(path):
+            failures["n"] += 1
+            if failures["n"] == 1:
+                raise RuntimeError("simulated sqlite failure")
+            return real_cursor(path)
+
+        store_mod.cursor = failing
+        try:
+            s.add_event(self._ev(2))  # autoflush -> error, buffer preserved
+            assert len(s._buffer) == 3
+            s.add_event(self._ev(3))  # next autoflush -> success (4 rows)
+        finally:
+            store_mod.cursor = real_cursor
+
+        assert failures["n"] == 2
+        assert s.get_stats()["total_events"] == 4
