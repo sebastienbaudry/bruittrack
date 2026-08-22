@@ -138,3 +138,9 @@ Last updated: 2026-08-22
 - Wired dans AudioCapture.start() avant InputStream.
 - tests/test_resolve_device.py : 5 tests avec fake module sounddevice (aucun
   PortAudio requis). **Suite complète : 60 passed, check.sh CHECK OK.**
+
+## Iteration 59 — Harnais hors-ligne prouvé
+- `python tools/module_check.py --offline` → **5/5 checks OK** (cli, config, fingerprint,
+  store, viz API). `bash -n tools/install_hp.sh` propre.
+- Commits locaux `2c4c941..3c82115` poussés sur origin/main (GitHub).
+- Prochaine : sur hpdebian `git pull` + retest service.
