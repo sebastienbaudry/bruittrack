@@ -146,3 +146,13 @@
 {"ts":"2026-08-22T20:56:14.130Z","iteration":24,"event":"continue","stuckStreak":0}
 {"ts":"2026-08-22T20:56:37.671Z","iteration":25,"event":"continue","stuckStreak":0}
 {"ts":"2026-08-22T20:59:39.384Z","iteration":26,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:01:18.120Z","iteration":27,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:02:14.593Z","iteration":28,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:02:35.522Z","iteration":29,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:03:19.476Z","iteration":30,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:03:27.641Z","iteration":31,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:04:09.096Z","iteration":32,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:05:47.009Z","iteration":33,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:08:45.746Z","iteration":34,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:08:49.528Z","iteration":35,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T21:12:12.462Z","iteration":35,"event":"context_compact","stuckStreak":0,"notice":"Emergency context compaction (1/2): stop reason length.","reason":"stop reason length","contextPercent":100}

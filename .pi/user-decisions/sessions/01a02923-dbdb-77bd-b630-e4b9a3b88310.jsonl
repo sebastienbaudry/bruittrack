@@ -1,1 +1,3 @@
+{"id":3,"scope":"session","timestamp":"2026-08-22T21:02:30.487Z","summary":"Loop iterations stay to one concrete verifiable batch per turn (tools/file edits + minimal proof), then stop; never narration-only turns and no extra batches.","detail":"Working style for the BruitTrack goal: each iteration = exactly one progress batch, verify with tools, keep output under 1200 chars."}
+{"id":2,"scope":"session","timestamp":"2026-08-22T21:01:09.055Z","summary":"BruitTrack loop: I1–I4 done (commits fa76818, 55febaf, e6f1f12); acceptance criteria for completed items in IMPROVEMENTS.md must be verified with tools, not assumed","detail":""}
 {"id":1,"scope":"session","timestamp":"2026-08-22T18:21:11.426Z","summary":"","detail":""}

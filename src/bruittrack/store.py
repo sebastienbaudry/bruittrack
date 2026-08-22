@@ -39,7 +39,14 @@ def cursor(
         timeout_s: Busy-timeout in seconds before raising on lock contention.
     """
     if db_path == ":memory:":
-        yield sqlite3.connect(":memory:")
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        try:
+            if readonly:
+                conn.execute("PRAGMA query_only = ON;")
+            yield conn
+        finally:
+            conn.close()
         return
     path = Path(db_path)
     if not readonly:
@@ -228,6 +235,16 @@ class EventStore:
     # Read path: each call opens a fresh short-lived connection, so no
     # connection is ever shared across threads.
 
+
+    @staticmethod
+    def _table_exists(conn: sqlite3.Connection, table: str) -> bool:
+        """Check a table exists without erroring on fresh/empty DB."""
+        row = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            (table,),
+        ).fetchone()
+        return row is not None
+
     def load_all_cluster_fingerprints(
         self, limit: int = 100_000
     ) -> dict[int, bytes]:
@@ -236,6 +253,8 @@ class EventStore:
         Capped at ``limit`` groups (safeguard RAM T620) ; logged warning if truncated.
         """
         with self._db(readonly=True) as conn:
+            if not self._table_exists(conn, "events"):
+                return {}  # base vide/DB initialisée : aucun cluster connu
             rows = conn.execute(
                 """
                 SELECT cluster, MIN(id) AS first_id

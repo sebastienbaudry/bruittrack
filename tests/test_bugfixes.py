@@ -351,8 +351,12 @@ def test_verbose_floor_flag_and_health_line(tmp_path, capsys) -> None:
     line_cold = format_floor_health(tracker(False))
     assert "warmup" in line_cold
 
-    cfg = tmp_path / "empty.toml"
-    cfg.touch()
+    # config minimale pointant vers un DB dédié tmp : cmd_test crée la table events
+    db_dir = tmp_path / "data"
+    db_dir.mkdir()
+    cfg_toml = f'storage.db_path = "{(db_dir / "test.db").as_posix()}"'
+    cfg = tmp_path / "cfg.toml"
+    cfg.write_text(cfg_toml, encoding="utf-8")
     args = SimpleNamespace(config=str(cfg), seconds=1, synthetic=True, verbose_floor=True)
     assert cmd_test(args) == 0
     capsys.readouterr()  # les lignes de test sont tolérées
