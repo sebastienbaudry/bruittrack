@@ -11,7 +11,7 @@ from typing import Any, Callable
 
 import numpy as np
 
-from bruittrack.capture import AudioCapture, MockAudioCapture
+from bruittrack.capture import AudioCapture, MockAudioCapture, SLOW_BLOCK_STREAK
 from bruittrack.config import Config
 from bruittrack.dsp import DspPipeline, FloorTracker, compute_channel_delay_ms
 from bruittrack.events import EventDetector, SoundEvent
@@ -114,6 +114,7 @@ class Engine:
             if raw_block is None:
                 zeros = np.zeros(self.dsp.n_bins, dtype=np.float32)
                 return zeros, zeros, zeros, zeros, []
+            self._check_capture_health()
 
         # 1. Process DSP
         psd1, psd2 = self.dsp.process_block(raw_block)
@@ -147,6 +148,18 @@ class Engine:
         self.store.maybe_flush()
         self._tick_count += 1
         return psd1, psd2, em1, em2, events
+
+    def _check_capture_health(self) -> None:
+        """Warn sur SLOW_BLOCK_STREAK blocs de capture lents consecutifs."""
+        if getattr(self.capture, "consecutive_slow", 0) >= SLOW_BLOCK_STREAK:
+            streak = self.capture.consecutive_slow
+            self.capture.consecutive_slow = 0  # evite les warnings dupliques par bloc
+            logger.warning(
+                "capture lente : %d blocs consecutifs > %.0f ms (dernier : %.1f ms)",
+                streak,
+                self.capture.slow_read_us / 1000.0,
+                self.capture.last_read_us / 1000.0,
+            )
 
     def start(self, on_tick: Callable[[dict[str, Any]], None] | None = None) -> None:
         """Start the live capture loop."""

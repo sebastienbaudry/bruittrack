@@ -12,6 +12,20 @@ from typing import Any
 
 import numpy as np
 
+# Un bloc de capture est "lent" si sa lecture dure plus de 15 ms ;
+# le pipeline avertit apres SLOW_BLOCK_STREAK blocs lents consecutifs (M6).
+SLOW_READ_US = 15_000
+SLOW_BLOCK_STREAK = 3
+
+
+def update_read_metrics(cap: Any, read_us: int) -> None:
+    """Metriques de lecture par bloc : dernier temps (µs) + serie de blocs lents."""
+    cap.last_read_us = read_us
+    if read_us >= cap.slow_read_us:
+        cap.consecutive_slow += 1
+    else:
+        cap.consecutive_slow = 0
+
 
 def list_audio_devices() -> list[dict[str, Any]]:
     """List all available PortAudio/ALSA audio input devices."""
@@ -48,11 +62,15 @@ class AudioCapture:
         sample_rate: int = 48000,
         channels: int = 2,
         block_size: int = 4800,
+        slow_read_us: int = SLOW_READ_US,
     ) -> None:
         self.device = device
         self.sample_rate = sample_rate
         self.channels = channels
         self.block_size = block_size
+        self.slow_read_us = slow_read_us
+        self.last_read_us = 0
+        self.consecutive_slow = 0
 
         self._queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=100)
         self._stream: Any = None
@@ -61,6 +79,7 @@ class AudioCapture:
     def _audio_callback(self, indata: np.ndarray, frames: int, time_info: Any, status: Any) -> None:
         """PortAudio thread callback."""
         if self._is_running:
+            t0 = time.monotonic()
             try:
                 self._queue.put_nowait(indata.copy())
             except queue.Full:
@@ -70,6 +89,8 @@ class AudioCapture:
                     self._queue.put_nowait(indata.copy())
                 except queue.Empty:
                     pass
+            read_us = int((time.monotonic() - t0) * 1_000_000)
+            update_read_metrics(self, read_us)
 
     def start(self) -> None:
         """Start the audio input stream."""
@@ -129,7 +150,14 @@ class MockAudioCapture:
         frequency_hz: float = 23.5,
         noise_level: float = 0.01,
         seed: int | None = 42,
+        slow_read_us: int = SLOW_READ_US,
     ) -> None:
+        self.slow_read_us = slow_read_us
+        self.last_read_us = 0
+        self.consecutive_slow = 0
+        # Stall simule injecte dans get_block() pour tester la detection de blocs lents.
+        self.stall_s = 0.0
+
         self.sample_rate = sample_rate
         self.channels = channels
         self.block_size = block_size
@@ -156,6 +184,12 @@ class MockAudioCapture:
         if not self._is_running:
             return None
 
+        # Time the block production (excluu l'attente de cadencement) ; le stall
+        # simule un bloc ALSA lent, la mesure resulte dans last_read_us.
+        t_produce = time.monotonic()
+        if self.stall_s > 0.0:
+            time.sleep(self.stall_s)
+
         # Simulate block timing (100 ms)
         t = np.arange(self._sample_idx, self._sample_idx + self.block_size) / self.sample_rate
         self._sample_idx += self.block_size
@@ -169,6 +203,8 @@ class MockAudioCapture:
         block = np.zeros((self.block_size, self.channels), dtype=np.float32)
         block[:, 0] = tone + noise[:, 0]
         block[:, 1] = tone + noise[:, 1]
+
+        update_read_metrics(self, int((time.monotonic() - t_produce) * 1_000_000))
 
         # Real-time pacing: align to monotonic clock so the mock runs at 1× speed
         expected_next = self._last_time + self.block_size / self.sample_rate
