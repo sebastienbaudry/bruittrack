@@ -163,3 +163,11 @@ Last updated: 2026-08-22
   (`%CPU < 15`) + recommandation `CPU_MAX_PCT=15`.
 - **Conséquence : la mesure it.61 (13,3 %) est CONFORME** aux deux axes ;
   plus de dépassement à corriger pour M9.
+
+## Itération 64 — Outillage M9 déployé + preuve conforme sur hpdebian
+- Commit `2c8f2e3` (feat perf) poussé sur origin/main ; `__main__.py` scp vers /opt/bruittrack, py_compile OK côté prod.
+- Fix mux : socket contrôle périmé, re-synchronisé en `ControlPath=none` (temporaire).
+- Preuve M9 autonome via la **nouvelle commande** (PID 27534, fenêtre 15 s) :
+  `CPU: 12.9 % | RSS: 123.5 Mo` → État du budget M9 : **CONFORME** (RC=0).
+- M9 désormais mesurable de façon automatisable via `bruittrack perf --pid <PID>` ;
+  prochaine itération : entrée module_check + documentation README/GOAL.md.
