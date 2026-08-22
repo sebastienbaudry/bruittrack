@@ -190,3 +190,8 @@ Last updated: 2026-08-22
 - 2e mesure M9 via commande canonique (PID 27534, uptime 10:09:14) :
   CPU **12.6 %**, RSS **123.5 Mo** → CONFORME (RC=0).
 - M9 validée sur > 10 h de stabilité ; matrice GOAL.md c.1–c.7 entièrement close sur cible.
+
+## Itération 70 — I5 close : tests unitaires cmd_perf (M9)
+- Nouveau `tests/test_perf.py` : 4 cas (conforme, CPU > budget rc=2, RSS > budget rc=2, PID mort rc=1) via fake /proc + no-op sleep ; sans matériel, Windows-safe.
+- IMPROVEMENTS.md : I5 ✓ ; ajouts I6 (docstring module_check), I7 (entry decision-log perf), I8 (matrice smoke install_hp.sh → ligne M9).
+- Preuves : `pytest tests/test_perf.py` 4 passed ; gate complet **64 passed, CHECK OK**.
