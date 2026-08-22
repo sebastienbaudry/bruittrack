@@ -45,3 +45,27 @@
 {"ts":"2026-08-22T02:18:11.605Z","iteration":28,"event":"continue","stuckStreak":0}
 {"ts":"2026-08-22T02:26:55.311Z","iteration":28,"event":"context_compact","stuckStreak":0,"notice":"Emergency context compaction (1/2): stop reason length.","reason":"stop reason length","contextPercent":100}
 {"ts":"2026-08-22T11:59:43.684Z","iteration":1,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T12:10:11.935Z","iteration":2,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T12:16:37.406Z","iteration":3,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T12:21:20.361Z","iteration":4,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T12:27:41.185Z","iteration":5,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T12:42:11.036Z","iteration":6,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T12:50:31.078Z","iteration":7,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T12:53:03.320Z","iteration":8,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T12:55:24.422Z","iteration":9,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T13:01:23.309Z","iteration":10,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T13:09:09.628Z","iteration":10,"event":"context_compact","stuckStreak":0,"notice":"Emergency context compaction (1/2): stop reason length.","reason":"stop reason length","contextPercent":100}
+{"ts":"2026-08-22T13:14:51.835Z","iteration":10,"event":"context_compact","stuckStreak":0,"notice":"Emergency context compaction (2/2): stop reason length.","reason":"stop reason length","contextPercent":100}
+{"ts":"2026-08-22T13:20:27.158Z","iteration":11,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T13:25:03.236Z","iteration":12,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T13:42:02.367Z","iteration":12,"event":"soft_stop","stuckStreak":0,"notice":"Soft stop: iteration finished, loop stopped by operator."}
+{"ts":"2026-08-22T14:44:38.476Z","iteration":1,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T14:50:11.295Z","iteration":1,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
+{"ts":"2026-08-22T14:54:16.769Z","iteration":1,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
+{"ts":"2026-08-22T14:55:41.525Z","iteration":2,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-22T15:01:57.755Z","iteration":2,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
+{"ts":"2026-08-22T15:05:25.866Z","iteration":2,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
+{"ts":"2026-08-22T15:06:21.834Z","iteration":2,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
+{"ts":"2026-08-22T15:07:44.458Z","iteration":2,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
+{"ts":"2026-08-22T15:10:11.749Z","iteration":2,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
+{"ts":"2026-08-22T15:11:00.333Z","iteration":3,"event":"continue","stuckStreak":0}

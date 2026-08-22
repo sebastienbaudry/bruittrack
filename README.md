@@ -27,7 +27,8 @@ Service systemd : [systemd/bruittrack.service](systemd/bruittrack.service)
 ## Architecture (résumé)
 
 ```
-ALSA 48 kHz ─ LP Butter fc=400 Hz (numpy) ─ décim ×48 ─ 1000 Hz
+ALSA 48 kHz ─ LP Butter fc=400 Hz (scipy.signal.sosfilt, 4 biquads)
+   ─ décim ×48 ─ 1000 Hz
    └ Welch 2 s ─ EMA ─ floor (médiane 30 s) ─ émergence dB
        └ détecteur (seuil 10 dB, debounce 0,5 s) → événements SQLite
 ```

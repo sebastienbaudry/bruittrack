@@ -47,3 +47,51 @@
 - **Décision** : passage par `scipy.signal.sosfilt` (C vectorisée), un appel par canal/bloc de 4800 échantillons, avec transfert d'état `zi → zf` entre blocs pour préserver la continuité du filtre. Éligible directement au budget « 1er ajout autorisé » défini en amont, car c'est l'unique dépendance additionnelle.
 - **Comportement** : si `scipy` est absent, fallback transparent sur la boucle scalaire numpy (testable sans scipy).
 - **Validation** : benchmarks blocs synthétiques : LP seul ≈ 9.0 ms/bloc avant → 0,13 ms/bloc après ; process_block ≈ 9,4 → 0,5 ms/bloc. 38 tests pytest après changement ; ruff absent de l'env locale (à refaire en CI).
+
+## [2026-08-22] Corrections d'audit P1 — mémoire/DB (BUG-02, 03, 04, 07, 09)
+
+- **Contexte** : audit BUGS.md ; cinq corrections mémoire/DB validées en une passe.
+- **Décisions** : BUG-02 — `cmd_test` injecte `EventStore(db_path=":memory:")`, la base de production n'est plus pollué par les tests CLI. BUG-03 — `flush()` atomique : en cas d'exception SQLite, le tampon est restauré intégralement, aucun événement perdu (test 86166cf). BUG-04/07/09 — wiring vérifié et tests à jour : `apply_retention()` appelé au démarrage du service, normalisation Welch `Σw²` (et non `(Σw)²`), défaut `retention_days=365` conservé si `config=None` (évent. 03c32aa).
+- **Validation** : 38 pytest pass ; statuts BUGS.md mis à jour.
+
+## [2026-08-22] Concurrency SQLite — connexion par opération + verrou (BUG-01, 08)
+
+- **Contexte** : `ThreadingHTTPServer` viz partageant la connexion SQLite du process capture potentiellement de façon non thread-safe ; `EventStore._buffer` en accès partagé.
+- **Décision** : `EventStore` ouvre un `sqlite3.connect()` par opération (pas cher : WAL + NFS-free) au lieu d'une connexion partagée ; `_init_db` unique au démarrage ; `threading.Lock` sur `_buffer` et sur la queue d'écriture.
+- **Validation** : test régression écrivants/lecteurs concurrents (1d01e28) ; suite complète pass (dfd2d08).
+
+## [2026-08-22] Signe de corrélation croisée inter-canaux (BUG-06)
+
+- **Décision** : convention `off_ms > 0` = canal G (air) précède canal D (piézo), aligne la docstring avec l'implémentation ; tests de signe ajoutés (4e36373).
+- **Pourquoi** : l'anomalie détectée par le piézo B *après* qu'elle a franchi l'air est le cas physique dominant avec cette géométrie.
+
+## [2026-08-22] Refactor filtre LP — suppression `set_initial_state`, tests d'équivalence (BUG-11)
+
+- **Décision** : méthode morte du fallback scalaire supprimée ; l'état inter-blocs est porté uniquement par `scipy` (`zi→zf`), testé contre la voie scalaire référence pour garantir l'équivalence numérique et la continuité d'état entre blocs (b3e7627).
+
+## [2026-08-22] Format exemplaire — WAV int16 (BUG-05)
+
+- **Contexte** : `stats --play` renvoyait un dump float16 brut → régression son/sox illisible.
+- **Décision** : helper de conversion float32→int16 PCM 16 bits stéréo dans un WAV header minimum (44 o) ; exemplaire rejoué directe par `aplay`/`sox` (d498a5f).
+
+## [2026-08-22] MockAudioCapture déterministe et synchronisé temps réel (BUG-12)
+
+- **Décision** : seed fixe par défaut + cadence d'injection `time.sleep` sur une horloge monotone réaliste au lieu du temps wall ; les tests E2E ne dépendent plus de l'ordre d'arrivée des données (db15b01).
+
+## [2026-08-22] Validation complète config (BUG-10)
+
+- **Décision** : `Config.validate()` après chargement du TOML : intervalle [0..98], seuil/hystérésis strictement posés, device chiffrable, etc. ; erreurs CLI lisibles en français au lieu d'un échec tardif opaque (7eb3d88).
+
+## [2026-08-22] Détection de décalage inter-canaux par FFT (perf)
+
+- **Contexte** : la corrélation croisée directe G/D dans le domaine temporel coûtait ≈ 5,2 ms/événement sur T620.
+- **Décision** : `compute_channel_delay_ms` passe par `rfft` float32 N=1024 et produit de convolutions spectrales ; fenêtre de lags ± 8 conservée. Gain mesuré < 0,1 ms/événement ; convention de signe inchangé (b3e7627).
+
+## [2026-08-22] FloorTracker transposé (bins × temps) — perf
+
+- **Contexte** : médiane mobile par bin sur 300 ticks ; l'ancienne disposition `(temps × bins)` rendait la sélect par ligne discontinue en mémoire et coûteuse.
+- **Décision** : storage `float32[99, 300]`, glissement par réécriture de décalage vectorisé, `np.partition(..., k)[:, k]` pour la médiane (≈ 3x vs `np.median`) ; seed du 1er tick par `[:, :] = psd[:, None]`. Mesuré T620 : 0,61 → 0,58 ms/tick — seuil franchi, chemin fermé (47191c6).
+
+## [2026-08-22] Budget persistance — WAL, lots 30 s / 50 événements, index (t0, cluster)
+
+- **Décision** : `journal_mode=WAL` + `synchronous=NORMAL`, écriture groupée mémoire avant INSERT batch, index b-tree `(t0)` et `(cluster)` ; projection ≈ 7 Mo/an à 1 événement/mn, bien sous le budget SSD de la T620 (dfdfd — convention reprise du design v0.1.0, formalisée après l'audit BUG-03/04).

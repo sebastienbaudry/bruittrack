@@ -4,6 +4,13 @@
 Corriger toutes les erreurs listées dans BUGS.md.
 
 ## Done
+- Perfs DSP v2 (pi-t620, `tools/bench_ticks.py`) : process_block ≈ 4,4 ms,
+  cross-corr FFT 1024 < 0,1 ms/tick (was 5,24 ms), floor partition axis=1
+  0,58 ms → boucle totale ≈ 5,4 ms/100 ms ≈ 5,4 % CPU (< 10 % budget) —
+  mesuré sur pi-t620 le 2026-07-08.
+- FloorTracker : stock transposé (bins×temps) → partition par ligne (b67eaeb).
+- compute_channel_delay_ms : cross-corrélation rfft/irfft f32 Nfft=1024, signe
+  préservé (LEFT leads => ms > 0) (b3e7627).
 - store.py: cursor() par opération, _init_db unique, Lock sur buffer → 26 tests OK (dfd2d08)
 - BUG-11: set_initial_state supprimée + tests de signe compute_channel_delay_ms (4e36373)
 - Notes statut BUGS.md (eb34d96), test concurrent writer/readers (1d01e28)
@@ -17,6 +24,12 @@ Corriger toutes les erreurs listées dans BUGS.md.
 - BUG-10: `Config.validate()` complète (block_size%dec, sample_rate%dec,
   freq_max ≤ Nyquist décimé, debounce_ticks ≥ 1, max_duration_s > 0)
   + tests TestConfigValidation → marquée ✅ dans BUGS.md
+
+## Divergences documentées (M0 — 2026-07-09)
+- README : "LP Butter (numpy)" → corrigé scipy ; budget 15 % →
+  < 10 % CPU par AGENTS.md.
+- IMPROVEMENTS : item SosFilter déjà vectorisé en pratique (sosfilt scipy,
+  0,88 ms/tick mesuré) → à recaler au prochain passage.
 
 ## Next
 - [ ] ruff check . && ruff format --check (à valider sur cible Debian/CI)
