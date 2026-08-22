@@ -144,3 +144,9 @@ Last updated: 2026-08-22
   store, viz API). `bash -n tools/install_hp.sh` propre.
 - Commits locaux `2c4c941..3c82115` poussés sur origin/main (GitHub).
 - Prochaine : sur hpdebian `git pull` + retest service.
+
+## Iteration 60 — Parité hpdebian après sync scp
+- Pi-t620 : **service active + enabled** ; venv `/opt/bruittrack/.venv` opérationnel.
+- Pas de `git` sur la cible → déploiement par scp de src/tests/tools (snapshot, pas repo).
+- Après sync complète : `py_compile` OK, **pytest 60 passed en 17,7 s** sur Debian 13
+  (était 46 — arbre distant rattrapé au niveau local exact).
