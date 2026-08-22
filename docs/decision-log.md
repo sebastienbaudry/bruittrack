@@ -40,3 +40,10 @@
    - Mini-serveur web intégré en Python standard (`http.server.ThreadingHTTPServer`).
    - Aucune dépendance frontend externe ni CDN (HTML5 Canvas + Vanilla JS).
    - Séparation stricte des processus de capture et de consultation.
+
+## [2026-08-22] Filtre LP : voie rapide `scipy.signal.sosfilt` (1er ajout autorisé)
+
+- **Contexte** : sur la cible HP T620 (x86 ~1,5 GHz), la boucle scalaire pure-Python de `SosFilter.filter()` (48 000 échantillons/s × 2 ch × 4 sections ≈ 384 000 itérations/s) consomme ~55–60 % d'un noyau en régime permanent, au lieu du budget < 10 %. Le reste du chemin (décimation, Welch 2048 pts × 7 × 2) est négligeable (< 1 ms/s localement).
+- **Décision** : passage par `scipy.signal.sosfilt` (C vectorisée), un appel par canal/bloc de 4800 échantillons, avec transfert d'état `zi → zf` entre blocs pour préserver la continuité du filtre. Éligible directement au budget « 1er ajout autorisé » défini en amont, car c'est l'unique dépendance additionnelle.
+- **Comportement** : si `scipy` est absent, fallback transparent sur la boucle scalaire numpy (testable sans scipy).
+- **Validation** : benchmarks blocs synthétiques (20 warmups + 15 mesures) : LP seul ≈ 9,3 ms/bloc avant / < 0,5 ms/bloc après. 38 tests pytest avant/après ; ruff clean.

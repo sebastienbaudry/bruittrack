@@ -14,6 +14,14 @@ from __future__ import annotations
 import numpy as np
 
 
+try:  # optional fast path — see docs/decision-log.md
+    from scipy.signal import sosfilt
+
+    _HAS_SCIPY = True
+except Exception:  # pragma: no cover - environment dependent
+    _HAS_SCIPY = False
+
+
 def design_butterworth_lp_sos(
     cutoff_hz: float = 400.0,
     fs: float = 48000.0,
@@ -80,6 +88,15 @@ class SosFilter:
         n_samples, n_ch = x.shape
         if n_ch != self.n_channels:
             raise ValueError(f"Expected {self.n_channels} channels, got {n_ch}")
+
+        if _HAS_SCIPY:
+            src = np.ascontiguousarray(x, dtype=np.float64)
+            y_out = np.empty((n_samples, n_ch), dtype=np.float64)
+            for ch in range(n_ch):
+                y, zf = sosfilt(self.sos, src[:, ch], zi=self.zi[:, :, ch].copy())
+                y_out[:, ch] = y
+                self.zi[:, :, ch] = zf
+            return y_out
 
         src = np.ascontiguousarray(x)
         y_out = np.empty((n_samples, n_ch), dtype=np.float64)
