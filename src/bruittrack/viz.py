@@ -487,7 +487,7 @@ function drawTimeline(events) {
     // toggles de canal: canal caché si l'autre domine de > 2 dB sur celui-ci
     const onL = !(e.lvl_d > e.lvl_g + 2);
     const onD = !(e.lvl_g > e.lvl_d + 2);
-    if (!(showCh.l && onL) && !(showCh.d && onD)) continue;
+    if (!(showCh.l && onL) && !(showCh.d && onD)) return; // 'return' (pas 'continue') : on est dans un callback forEach
 
     if (x >= 40 && x <= w) {
       timelinePoints.push({x, y, ev: e});
