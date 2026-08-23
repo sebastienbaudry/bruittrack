@@ -483,5 +483,6 @@ def test_cli_help_subcommands() -> None:
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
-        assert result.returncode == 0, f"{cmd} --help échoué : {result.stderr[-500:] }"
+        assert result.returncode == 0, f"{cmd} --help échoué : {result.stderr[-500:]}"
