@@ -11,6 +11,7 @@ Fingerprint layout (16 bytes):
 
 from __future__ import annotations
 
+import math
 import struct
 import time
 from dataclasses import dataclass
@@ -198,6 +199,8 @@ class EventDetector:
         bin_resolution_hz: float = 0.48828125,
         tick_interval_s: float = 0.1,
         exemplars_dir: str | Path = "exemplars",
+        min_event_hz: float = 2.0,
+        max_event_hz: float | None = None,
     ) -> None:
         self.threshold_db = threshold_db
         self.release_threshold_db = max(0.0, threshold_db - hysteresis_db)
@@ -206,6 +209,10 @@ class EventDetector:
         self.bin_resolution_hz = bin_resolution_hz
         self.tick_interval_s = tick_interval_s
         self.exemplars_dir = Path(exemplars_dir)
+        # Detection bounds in Hz (I35): hardware is not reliable below min_event_hz.
+        self.min_event_hz = min_event_hz
+        self.max_event_hz = max_event_hz
+        self.min_bin = max(1, math.ceil(min_event_hz / bin_resolution_hz))
 
         # Cluster index
         self.cluster_index = ClusterIndex()
@@ -249,12 +256,16 @@ class EventDetector:
 
         # Combined max emergence per bin
         max_emergence = np.maximum(emergence1, emergence2)
-        # Le bin 0 (DC) capte les transients de niveau, pas des bruits :
-        # on ne le prend jamais comme pic Ã©vÃ©nement.
-        search = max_emergence[1:]
+        # Search window: bins [min_event_hz .. max_event_hz] (config, I35).
+        hi = max_emergence.size
+        if self.max_event_hz is not None:
+            hi = min(hi, int(self.max_event_hz / self.bin_resolution_hz) + 1)
+        search = max_emergence[self.min_bin:hi]
         if search.size == 0:
             return events_emitted
-        current_peak_bin = int(np.argmax(search)) + 1
+        current_peak_bin = int(np.argmax(search)) + self.min_bin
+        # Le bin 0 (DC) capte les transients de niveau, pas des bruits :
+        # on ne le prend jamais comme pic Ã©vÃ©nement.
         current_max_em = float(max_emergence[current_peak_bin])
         current_em1 = float(emergence1[current_peak_bin])
         current_em2 = float(emergence2[current_peak_bin])

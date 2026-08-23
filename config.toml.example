@@ -28,8 +28,12 @@ noverlap = 1024
 # Taille du tampon glissant basse fréquence (8192 pts = 8.192 s, 7 segments Welch)
 n_buffer = 8192
 
-# Fréquence maximale d'analyse infrasons (Hz)
-freq_max = 48.0
+# Fréquence maximale d'analyse et de détection (Hz) — défaut 150.0
+freq_max = 150.0
+
+# Borne basse des événements (Hz) : le matériel n'est pas fiable sous ~2 Hz ;
+# les bins détectables couvrent [min_event_hz .. freq_max] (cf. docs/decision-log.md)
+min_event_hz = 2.0
 
 # Facteur de lissage exponentiel temporel (0 = lissage max, 1 = pas de lissage)
 ema_alpha = 0.5

@@ -16,7 +16,8 @@ def test_default_config() -> None:
     assert cfg.audio.decimation == 48
     assert cfg.audio.fs_low == 1000.0
     assert cfg.dsp.n_seg == 2048
-    assert cfg.dsp.freq_max == 48.0
+    assert cfg.dsp.freq_max == 150.0
+    assert cfg.dsp.min_event_hz == 2.0
     assert cfg.detector.threshold_db == 10.0
 
 

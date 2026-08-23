@@ -30,7 +30,8 @@ class DspConfig:
     n_seg: int = 2048
     noverlap: int = 1024
     n_buffer: int = 8192
-    freq_max: float = 48.0
+    freq_max: float = 150.0
+    min_event_hz: float = 2.0
     ema_alpha: float = 0.5
     floor_history_len: int = 300
     lp_cutoff_hz: float = 400.0
@@ -88,6 +89,11 @@ class Config:
         if not 0 < self.dsp.freq_max <= fs_low / 2.0:
             raise ValueError(
                 f"DSP freq_max ({self.dsp.freq_max} Hz) must be in (0, {fs_low / 2:.1f} Hz]"
+            )
+        if self.dsp.min_event_hz < 1.0 or self.dsp.min_event_hz >= self.dsp.freq_max:
+            raise ValueError(
+                f"DSP min_event_hz ({self.dsp.min_event_hz} Hz) must be in "
+                f"[1.0, freq_max={self.dsp.freq_max}) — le matériel n'est pas fiable sous 1 Hz"
             )
         if self.detector.debounce_ticks < 1:
             raise ValueError("Detector debounce_ticks must be >= 1")
@@ -169,7 +175,8 @@ def load_config(config_path: str | Path | None = None) -> Config:
         n_seg=int(dsp_dict.get("n_seg", 2048)),
         noverlap=int(dsp_dict.get("noverlap", 1024)),
         n_buffer=int(dsp_dict.get("n_buffer", 8192)),
-        freq_max=float(dsp_dict.get("freq_max", 48.0)),
+        freq_max=float(dsp_dict.get("freq_max", 150.0)),
+        min_event_hz=float(dsp_dict.get("min_event_hz", 2.0)),
         ema_alpha=float(dsp_dict.get("ema_alpha", 0.5)),
         floor_history_len=int(dsp_dict.get("floor_history_len", 300)),
         lp_cutoff_hz=float(dsp_dict.get("lp_cutoff_hz", 400.0)),

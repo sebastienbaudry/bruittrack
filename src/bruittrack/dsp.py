@@ -138,7 +138,7 @@ class DspPipeline:
         n_seg: int = 2048,
         noverlap: int = 1024,
         n_buffer: int = 8192,
-        freq_max: float = 48.0,
+        freq_max: float = 150.0,
         ema_alpha: float = 0.5,
         lp_cutoff_hz: float = 400.0,
     ) -> None:

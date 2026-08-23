@@ -123,3 +123,9 @@
 - Contexte : la spec exige de ne considerer que les events depassant l emergence autorisee par la loi ; aucun event n etait marqua de ce critere, store/viz ne pouvaient pas filter.
 - Decision : module bruittrack/legal.py (periode diurne 07h00-21h59 base 5 dB, nocturne base 3 dB, correctif de duree +6 au plus fort) et EventDetector._compute_flags() : bit3 = FLAG_OVER_LEGAL pose si max(lvl_g, lvl_d) depasse emergence_limit(evaluee a l heure locale du t0 ; tz naive volontaire, noqa DTZ006).
 - Justification : evaluation au close de l event (1 comparaison), zero nouvelle table ; bit3 complete les bits 0-2 sans changer le schema. Limitation documentee : duree_cumulee approximee par la duree de l event (au plus court, donc au correctif maximal +6, choix conservateur). Tests : tests/test_legal.py (6) + TestComputeFlags (2).
+
+## [2026-08-25] Bornes de detection min_event_hz / freq_max parametriques (I35)
+
+- Contexte : la spec fixe les bornes de detection des events aux bins freq >= 2 Hz (le materiel ne resout pas de facon fiable sous 2 Hz ; le bin DC reste exclu) jusqu a freq_max = 150 Hz (> 150 Hz hors perimetre d analyse T620). Avant, freq_max etait un parametre DSP (bins calcules) decoupe du threshold de detection.
+- Decision : DspConfig min_event_hz = 2.0 (inferieure borne) et freq_max = 150.0 (superieure), propagation via pipeline.py vers EventDetector (min_bin = ceil(min_event_hz / df) ; fen etre de recherche tronquee a max_event_hz / df + 1). Validation ValueError si min_event_hz < 1 ou >= freq_max. Exemple config met a jour.
+- Justification : un seul fichier source de verite (config.toml), zero magic numbers dans events.py ; le calcul des bins Welch reste borne par freq_max pour le budget (n_bins ~ 304). Tests : tests/test_band.py (3, synthetiques).
