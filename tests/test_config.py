@@ -104,3 +104,25 @@ def test_lp_cutoff_hz_must_be_below_nyquist() -> None:
         cfg.validate()  # valeur valide par défaut
     finally:
         cfg.dsp.lp_cutoff_hz = original
+
+
+
+def test_retention_days_validation_error() -> None:
+    """I27 : retention_days negative doit lever une erreur lisible."""
+    cfg = Config()
+    cfg.storage.retention_days = -1
+    with pytest.raises(ValueError, match="retention_days must be > 0"):
+        cfg.validate()
+
+    cfg.storage.retention_days = None
+    cfg.validate()  # None est valide (desactive)
+
+
+def test_load_config_invalid_threshold_raises(tmp_path) -> None:
+    """I27 : une TOML invalide doit echouer proprement au chargement."""
+    p = tmp_path / "config_bad.toml"
+    p.write_text("[detector]
+threshold_db = -5.0
+", encoding="utf-8")
+    with pytest.raises(ValueError, match="threshold_db must be > 0"):
+        load_config(p)

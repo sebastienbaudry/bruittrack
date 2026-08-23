@@ -74,7 +74,7 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 
 - [x] **I24** Test HTTP : exemplaire .raw corrompu -> GET /api/exemplars/<c> renvoie 500 (test_exemplar_corrupt_returns_500).
       Fichier : tests/test_viz_api.py. OK quand : pytest -k corrupt vert.
-- [ ] **I25** CI matrix 3.12/3.13 mais pyproject.toml declare requires-python >=3.11 : ajouter un job 3.11 (planchier declaree) dans .github/workflows/ci.yml.
+- [x] **I25** CI matrix 3.12/3.13 mais pyproject.toml declare requires-python >=3.11 : ajouter un job 3.11 (planchier declaree) dans .github/workflows/ci.yml.
       Fichier : .github/workflows/ci.yml. OK quand : le matrix porte 3 versions et le YAML reste valide.
 - [x] **I26** viz.py : valider les params GET /api/events (since=abc, limit<=0, offset<0 -> HTTP 400 au lieu d'errno/traceback) + tests test_viz_api.py.
       Fichier : src/bruittrack/viz.py. OK quand : des requests de test avec since=abc et limit=0 recoivent 400, gate verte.
