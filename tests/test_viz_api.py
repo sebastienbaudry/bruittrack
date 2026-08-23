@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 
 from bruittrack.config import Config, StorageConfig
-from bruittrack.events import SoundEvent
+from bruittrack.events import FLAG_OVER_LEGAL, SoundEvent
 from bruittrack.store import EventStore
 from bruittrack.viz import BruitTrackHandler
 
@@ -87,6 +87,30 @@ def test_events_api_contains_tooltip_fields(viz_server):
     assert levels == pytest.approx([12.5, 13.5, 14.5])
 
 
+
+def test_events_api_exposes_over_legal_flag(viz_server):
+    base, store, _ = viz_server
+    events = _get_json(base, "/api/events?limit=10")
+    assert all("over_legal" in ev and ev["over_legal"] is False for ev in events)
+    # An event with bit3 set (FLAG_OVER_LEGAL) must surface as over_legal=True.
+    store.add_event(
+        SoundEvent(
+            t0=1700009999.0,
+            dur=2.0,
+            bin_i=40,
+            freq=19.53,
+            lvl_g=22.5,
+            lvl_d=20.5,
+            off_ms=-1.5,
+            fp=b"f" * 16,
+            flags=FLAG_OVER_LEGAL,
+            cluster=9,
+        )
+    )
+    store.flush()
+    events = _get_json(base, "/api/events?limit=10")
+    top = [ev for ev in events if ev["flags"] == FLAG_OVER_LEGAL]
+    assert len(top) == 1 and top[0]["over_legal"] is True
 def test_stats_api_reflects_counted_events(viz_server):
     base, _, _ = viz_server
     stats = _get_json(base, "/api/stats")

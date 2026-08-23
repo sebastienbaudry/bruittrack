@@ -65,6 +65,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
   .badge-live { background: rgba(16, 185, 129, 0.2); color: var(--success); border: 1px solid var(--success); }
   .badge-cluster { background: rgba(56, 189, 248, 0.2); color: var(--primary); }
+  .badge-over { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
   .badge-ch-l { background: #3b82f6; color: white; }
   .badge-ch-r { background: #ec4899; color: white; }
   .badge-ch-b { background: #8b5cf6; color: white; }
@@ -245,11 +246,12 @@ function renderEventsTable(events) {
     if (e.lvl_d > e.lvl_g + 2) chBadge = '<span class="badge badge-ch-r">IN2 (Struct)</span>';
     else if (Math.abs(e.lvl_g - e.lvl_d) <= 2) chBadge = '<span class="badge badge-ch-b">Les 2</span>';
 
+    const olBadge = e.over_legal ? ' <span class="badge badge-over">▲ legal</span>' : '';
     return `<tr>
       <td>${formatDate(e.t0)}</td>
       <td><strong>${e.freq.toFixed(1)} Hz</strong></td>
       <td>${chBadge}</td>
-      <td>+${e.lvl_g.toFixed(1)} / +${e.lvl_d.toFixed(1)} dB</td>
+      <td>+${e.lvl_g.toFixed(1)} / +${e.lvl_d.toFixed(1)} dB</td>${olBadge}
       <td>${e.dur.toFixed(1)} s</td>
       <td><span class="badge badge-cluster" style="background:${getClusterColor(e.cluster)}22; color:${getClusterColor(e.cluster)}">#${e.cluster || '-'}</span></td>
     </tr>`;
