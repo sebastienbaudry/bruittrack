@@ -90,3 +90,19 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I29** test_pipeline.py : seule 2 tests Engine — ajouter simulation synthetique de pic > seuil (floor + 12 dB) produisant >=1 event via Engine.step + flush store tmp_path. OK quand : pytest vert, nouveau test test_engine_synthetic_spike_fires.
 - [ ] **I30** .github/release.md ou script/creer_release.py : publier la release GitHub v1.0.0 (POST /repos/{o}/{r}/releases via token) ; descriptif = notes ci-jointes CI 3.11-3.13, budget HP T620, commande purge. OK quand : `gh release view v1.0.0` (ou GET API) reponse 200.
 - [x] **I31** src/bruittrack/viz.py do_GET : verifier les routes existantes + ajouter /api/health (200 JSON {ok: true, events_db_rows}) avec test test_health_returns_200 dans tests/test_viz_api.py. OK quand : pytest vert.
+## Post-v1.0.0 — Ops HP T620 & contrainte bande
+
+- [x] **I32** Audit hpdebian : tous les modules en 1.0.0 (`src/bruittrack/__init__.py`, `pyproject.toml`, métadonnées pip), service `systemctl restart` effectués (réponse active), purge DB des lignes `freq=0.0` → 0 ligne restante et 1263 événements conservés.
+      Fichiers : PROGRESS.md (log), SSH pi-t620. OK quand : vérifié par SSH le 2026-08-23 (PID 38648, `SELECT count(*) … WHERE freq=0` = 0).
+- [x] **I33** Robustesse normalisation CRLF→LF de `tools/install_hp.sh` : détection par `od -An -c | grep '\r'` (portable MSYS/GNU ; le `grep $'\r'` seul est faux négatif sous MSYS), bloc `if/fi` (pas de `&&` sous errexit), layout plat `/opt/bruittrack`.
+      Fichier : tools/install_hp.sh. OK quand : `bash -n tools/install_hp.sh` rc=0, zéro CR (`grep -c` od = 0), find prune `.git/.venv/data/example` intact.
+- [x] **I34** Outiling ops : `tools/parity_hp.sh` (sha256 local vs /opt/bruittrack engagé), `.pi-loop-log.jsonl` dé-tracké de l'index git.
+      Fichiers : tools/parity_hp.sh, .gitignore. OK quand : commit 10da285 vert et `git status` propre sur ce log.
+- [ ] **I35** Contraintes bande **utilisateurs paramétrables** : `freq_max = 150.0` (Hz analysés au maximum) et `min_event_hz = 2.0` (aucun événement en dessous — matériel non fiable sous 2 Hz), ajoutées à `DspConfig` avec validation, pas de magic number, propagées dans le pipeline d'émergence/Détection.
+      Fichiers : src/bruittrack/config.py, src/bruittrack/dsp.py (borne des émergences bin < min_event_hz ; Welch/bins jusqu'à freq_max), src/bruittrack/pipeline.py, config.toml.example, tests/test_config.py + tests/test_dsp.py.
+      OK quand : `pytest -q` vert avec tests synthétiques « 1 Hz jamais détecté » / « pic ~120 Hz détecté avec freq_max=150 » et validation ValueError si values incohérentes (min_event_hz < 1 ou ≥ freq_max).
+- [ ] **I36** Mettre à jour fichiers de référence pour les 2 nouvelles contraintes : section Pipeline + Schéma DB d'AGENTS.md (bins utiles, bornes min/max avec note config), entrée `docs/decision-log.md` documentant l'origine matériel des bornes et leur paramétrabilité.
+      Fichiers : AGENTS.md, docs/decision-log.md, README.md (section Configuration).
+      OK quand : `grep -c "min_event_hz\|freq_max" AGENTS.md docs/decision-log.md config.toml.example` retourne ≥1 occurrences dans les 3 fichiers et le texte décrit la raison matériel (« non fiable sous 2 Hz ») + portée configurable.
+- [ ] **I37** Purge hpdebian des événements `0 < freq < min_event_hz` (conséquence I35, même règle que purge 0 Hz I32 mais étendue) + note dans le README de la commande de purge.
+      Cible : SSH pi-t620 SQL ; Fichier : README.md. OK quand : `SELECT count(*) FROM events WHERE freq < 2.0` = 0 sur /opt/bruittrack et la commande SQL est réutilisable via scripts/purge_lowfreq.sql à la suite.
