@@ -218,3 +218,5 @@ Last updated: 2026-08-22
 - src/bruittrack/config.py + tests/test_config.py synced to /opt/bruittrack/ (md5cmp SAME).
 - Live proof from /opt: bruittrack --config /opt/bruittrack/...  stats --json → db_path=/opt/brUITTRACK/data/bruittack.db, total_events=595, total_clusters=330 (live, before correction from this CWD was 0).
 - Note: on-target user is sbaudry with no password-lesssudo; the production service will run with modified code after the next restart (documented).
+
+- [x] **It.93** I10 ✅ get_stats 24h: cut-off float en param (test store).

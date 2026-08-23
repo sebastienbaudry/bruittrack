@@ -317,6 +317,7 @@ class EventStore:
     def get_stats(self) -> dict[str, Any]:
         """Get aggregate statistics (thread-safe read)."""
         self.flush()
+        cutoff_24h = time.time() - 86_400.0
         with self._db(readonly=True) as conn:
             row = conn.execute(
                 """
@@ -326,10 +327,10 @@ class EventStore:
                     MIN(t0) as min_t0,
                     MAX(t0) as max_t0,
                     AVG(dur) as avg_dur,
-                    SUM(CASE WHEN t0 >= strftime('%s','now','-1 day') THEN 1 ELSE 0 END)
-                        as events_last_24h
+                    SUM(CASE WHEN t0 >= ? THEN 1 ELSE 0 END) as events_last_24h
                 FROM events;
-                """
+                """,
+                (cutoff_24h,),
             ).fetchone()
             stats = dict(row) if row else {}
 

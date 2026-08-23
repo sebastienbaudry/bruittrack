@@ -156,10 +156,23 @@ def test_get_stats_events_last_24h(tmp_path: Path) -> None:
         cluster=2,
     )
     store.add_event(ev)
+    stale = SoundEvent(
+        t0=now - 3 * 86_400.0,
+        dur=1.0,
+        bin_i=12,
+        freq=5.9,
+        lvl_g=8.0,
+        lvl_d=1.5,
+        off_ms=-0.4,
+        fp=b"s" * 16,
+        flags=0,
+        cluster=3,
+    )
+    store.add_event(stale)
     stats = store.get_stats()
     assert "events_last_24h" in stats
-    assert stats["events_last_24h"] == 1
-    assert stats["total_events"] == 1
+    assert stats["events_last_24h"] == 1  # recent only; stale (>24h) excluded
+    assert stats["total_events"] == 2
 
 
 def test_cluster_fingerprints_cap_and_speed(tmp_path: Path) -> None:
