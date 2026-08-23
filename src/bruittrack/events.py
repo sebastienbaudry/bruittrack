@@ -5,7 +5,7 @@ Fingerprint layout (16 bytes):
 - Bytes 1-2: Peak frequency bin index (uint16 BE)
 - Bytes 3-7: Quantized neighbor bins (5 x uint8, relative emergence 0..7)
 - Byte 8: Dominant channel (0 = Left/Air, 1 = Right/Structure, 2 = Both)
-- Byte 9: Delay class (int8, ±20 ms discretized)
+- Byte 9: Delay class (int8, Â±20 ms discretized)
 - Bytes 10-15: Reserved (6 x 0x00)
 """
 
@@ -14,15 +14,19 @@ from __future__ import annotations
 import struct
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
 import numpy as np
 
+from .legal import emergence_limit
+
 # Flags
-FLAG_KNOWN = 1 << 0  # bit 0: validé / connu
-FLAG_IGNORED = 1 << 1  # bit 1: ignoré (triage)
-FLAG_EXEMPLAR = 1 << 2  # bit 2: extrait audio stocké
+FLAG_KNOWN = 1 << 0  # bit 0: validÃ© / connu
+FLAG_IGNORED = 1 << 1  # bit 1: ignorÃ© (triage)
+FLAG_EXEMPLAR = 1 << 2  # bit 2: extrait audio stockÃ©
+FLAG_OVER_LEGAL = 1 << 3  # bit 3: exceeds legal emergence (CSP R1336-7)
 
 
 @dataclass
@@ -125,9 +129,9 @@ def decode_fingerprint(fp: bytes) -> DecodedFingerprint:
 def fingerprints_match(fp1: bytes, fp2: bytes) -> bool:
     """Check if two fingerprints match according to clustering tolerance rules:
 
-    - |Δbin_peak| <= 2
-    - Σ|Δneighbors| <= 2
-    - |Δdelay_class| <= 2
+    - |Î”bin_peak| <= 2
+    - Î£|Î”neighbors| <= 2
+    - |Î”delay_class| <= 2
     - Compatible dominant channel (identical or at least one is 'Both')
     """
     d1 = decode_fingerprint(fp1)
@@ -246,7 +250,7 @@ class EventDetector:
         # Combined max emergence per bin
         max_emergence = np.maximum(emergence1, emergence2)
         # Le bin 0 (DC) capte les transients de niveau, pas des bruits :
-        # on ne le prend jamais comme pic événement.
+        # on ne le prend jamais comme pic Ã©vÃ©nement.
         search = max_emergence[1:]
         if search.size == 0:
             return events_emitted
@@ -332,6 +336,16 @@ class EventDetector:
         if audio_buffer_low.shape[0] >= window_size:
             self.audio_sample_at_peak = audio_buffer_low[-window_size:, :].copy()
 
+    def _compute_flags(self, duration_s: float) -> int:
+        """FLAGS_EXEMPLAR si 1e exemplaire; bit3 exceeds legal limit (CSP R1336-7)."""
+        # Détection : limites légales évaluées sur l'heure locale de début d'événement.
+        # legal limit uses local civil time (intentionally tz-naive)
+        t = datetime.fromtimestamp(self.t0_unix)  # noqa: DTZ006
+        peak_db = max(self.peak_lvl_g, self.peak_lvl_d)
+        limite = emergence_limit(t.hour, t.minute, duration_s)
+        # Le bit exemplar est ajouté ensuite si cluster neuf.
+        return FLAG_OVER_LEGAL if peak_db > limite else 0
+
     def _build_and_emit_event(self, duration_s: float) -> SoundEvent:
         """Construct SoundEvent with fingerprint, cluster assignment, and exemplar saving."""
         # Determine dominant channel
@@ -363,7 +377,7 @@ class EventDetector:
         )
 
         cluster_id, is_new_cluster = self.cluster_index.match_or_create(fp)
-        flags = 0
+        flags = self._compute_flags(duration_s)
 
         # If first exemplar of a cluster, write raw audio exemplar
         if is_new_cluster and self.audio_sample_at_peak is not None:
