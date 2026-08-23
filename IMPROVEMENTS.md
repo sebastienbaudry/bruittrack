@@ -84,4 +84,4 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 
 ## Release
 
-- [ ] **I28** Version stable : tag/v1.0.0 + déploiement sur le HP T620 (systemd/bruittrack.service), puis purge DB serveur des événements non significatifs (freq=0.0 pré-fix 80dbfe9, événements <<seuil noise>). Fichier : scripts/purge_noise.sql (nouveau) + README. OK quand : la purge est scriptable en une commande déclarée dans le README, après un état de CI vert et gates locales passer.
+- [x] **I28** Version stable : tag/v1.0.0 + déploiement sur le HP T620 (systemd/bruittrack.service), puis purge DB serveur des événements non significatifs (freq=0.0 pré-fix 80dbfe9, événements <<seuil noise>). Fichier : scripts/purge_noise.sql (nouveau) + README. OK quand : la purge est scriptable en une commande déclarée dans le README, après un état de CI vert et gates locales passer.
