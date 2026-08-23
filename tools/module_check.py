@@ -252,9 +252,7 @@ def check_viz_api(res: CheckResult) -> None:
         import sqlite3
 
         triage_db = sqlite3.connect(str(p / "viz.db"))
-        row = triage_db.execute(
-            "SELECT flags, label FROM clusters WHERE id = 0"
-        ).fetchone()
+        row = triage_db.execute("SELECT flags, label FROM clusters WHERE id = 0").fetchone()
         triage_db.close()
         triage_ok = (
             triage_payload.get("success") is True
