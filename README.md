@@ -106,11 +106,14 @@ curl -s 'http://localhost:8080/api/clusters?limit=20'
 ### Purge post-rangement (une seule commande)
 Apres la correction 80dbfe9, purger les evenements non-significatifs en base :
 artefacts DC (`freq=0.0`) dont emergence max(lvl_g,lvl_d) < 10 dB.
+Depuis I35, aucune detection sous `min_event_hz` (defaut 2.0 Hz) ;
+les evenements entre 0 et `min_event_hz` existants se purgent de la meme facon.
 ```bash
 systemctl stop bruittrack
 sqlite3 data/bruittrack.db < scripts/purge_noise.sql
 systemctl start bruittrack
 ```
+Depuis I35 une purge de rattrapage `scripts/purge_lowfreq.sql` supprime les events avec `freq < min_event_hz` (defaut 2.0 Hz) existants en base.
 Le script affiche un apercu (COUNT) AVANT, execute DELETE + VACUUM et
 reporte le nombre de lignes supprimees.
 

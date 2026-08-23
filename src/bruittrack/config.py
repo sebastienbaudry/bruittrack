@@ -27,6 +27,8 @@ class AudioConfig:
 
 @dataclass
 class DspConfig:
+    """DSP params — defaults cf. config.toml.example (freq_max = 150.0, min_event_hz = 2.0 Hz)."""
+
     n_seg: int = 2048
     noverlap: int = 1024
     n_buffer: int = 8192
