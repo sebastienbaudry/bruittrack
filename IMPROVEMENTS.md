@@ -112,7 +112,7 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I39** UI Timeline : supprimer le tassement des points à droite — fenêtre temporelle glissante dynamique (affichage centré sur les N dernières heures d'événements, pas depuis epoch) + option zoom type brushing (sélection d'une plage qui zoom l'axe).
       Fichiers : src/bruittrack/viz.py ; acceptation testée via `tools/module_check.py`/pytest endpoint si lisible.
       OK quand : un flux avec événements récents montre les points étalés sur la largeur et une sélection de plage recentre l'échelle (vérifiable par curl du HTML + comportement client documenté dans README).
-- [ ] **I40** Lien bidirectionnel scatter ↔ tableau : clic sur un point du Frequency/Time chart → surbrillance de la ligne correspondante dans « Derniers Événements » (et clic sur une ligne → surbrillance du point) ; scroll automatique à la ligne.
+- [x] **I40** Lien bidirectionnel scatter ↔ tableau : clic sur un point du Frequency/Time chart → surbrillance de la ligne correspondante dans « Derniers Événements » (et clic sur une ligne → surbrillance du point) ; scroll automatique à la ligne.
       Fichier : src/bruittrack/viz.py (mapping id d'événement ↔ élément DOM, classes CSS actives).
       OK quand : les deux directions de highlight existent dans le HTML servi et testent le wiring (`pytest -k crosshair -q` ajouté ou `module_check.py` vérifie la présence du handler + de l'attr id par évènement).
 - [ ] **I41** Filtres rapides au-dessus du tableau « Derniers Événements » : par canal (IN1 Air / IN2 Structural / Tous), par émergence minimale (sliders/sélecteur, ex. >+10 dB), par cluster (list déroulante alimentée par /api/clusters).

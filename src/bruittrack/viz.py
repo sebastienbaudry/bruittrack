@@ -81,6 +81,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   #timelineCanvas { width: 100%; height: 260px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); cursor: crosshair; }
 
   table { width: 100%; border-collapse: collapse; text-align: left; }
+  tr[data-ev-id] { cursor: pointer; }
+  tr.ev-row-selected { background: #312e8155; outline: 1px solid #6366f1; }
   th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
   th { color: var(--text-muted); font-size: 12px; text-transform: uppercase; background: rgba(0,0,0,0.15); }
   tr:hover { background: var(--bg-card-hover); }
@@ -267,7 +269,7 @@ function renderEventsTable(events) {
     else if (Math.abs(e.lvl_g - e.lvl_d) <= 2) chBadge = '<span class="badge badge-ch-b">Les 2</span>';
 
     const olBadge = e.over_legal ? ' <span class="badge badge-over">▲ legal</span>' : '';
-    return `<tr>
+    return `<tr data-ev-id="${e.id}"${e.id === selectedEvId ? ' class="ev-row-selected"' : ''} onclick="selectEv(${e.id})">
       <td>${formatDate(e.t0)}</td>
       <td><strong>${e.freq.toFixed(1)} Hz</strong></td>
       <td>${chBadge}</td>
@@ -314,6 +316,18 @@ let tlMode = null;     // null = fenêtre boutons; else {minT, span} en s (zoom 
 let tlScale = null;    // plage active {minT, span} pour conversion px→temps du brushing
 let tlBrushPx = null;  // {x0, x1} rect de sélection pendant glisser (coords canvas)
 let lastVisible = []; // dernier jeu d'événements visibles (refilterable sans refetch)
+let selectedEvId = null; // événement sélectionné : lien scatter ↔ tableau (I40)
+
+function selectEv(id) {
+  if (selectedEvId === id) id = null; // re-clic = désélection
+  document.querySelectorAll('tr.ev-row-selected').forEach(r => r.classList.remove('ev-row-selected'));
+  selectedEvId = id;
+  if (selectedEvId != null) {
+    const row = document.querySelector(`tr[data-ev-id="${selectedEvId}"]`);
+    if (row) { row.classList.add('ev-row-selected'); row.scrollIntoView({block: 'nearest', behavior: 'smooth'}); }
+  }
+  drawTimelineFull(); // retrace le scatter + anneau de sélection
+}
 
 function drawTimelineFull() { return drawTimeline(lastVisible.length ? lastVisible : eventsData); }
 
@@ -382,11 +396,13 @@ function hideEvtTip() { document.getElementById('evtTip').style.display = 'none'
     const ev = best.ev;
     tip.textContent = `#${ev.cluster || '-'} · bin ${ev.bin_i} (${ev.freq.toFixed(2)} Hz) · G +${ev.lvl_g.toFixed(1)} / D +${ev.lvl_d.toFixed(1)} dB` + (ev.over_legal ? ' · ▲ legal' : '');
     tip.style.display = 'inline';
+    return ev; // I40 : point cliquable → lien avec le tableau
   }
   canvas.addEventListener('mousemove', showTip);
   canvas.addEventListener('click', function (e) {
     // clic = détail conservé 6 s après le mouvement de souris
-    showTip(e);
+    const selEv = showTip(e); // I40 : clic sur un point → surbrillance ligne
+    if (selEv) selectEv(selEv.id);
     const tip2 = document.getElementById('evtTip');
     if (tip2.textContent) { tip2.dataset.sticky = '1'; setTimeout(function () { if (tip2.dataset.sticky === '1') hideEvtTip(); }, 6000); }
   });
@@ -459,6 +475,19 @@ function drawTimeline(events) {
       ctx.globalAlpha = 1.0;
     }
   });
+
+  if (selectedEvId != null) { // anneau sur le point sélectionné (I40)
+    const sp = timelinePoints.find(p => p.ev.id === selectedEvId);
+    if (sp) {
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, 12, 0, Math.PI * 2);
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
 
   if (tlBrushPx) { // rect de sélection du brushing → relâcher verrouille la plage
     const bx0 = Math.max(40, tlBrushPx.x0);
