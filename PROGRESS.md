@@ -56,6 +56,8 @@ ruff clean | Fixed every lint error that remains in the repo (`ruff check .`) | 
 | store robustness | `EventStore.close()` idempotent, single `_db()` conn reused across ops (`:memory:` fixed), lock for buffer; WAL/NORMAL defaults documented in README | 47 passing tests (2026-08-22) |
 | Docs/assumptions | PROGRESS.md, BUGS.md, IMPROVEMENTS.md, ASSUMPTIONS A017/A018 (pi-t620 deployment layout + sox not audited headless); README updated (scipy note, budget < 10 % CPU) | files on disk, `git log --oneline -8` |
 
+| I12 | `SosFilter.__init__` émet un `RuntimeWarning` si `_HAS_SCIPY` est faux (fallback pure-Python) ; test `tests/test_dsp.py::test_sosfilter_fallback_warning` | `pytest -q` → 68 passed (2026-08-22)
+
 ### Evidence snapshot (local, 2026-08-22)
 ```text
 $ ruff check . && ruff format --check && pytest -q

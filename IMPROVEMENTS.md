@@ -35,7 +35,7 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I11** Nettoyage des extraits audio exemplaires orphelins (`prune_orphaned_exemplars`).
       Fichiers : `src/bruittrack/store.py`, `tests/test_store.py`.
       OK quand : une méthode `prune_orphaned_exemplars()` supprime les fichiers `ex_<id>.raw` orphelins dans `exemplars_dir` et `pytest tests/test_store.py` vert.
-- [ ] **I12** Avertissement au démarrage si fallback SOS pure-Python actif (`scipy` absent).
+- [x] **I12** Avertissement au démarrage si fallback SOS pure-Python actif (`scipy` absent).
       Fichiers : `src/bruittrack/dsp.py`, `src/bruittrack/pipeline.py`, `tests/test_dsp.py`.
       OK quand : un warning de log est émis à l'initialisation si `scipy.signal.sosfilt` est indisponible et `pytest tests/test_dsp.py` vert.
 
