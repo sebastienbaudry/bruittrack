@@ -46,6 +46,7 @@ class DetectorConfig:
     debounce_ticks: int = 5
     max_duration_s: float = 30.0
     warmup_ticks: int = 300
+    cluster_freq_tolerance_hz: float = 0.5
 
 
 @dataclass
@@ -113,6 +114,11 @@ class Config:
             raise ValueError("Detector threshold_db must be > 0")
         if self.detector.hysteresis_db >= self.detector.threshold_db:
             raise ValueError("Detector hysteresis_db must be < threshold_db")
+        if self.detector.cluster_freq_tolerance_hz <= 0:
+            raise ValueError(
+                f"Detector cluster_freq_tolerance_hz ({self.detector.cluster_freq_tolerance_hz}) "
+                "must be > 0"
+            )
         if self.storage.batch_size <= 0:
             raise ValueError(f"Storage batch_size must be > 0 (got {self.storage.batch_size})")
         if self.storage.batch_timeout_s <= 0:
@@ -192,6 +198,9 @@ def load_config(config_path: str | Path | None = None) -> Config:
         debounce_ticks=int(det_dict.get("debounce_ticks", 5)),
         max_duration_s=float(det_dict.get("max_duration_s", 30.0)),
         warmup_ticks=int(det_dict.get("warmup_ticks", 300)),
+        cluster_freq_tolerance_hz=float(
+            det_dict.get("cluster_freq_tolerance_hz", 0.5)
+        ),
     )
 
     def resolve_rel(p: Any) -> str:

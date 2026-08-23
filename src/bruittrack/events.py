@@ -127,17 +127,30 @@ def decode_fingerprint(fp: bytes) -> DecodedFingerprint:
     )
 
 
-def fingerprints_match(fp1: bytes, fp2: bytes) -> bool:
-    """Check if two fingerprints match according to clustering tolerance rules:
+def fingerprints_match(
+    fp1: bytes,
+    fp2: bytes,
+    max_bin_delta: int = 1,
+) -> bool:
+    """Check if two fingerprints match according to clustering tolerance rules.
 
-    - |Î”bin_peak| <= 2
-    - Î£|Î”neighbors| <= 2
-    - |Î”delay_class| <= 2
-    - Compatible dominant channel (identical or at least one is 'Both')
+    Tolerance on the peak bin is derived from configuration in bins;
+    the rest (neighbors, delay_class, dominant channel) stays as before.
+
+    Args:
+        fp1: First fingerprint.
+        fp2: Second fingerprint.
+        max_bin_delta: Maximum allowed peak-bin distance (derived from config).
+
+    Returns:
+        True if the fingerprints are compatible, else False.
     """
     d1 = decode_fingerprint(fp1)
     d2 = decode_fingerprint(fp2)
 
+    # Bin peak distance
+    if abs(d1.bin_peak - d2.bin_peak) > max_bin_delta:
+        return False
     # Bin peak distance
     if abs(d1.bin_peak - d2.bin_peak) > 2:
         return False

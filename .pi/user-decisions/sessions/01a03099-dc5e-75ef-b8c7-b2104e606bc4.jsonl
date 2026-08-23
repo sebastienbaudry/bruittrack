@@ -1,0 +1,1 @@
+{"id":1,"scope":"session","timestamp":"2026-08-23T21:50:47.484Z","summary":"SSH pi-t620 (hpdebian.home) : accès root par mot de passe root=passLinux1! (sudo/ssh root sur la cible de déploiement).","detail":"Utilisateur SSH configuré : sbaudry@hpdebian.home. Pour des commandes root sur pi-t620, utiliser sudo avec password 'passLinux1!' (ex: echo passLinux1! | sudo -S ...)."}
