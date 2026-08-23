@@ -120,9 +120,8 @@ def test_retention_days_validation_error() -> None:
 
 def test_load_config_invalid_threshold_raises(tmp_path) -> None:
     """I27 : une TOML invalide doit echouer proprement au chargement."""
-    p = tmp_path / "config_bad.toml"
-    p.write_text("[detector]
-threshold_db = -5.0
-", encoding="utf-8")
+    toml_body = "[detector]" + chr(10) + "threshold_db = -5.0" + chr(10)
+    bad_path = tmp_path / "config_bad.toml"
+    bad_path.write_text(toml_body, encoding="utf-8")
     with pytest.raises(ValueError, match="threshold_db must be > 0"):
-        load_config(p)
+        load_config(bad_path)

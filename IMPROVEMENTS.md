@@ -78,7 +78,7 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
       Fichier : .github/workflows/ci.yml. OK quand : le matrix porte 3 versions et le YAML reste valide.
 - [x] **I26** viz.py : valider les params GET /api/events (since=abc, limit<=0, offset<0 -> HTTP 400 au lieu d'errno/traceback) + tests test_viz_api.py.
       Fichier : src/bruittrack/viz.py. OK quand : des requests de test avec since=abc et limit=0 recoivent 400, gate verte.
-- [ ] **I27** config.py : retenir les erreurs de validation (retention_days >= 0, seuils > 0) - levees au chargement avec un message lisible + tests test_config.py.
+- [x] **I27** config.py : retenir les erreurs de validation (retention_days >= 0, seuils > 0) - levees au chargement avec un message lisible + tests test_config.py.
       Fichier : src/bruittrack/config.py. OK quand : pytest -k config vert et une config invalide echoue proprement en CLI.
 
 
