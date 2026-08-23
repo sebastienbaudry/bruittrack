@@ -1,0 +1,20 @@
+[Unit]
+Description=BruitTrack - Interface web (lecture DB, HTTP 8760)
+Wants=bruittrack.service
+After=network.target
+
+[Service]
+Type=simple
+User=bruittrack
+Group=audio
+WorkingDirectory=/opt/bruittrack
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/opt/bruittrack/.venv/bin/python -m bruittrack viz --port 8760
+Restart=on-failure
+RestartSec=3s
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
