@@ -66,7 +66,7 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 
 - [x] **I21** `EventStore.get_events()` (src/bruittrack/store.py:296) : aucun test des filtres `since`/`offset`/`cluster`. Ajouter `test_get_events_filters_and_pagination` dans tests/test_store.py (3 events t0 consécutifs ; since=mi → sous-ensemble exact ; limit+offset + desc ; cluster=5 isole un event).
       OK quand : `pytest tests/test_store.py -k filters_and_pagination -q` vert.
-- [ ] **I22** `retention_days` (config.py:54) validé mais jamais consommé. Ajouter `EventStore.purge_old(now)` (src/bruittrack/store.py) supprimant events avec t0 < now − N jours (+ exemplaires orphelins), appelé au démarrage (src/bruittrack/__main__.py, cmd_start) + test tests/test_store.py.
+- [x] **I22** (déjà implémenté : apply_retention store.py + wiring pipeline.py)  `retention_days` (config.py:54) validé mais jamais consommé. Ajouter `EventStore.purge_old(now)` (src/bruittrack/store.py) supprimant events avec t0 < now − N jours (+ exemplaires orphelins), appelé au démarrage (src/bruittrack/__main__.py, cmd_start) + test tests/test_store.py.
       OK quand : `pytest -k retention -q` vert et purge visible dans `bash tools/check.sh`.
-- [ ] **I23** Smoke CLI : tests/test_bugfixes.py — subprocess `python -m bruittrack <cmd> --help` (devices|test|start|viz|stats) s' exécute en 0, garantissant l'appontage argparse.
+- [x] **I23** Smoke CLI : tests/test_bugfixes.py — subprocess `python -m bruittrack <cmd> --help` (devices|test|start|viz|stats) s' exécute en 0, garantissant l'appontage argparse.
       OK quand : `pytest -k cli_help -q` vert.

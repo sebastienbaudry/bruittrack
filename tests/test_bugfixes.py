@@ -469,3 +469,19 @@ def test_stats_json_flag(tmp_path, monkeypatch):
     data = _json.loads(buf.getvalue())
     assert data["total_events"] >= 1
     assert "top_clusters" in data and "db_path" in data
+
+
+def test_cli_help_subcommands() -> None:
+    """I23 : chaque sous-commande CLI accepte --help sans erreur (appontage argparse)."""
+
+    import subprocess
+    import sys
+
+    for cmd in ("devices", "test", "start", "viz", "stats"):
+        result = subprocess.run(
+            [sys.executable, "-m", "bruittrack", cmd, "--help"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, f"{cmd} --help échoué : {result.stderr[-500:] }"
