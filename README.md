@@ -42,7 +42,9 @@ Service systemd : [systemd/bruittrack.service](systemd/bruittrack.service)
 
 ### API du dashboard
 
-`GET /` · `GET /api/events[?since&limit&offset&cluster]` · `GET /api/clusters[?limit]` · `GET /api/stats` · `GET /api/exemplar/\<id\>.wav` · `POST /api/clusters/\<id\>/triage {flags, label}` (bit 0 connue, bit 1 ignorée) — cf. section Triage plus bas.
+`GET /` · `GET /api/events[?since&limit&offset&cluster]` · `GET /api/clusters[?limit]` · `GET /api/stats` · `GET /api/health` · `GET /api/exemplar/\<id\>.wav` · `POST /api/clusters/\<id\>/triage {flags, label}` (bit 0 connue, bit 1 ignorée) — cf. section Triage plus bas.
+
+La timeline du dashboard propose des fenêtres glissantes (1h/6h/24h/Tout) et un **zoom par brushing** : glisser sur la timeline sélectionne une plage temporelle qui verrouille l'axe ; double-clic ou Échap rétablit la fenêtre de boutons.
 
 La rétention (`retention_days`) s'applique automatiquement au démarrage et quotidiennement via le pipeline ; `prune` nettoie orphelins quand l'exemplaire n'a plus que 0 événement rattaché sur la vue clusters.
 

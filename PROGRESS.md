@@ -1,10 +1,10 @@
-# PROGRESS — BruitTrack loop (GOAL.md: IMPROVEMENTS backlog, goal_check 10 pts)
-
-## Etat
-- Score goal_check : **4/10** (C1 I35, C2 I36, C3 I37 verts ; B2 bonus)
-- 95 tests pass, ruff clean, commit 4120960.
-
-## Prochain batch : C4 (I38) dashboard UI
-- Fichier : UI dashboard viz.py (HTML_DASHBOARD)
-- A faire : boutons d'echelle 1h/6h/24h/Tout + fonction drawTimeTicks() pour graduation axe X.
-- Gate C5 ensuite : tlMode + brushZoom() (I39).
+# Progress
+## State
+goal_check 5/10 (C1-C4 ok; B2 ok). Next: C5/I39 = tlMode + brushZoom() en viz.py.
+## Tried / failed
+turns precedents: reponse narration seule, aucun edit soumis. Edit preparé mais non envoyé (path manquante sur 1 essai).
+## Next
+1. SOUMETTRE MAINTENANT l'edit viz.py C5/I39 (tlMode, brushZoom, tlModeBtn, overlay brushPx, handlers mousedown/mousemove/mouseup/dblclick) + ruff/pytest/goal_check.
+2. Mark I39 [x], commit.
+3. C6/I40: selectEvent + data-evt + scrollIntoView detail panel.
+2026-08-23 I39: tlMode+brushing zoom dans viz.py (glisser=plage, dblclic/Esc=reinit); README; check.sh vert

@@ -109,7 +109,7 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I38** UI Timeline « Fréquence / Temps » : graduations visibles sur l'axe X (repères HH:MM clairs, ex. 19:00/19:30/20:00) + sélecteur d'échelle ajustable (Boutons 1h / 6h / 24h / Tout).
       Fichiers : src/bruittrack/viz.py (HTML/canvas de la timeline ; le JSON des events porte déjà t0), README.md (section dashboard).
       OK quand : le HTML servi contient les 4 boutons d'échelle et des labels HH:MM calculés côté client sur l'axe, et `bash tools/check.sh` verte.
-- [ ] **I39** UI Timeline : supprimer le tassement des points à droite — fenêtre temporelle glissante dynamique (affichage centré sur les N dernières heures d'événements, pas depuis epoch) + option zoom type brushing (sélection d'une plage qui zoom l'axe).
+- [x] **I39** UI Timeline : supprimer le tassement des points à droite — fenêtre temporelle glissante dynamique (affichage centré sur les N dernières heures d'événements, pas depuis epoch) + option zoom type brushing (sélection d'une plage qui zoom l'axe).
       Fichiers : src/bruittrack/viz.py ; acceptation testée via `tools/module_check.py`/pytest endpoint si lisible.
       OK quand : un flux avec événements récents montre les points étalés sur la largeur et une sélection de plage recentre l'échelle (vérifiable par curl du HTML + comportement client documenté dans README).
 - [ ] **I40** Lien bidirectionnel scatter ↔ tableau : clic sur un point du Frequency/Time chart → surbrillance de la ligne correspondante dans « Derniers Événements » (et clic sur une ligne → surbrillance du point) ; scroll automatique à la ligne.

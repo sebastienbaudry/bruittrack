@@ -141,6 +141,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <button id="winBtn6h" class="btn btn-sm" onclick="setTimeWin(21600,this)">6h</button>
     <button id="winBtn24h" class="btn btn-sm btn-active" onclick="setTimeWin(86400,this)">24h</button>
     <button id="winBtnTout" class="btn btn-sm" onclick="setTimeWin(null,this)">Tout</button>
+    <span style="opacity:.4; font-size:12px; font-family:monospace">glisser = zoom temps · double-clic / Échap = réinit</span>
     <span id="evtTip" style="font-family:monospace; font-size:12px; color:#e2e8f0; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
   </div>
   <canvas id="timelineCanvas" width="1000" height="260"></canvas>
@@ -309,14 +310,27 @@ async function triageCluster(clusterId, flags) {
 let showCh = { l: true, d: true };
 let timelinePoints = []; // {x, y, ev} pour tooltips/clic
 let timeWindow = 86400; // secondes affichées; null = Tout (plage calée sur les données)
+let tlMode = null;     // null = fenêtre boutons; else {minT, span} en s (zoom brushing, I39)
+let tlScale = null;    // plage active {minT, span} pour conversion px→temps du brushing
+let tlBrushPx = null;  // {x0, x1} rect de sélection pendant glisser (coords canvas)
 let lastVisible = []; // dernier jeu d'événements visibles (refilterable sans refetch)
 
-function setTimeWin(seconds, btn) {
+function drawTimelineFull() { return drawTimeline(lastVisible.length ? lastVisible : eventsData); }
+
+function setTimeWin(seconds) {
   timeWindow = seconds;
+  tlMode = null; // les boutons de fenêtre annulent le zoom au pinceau
+  syncTlButtons();
+  drawTimelineFull();
+}
+
+// Synchronise la mise en surbrillance des boutons avec la plage active (I39)
+function syncTlButtons() {
   ['winBtn1h', 'winBtn6h', 'winBtn24h', 'winBtnTout'].forEach(id =>
     document.getElementById(id).classList.remove('btn-active'));
-  if (btn) btn.classList.add('btn-active');
-  drawTimeline(lastVisible.length ? lastVisible : eventsData);
+  if (tlMode) return; // zoom au pinceau actif : aucun bouton de fenêtre
+  const active = {3600:'winBtn1h', 21600:'winBtn6h', 86400:'winBtn24h'}[timeWindow] || 'winBtnTout';
+  document.getElementById(active).classList.add('btn-active');
 }
 
 function drawTimeTicks(ctx, w, h, minT, span) {
@@ -409,7 +423,9 @@ function drawTimeline(events) {
 
   const now = Date.now() / 1000;
   let timeSpan, minT;
-  if (timeWindow) { // fenêtre glissante 1h/6h/24h
+  if (tlMode) { // zoom par brushing : plage fixe choisie par l'utilisateur (I39)
+    timeSpan = tlMode.span; minT = tlMode.minT;
+  } else if (timeWindow) { // fenêtre glissante 1h/6h/24h
     timeSpan = timeWindow; minT = now - timeWindow;
   } else { // Tout : plage recouvrant tous les événements + horizon présent
     const ts = events.map(e => e.t0);
@@ -417,6 +433,7 @@ function drawTimeline(events) {
     const minTAll = Math.min(...ts);
     minT = minTAll; timeSpan = Math.max(3600, maxT - minT);
   }
+  tlScale = {minT, span: timeSpan}; // conversion px→temps pour le zoom (I39)
   drawTimeTicks(ctx, w, h, minT, timeSpan);
 
   events.forEach(e => {
@@ -442,7 +459,58 @@ function drawTimeline(events) {
       ctx.globalAlpha = 1.0;
     }
   });
+
+  if (tlBrushPx) { // rect de sélection du brushing → relâcher verrouille la plage
+    const bx0 = Math.max(40, tlBrushPx.x0);
+    const bx1 = Math.min(w - 10, tlBrushPx.x1);
+    if (bx1 > bx0) {
+      ctx.fillStyle = 'rgba(59,130,246,0.25)';
+      ctx.fillRect(bx0, 20, bx1 - bx0, h - 40);
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(bx0, 20, bx1 - bx0, h - 40);
+    }
+  }
 }
+
+// ===== Zoom par brushing sur la timeline (I39) : glisser = plage temps, double-clic/Esc = réinit =====
+(function () {
+  const canvas = document.getElementById('timelineCanvas');
+  if (!canvas) return;
+  let dragX0 = null;
+  let raf = 0;
+  const drawSoon = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => drawTimelineFull()); };
+  const toCanvasX = (e) => { // pixels CSS → coordonnées canvas (crosshair étiré)
+    const r = canvas.getBoundingClientRect();
+    return ((e.clientX - r.left) / r.width) * canvas.width;
+  };
+  canvas.addEventListener('mousedown', (e) => { dragX0 = toCanvasX(e); tlBrushPx = null; });
+  canvas.addEventListener('mousemove', (e) => {
+    if (dragX0 === null) return;
+    const x1 = toCanvasX(e);
+    if (Math.abs(x1 - dragX0) > 6) { // seuil px pour distinguer glisser de clic
+      tlBrushPx = {x0: Math.min(dragX0, x1), x1: Math.max(dragX0, x1)};
+      drawSoon();
+    }
+  });
+  document.addEventListener('mouseup', () => {
+    if (dragX0 === null) return;
+    dragX0 = null;
+    if (tlBrushPx && tlScale) {
+      const toTime = (xp) => tlScale.minT + ((xp - 40) / (canvas.width - 50)) * tlScale.span;
+      const t0 = toTime(tlBrushPx.x0), t1 = toTime(tlBrushPx.x1);
+      if (t1 - t0 >= 60) { tlMode = {minT: t0, span: Math.max(120, (t1 - t0) * 1.1)}; syncTlButtons(); }
+    }
+    tlBrushPx = null;
+    drawTimelineFull();
+  });
+  canvas.addEventListener('dblclick', () => { // double-clic : retour à la fenêtre de boutons
+    if (tlMode) { tlMode = null; syncTlButtons(); drawTimelineFull(); }
+  });
+  window.addEventListener('keydown', (e) => { // Échap : annule le zoom au pinceau
+    if (e.key === 'Escape' && tlMode) { tlMode = null; syncTlButtons(); drawTimelineFull(); }
+  });
+})();
 
 // Initial fetch & poll every 10s
 refreshAll();
