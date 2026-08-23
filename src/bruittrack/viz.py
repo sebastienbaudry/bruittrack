@@ -144,6 +144,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   <div class="card">
     <div class="card-title">Derniers Événements</div>
     <div style="max-height: 480px; overflow-y: auto;">
+      <div style="margin: 0 0 8px 0; display: flex; gap: 6px; align-items: center;">
+        <input type="checkbox" id="onlyLegal" style="accent-color: #ef4444;" onchange="applyLegalFilter()" />
+        <label for="onlyLegal" style="font-size: 13px; cursor: pointer; color: #fca5a5;">Légaux uniquement (▲)</label>
+      </div>
       <table>
         <thead>
           <tr>
@@ -225,14 +229,23 @@ async function refreshAll() {
 
   if (events) {
     eventsData = events;
-    renderEventsTable(events);
-    drawTimeline(events);
+    const showLegalOnly = document.getElementById('onlyLegal').checked;
+    const visible = showLegalOnly ? events.filter(e => e.over_legal) : events;
+    renderEventsTable(visible);
+    drawTimeline(visible);
   }
 
   if (clusters) {
     clustersData = clusters;
     renderClustersTable(clusters);
   }
+}
+
+function applyLegalFilter() {
+  const only = document.getElementById('onlyLegal').checked;
+  const visible = only ? eventsData.filter(function (e) { return e.over_legal; }) : eventsData;
+  renderEventsTable(visible);
+  drawTimeline(visible);
 }
 
 function renderEventsTable(events) {
@@ -316,7 +329,7 @@ function hideEvtTip() { document.getElementById('evtTip').style.display = 'none'
     const tip = document.getElementById('evtTip');
     if (!best) { hideEvtTip(); return; }
     const ev = best.ev;
-    tip.textContent = `#${ev.cluster || '-'} · bin ${ev.bin_i} (${ev.freq.toFixed(2)} Hz) · G +${ev.lvl_g.toFixed(1)} / D +${ev.lvl_d.toFixed(1)} dB`;
+    tip.textContent = `#${ev.cluster || '-'} · bin ${ev.bin_i} (${ev.freq.toFixed(2)} Hz) · G +${ev.lvl_g.toFixed(1)} / D +${ev.lvl_d.toFixed(1)} dB` + (ev.over_legal ? ' · ▲ legal' : '');
     tip.style.display = 'inline';
   }
   canvas.addEventListener('mousemove', showTip);
