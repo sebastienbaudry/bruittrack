@@ -70,3 +70,13 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
       OK quand : `pytest -k retention -q` vert et purge visible dans `bash tools/check.sh`.
 - [x] **I23** Smoke CLI : tests/test_bugfixes.py — subprocess `python -m bruittrack <cmd> --help` (devices|test|start|viz|stats) s' exécute en 0, garantissant l'appontage argparse.
       OK quand : `pytest -k cli_help -q` vert.
+## Poursuite
+
+- [x] **I24** Test HTTP : exemplaire .raw corrompu -> GET /api/exemplars/<c> renvoie 500 (test_exemplar_corrupt_returns_500).
+      Fichier : tests/test_viz_api.py. OK quand : pytest -k corrupt vert.
+- [ ] **I25** CI matrix 3.12/3.13 mais pyproject.toml declare requires-python >=3.11 : ajouter un job 3.11 (planchier declaree) dans .github/workflows/ci.yml.
+      Fichier : .github/workflows/ci.yml. OK quand : le matrix porte 3 versions et le YAML reste valide.
+- [ ] **I26** viz.py : valider les params GET /api/events (since=abc, limit<=0, offset<0 -> HTTP 400 au lieu d'errno/traceback) + tests test_viz_api.py.
+      Fichier : src/bruittrack/viz.py. OK quand : des requests de test avec since=abc et limit=0 recoivent 400, gate verte.
+- [ ] **I27** config.py : retenir les erreurs de validation (retention_days >= 0, seuils > 0) - levees au chargement avec un message lisible + tests test_config.py.
+      Fichier : src/bruittrack/config.py. OK quand : pytest -k config vert et une config invalide echoue proprement en CLI.
