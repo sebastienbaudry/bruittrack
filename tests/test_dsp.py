@@ -1,5 +1,7 @@
 """Tests for DSP filters, Welch PSD, floor tracking, and cross-correlation."""
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -200,3 +202,18 @@ def test_sos_filter_benchmark_48k_under_50ms() -> None:
     elapsed = time.perf_counter() - t0
     assert y.shape == (48_000, 2)
     assert elapsed < 0.050, f"SosFilter trop lent: {elapsed*1000:.1f} ms > 50 ms"
+
+
+def test_sosfilter_fallback_warning(monkeypatch: pytest.MonkeyPatch) -> None:
+    """I12 : warning at init when the pure-Python SOS fallback is active (scipy simulated absent)."""
+
+    sos = np.zeros((8, 5), dtype=np.float64)
+
+    monkeypatch.setattr(dsp_mod, "_HAS_SCIPY", False)
+    with pytest.warns(RuntimeWarning, match="scipy"):
+        SosFilter(sos)
+
+    monkeypatch.setattr(dsp_mod, "_HAS_SCIPY", True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert isinstance(SosFilter(sos), SosFilter)

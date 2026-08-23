@@ -11,6 +11,8 @@ Pure NumPy implementation:
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 
 try:  # optional fast path — see docs/decision-log.md
@@ -66,6 +68,13 @@ class SosFilter:
     """Direct Form II Transposed Second-Order Sections (SOS) filter in pure NumPy."""
 
     def __init__(self, sos: np.ndarray, n_channels: int = 2) -> None:
+        if not _HAS_SCIPY:
+            warnings.warn(
+                "scipy indisponible : filtre SOS en fallback pure-Python "
+                "(plus lent que scipy.signal.sosfilt) — installer scipy pour la voie rapide.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         self.sos = np.asarray(sos, dtype=np.float64)
         self.n_sections = self.sos.shape[0]
         self.n_channels = n_channels
