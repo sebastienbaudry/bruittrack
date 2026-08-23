@@ -50,3 +50,6 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I16** Coverage du triage POST dans `tools/module_check.py --offline` : sonde HTTP `POST /api/clusters/0/triage` (flags=1, label="preflight") + verification SQLite de la ligne creee ; resultat 5/5 OK.
       Fichier : `tools/module_check.py`.
       OK quand : `python tools/module_check.py --offline` affiche `triage=True`.
+- [x] **I17** `/api/clusters` : un cluster triage cree avant le 1er event (ligne orpheline dans `clusters`) etait invisible ; `get_clusters_summary` merge maintenant les lignes sans event (event_count=0, stats NULL) + test regresion.
+      Fichiers : `src/bruittrack/store.py`, `tests/test_store.py`.
+      OK quand : `pytest tests/test_store.py -k orphans` passe et `python tools/module_check.py --offline` reste 5/5.

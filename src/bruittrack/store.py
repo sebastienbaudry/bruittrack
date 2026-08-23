@@ -345,7 +345,7 @@ class EventStore:
         """Get summary list of all clusters (thread-safe read)."""
         self.flush()
         with self._db(readonly=True) as conn:
-            return [
+            rows = [
                 dict(row)
                 for row in conn.execute(
                     """
@@ -367,6 +367,31 @@ class EventStore:
                     """
                 )
             ]
+        # Clusters triaged before any event was assigned must stay visible.
+        with self._db(readonly=True) as conn:
+            orphans = [
+                dict(row)
+                for row in conn.execute(
+                    """
+                    SELECT
+                        c.id AS cluster_id,
+                        0 AS event_count,
+                        NULL AS first_seen,
+                        NULL AS last_seen,
+                        0.0 AS avg_freq,
+                        0.0 AS max_lvl_g,
+                        0.0 AS max_lvl_d,
+                        COALESCE(c.label, '') AS label,
+                        COALESCE(c.flags, 0) AS flags
+                    FROM clusters c
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM events e WHERE e.cluster = c.id
+                    );
+                    """
+                )
+            ]
+        rows.extend(orphans)
+        return rows
 
     def set_cluster_triage(self, cluster_id: int, flags: int, label: str | None = None) -> bool:
         """Set triage flags (known/ignored) and optional label on a cluster."""

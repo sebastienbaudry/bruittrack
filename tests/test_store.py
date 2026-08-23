@@ -266,9 +266,6 @@ def test_cluster_fingerprints_cap_and_speed(tmp_path: Path) -> None:
     assert elapsed < 8.0
 
 
-
-
-
 def test_set_cluster_triage_creates_fresh_row(tmp_path):
     """set_cluster_triage on a non-existent cluster id must create the row."""
     store = EventStore(db_path=tmp_path / "triage.db", batch_size=3)
@@ -278,7 +275,9 @@ def test_set_cluster_triage_creates_fresh_row(tmp_path):
         ok = store.set_cluster_triage(99, flags=1, label="compreur nocturne")
         assert ok is True
         with store._db() as conn:
-            row = conn.execute("SELECT flags, label, created_at FROM clusters WHERE id = 99").fetchone()
+            row = conn.execute(
+                "SELECT flags, label, created_at FROM clusters WHERE id = 99"
+            ).fetchone()
         assert row is not None
         assert row[0] == 1
         assert row[1] == "compreur nocturne"
@@ -291,5 +290,20 @@ def test_set_cluster_triage_creates_fresh_row(tmp_path):
         assert len(rows) == 1
         assert rows[0][0] == 3
         assert rows[0][1] == "compreur nocturne"
+    finally:
+        store.close()
+
+
+def test_clusters_summary_includes_triage_orphans(tmp_path):
+    """A triaged cluster with no event yet must remain visible in the summary."""
+    store = EventStore(db_path=tmp_path / "orphans.db", batch_size=3)
+    try:
+        store.set_cluster_triage(cluster_id=42, flags=1, label="a venir")
+        summary = store.get_clusters_summary()
+        assert any(c["cluster_id"] == 42 for c in summary), summary
+        orphan = next(c for c in summary if c["cluster_id"] == 42)
+        assert orphan["event_count"] == 0
+        assert orphan["flags"] == 1
+        assert orphan["label"] == "a venir"
     finally:
         store.close()
