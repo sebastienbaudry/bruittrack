@@ -9,7 +9,9 @@ Acceptance IMPROVEMENTS.md item viz :
 import http.server
 import io
 import json
+import sqlite3
 import threading
+import urllib.error
 import urllib.request
 import wave
 
@@ -26,9 +28,16 @@ def _seed_store(tmp_path):
     store = EventStore(db_path=str(tmp_path / "viz.db"))
     for i in range(3):
         store.add_event(
-            SoundEvent(t0=1700000000.0 + i, dur=1.5, bin_i=10 + i,
-                       freq=(10 + i) * 0.48828, lvl_g=12.5 + i, lvl_d=8.0,
-                       off_ms=1.2, fp=b"\x01" * 16)
+            SoundEvent(
+                t0=1700000000.0 + i,
+                dur=1.5,
+                bin_i=10 + i,
+                freq=(10 + i) * 0.48828,
+                lvl_g=12.5 + i,
+                lvl_d=8.0,
+                off_ms=1.2,
+                fp=b"\x01" * 16,
+            )
         )
     store.flush()
     return store
@@ -39,14 +48,16 @@ def viz_server(tmp_path_factory):
     """Lève ThreadingHTTPServer sur un port éphémère avec un store seedé."""
     tmp = tmp_path_factory.mktemp("viz")
     store = _seed_store(tmp)
-    config = Config(storage=StorageConfig(db_path=str(tmp / "viz.db"),
-                                          exemplars_dir=str(tmp / "exemplars")))
+    config = Config(
+        storage=StorageConfig(db_path=str(tmp / "viz.db"), exemplars_dir=str(tmp / "exemplars"))
+    )
 
     handler = type("HandlerT", (BruitTrackHandler,), {"store": store, "config": config})
     exemplars = tmp / "exemplars"
     exemplars.mkdir(exist_ok=True)
-    (exemplars / "ex_1.raw").write_bytes(np.random.default_rng(42).normal(0.0, 0.1,
-                                                                          size=512).astype("float16").tobytes())
+    (exemplars / "ex_1.raw").write_bytes(
+        np.random.default_rng(42).normal(0.0, 0.1, size=512).astype("float16").tobytes()
+    )
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -117,3 +128,44 @@ def test_exemplar_missing_returns_404(viz_server):
     with pytest.raises(urllib.error.HTTPError) as ei:
         urllib.request.urlopen(base + "/api/exemplar/999", timeout=5)
     assert ei.value.code == 404
+
+
+def test_triage_endpoint_persists_flags_and_label(viz_server):
+    """I13 : POST /api/clusters/1/triage update flags+label persistés en base."""
+
+    base, _store, tmp = viz_server
+    body = json.dumps({"flags": 3, "label": "compreur nocturne"}).encode("utf-8")
+    req = urllib.request.Request(
+        base + "/api/clusters/1/triage",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        assert resp.status == 200
+        payload = json.loads(resp.read())
+    # la réponse ne porte que success/id — on relit l'état réelle via /api/clusters
+    assert payload.get("success") is True or payload.get("error") in (None, ""), payload
+
+    # vérifier que l'état est réellement persisté dans la table clusters
+    conn = sqlite3.connect(tmp / "viz.db")
+    try:
+        row = conn.execute("SELECT flags, label FROM clusters WHERE id=1").fetchone()
+    finally:
+        conn.close()
+    assert row == (3, "compreur nocturne")
+
+
+def test_triage_endpoint_rejects_bad_payload(viz_server):
+    """I13 : POST /api/clusters/99/triage avec JSON invalide → HTTP 400."""
+
+    base, _store, _tmp = viz_server
+    req = urllib.request.Request(
+        base + "/api/clusters/99/triage",
+        data=b"not-json{{",
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with pytest.raises(urllib.error.HTTPError) as excinfo:
+        urllib.request.urlopen(req, timeout=5)
+    assert excinfo.value.code == 400
