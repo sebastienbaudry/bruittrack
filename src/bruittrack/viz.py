@@ -276,10 +276,11 @@ function renderClustersTable(clusters) {
 }
 
 async function triageCluster(clusterId, flags) {
+  const label = prompt("Label du cluster (optionnel)", "") ?? "";
   await fetch(`/api/clusters/${clusterId}/triage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ flags })
+    body: JSON.stringify({ flags, label })
   });
   refreshAll();
 }
