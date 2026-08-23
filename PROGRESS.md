@@ -247,3 +247,8 @@ Last updated: 2026-08-22
 - Pipeline tests injectés sans sleep (13 s → 2.4 s), warmup floor explicite, closure assert avant stop() — commit 197774c
 - MockAudioCapture.burst_ticks : knob public documenté pour tests de burst synthétique
 - ruff check + format --check verts ; pytest 81 passed
+
+## Loop 2026-02-xx — Audit mise à jour / purga / redémarrage hpdebian
+- [x] Audit versions sur la cible : bruittrack 1.0.0 (editable install /opt/bruittrack, dist-info 1.0.0), les 7 modules (config/dsp/events/pipeline/store/viz/capture) sont importables depuis /opt/bruittrack/src ; numpy 2.5.2, scipy 1.18.1, sounddevice 0.5.6 — aucune mise à jour nécessaire.
+- [x] Purga des événements 0 Hz : suppression de 397 lignes (1631 → 1234), vérification a posteriori zeroHz=0 ; script déposé dans tools/_purge_0hz.py.
+- [x] Redémarrage force du service : `systemctl restart bruittrack` OK ; état active+enabled ; DSP PID 37300 RSS ≈123 Mo (<150 Mo), viz PID 30570 actif.

@@ -301,3 +301,8 @@
 {"ts":"2026-08-23T17:11:11.505Z","iteration":73,"event":"continue","stuckStreak":0}
 {"ts":"2026-08-23T17:20:37.578Z","iteration":74,"event":"continue","stuckStreak":0}
 {"ts":"2026-08-23T17:25:00.232Z","iteration":75,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-23T17:33:46.635Z","iteration":75,"event":"context_compact","stuckStreak":0,"notice":"Emergency context compaction (1/2): stop reason length.","reason":"stop reason length","contextPercent":100}
+{"ts":"2026-08-23T17:34:14.733Z","iteration":76,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-23T17:37:09.290Z","iteration":77,"event":"continue","stuckStreak":0}
+{"ts":"2026-08-23T17:39:59.913Z","iteration":77,"event":"operator_abort","stuckStreak":0,"notice":"Turn aborted by operator. Use /loop resume to continue."}
+{"ts":"2026-08-23T17:43:01.742Z","iteration":1,"event":"continue","stuckStreak":0}
