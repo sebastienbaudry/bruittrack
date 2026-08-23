@@ -44,6 +44,6 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I14** Documenter le triage par API HTTP (exemple curl `/api/clusters/1/triage`) dans la section Commandes du README.
       Fichier : `README.md`.
       OK quand : `grep -c triage README.md >= 1` et l'exemple JSON correspond au handler `do_POST` (keys flags/label).
-- [ ] **I15** Test store : `set_cluster_triage()` sur un cluster inexistant crée la ligne (id, label, flags) sans erreur.
+- [x] **I15** Test store : `set_cluster_triage()` sur un cluster inexistant crée la ligne (id, label, flags) sans erreur.
       Fichier : `tests/test_store.py`.
       OK quand : `pytest tests/test_store.py -k fresh -q` vert (1 test) et les 68+ tests globaux restent verts.

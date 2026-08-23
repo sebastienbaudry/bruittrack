@@ -264,3 +264,32 @@ def test_cluster_fingerprints_cap_and_speed(tmp_path: Path) -> None:
     assert len(idx.clusters) == 20_000
     elapsed = _time.perf_counter() - t_start
     assert elapsed < 8.0
+
+
+
+
+
+def test_set_cluster_triage_creates_fresh_row(tmp_path):
+    """set_cluster_triage on a non-existent cluster id must create the row."""
+    store = EventStore(db_path=tmp_path / "triage.db", batch_size=3)
+    try:
+        import time
+
+        ok = store.set_cluster_triage(99, flags=1, label="compreur nocturne")
+        assert ok is True
+        with store._db() as conn:
+            row = conn.execute("SELECT flags, label, created_at FROM clusters WHERE id = 99").fetchone()
+        assert row is not None
+        assert row[0] == 1
+        assert row[1] == "compreur nocturne"
+        assert time.time() - 3600 < float(row[2]) <= time.time() + 1
+        # without label: existing row updated, not duplicated
+        ok = store.set_cluster_triage(99, flags=3)
+        assert ok is True
+        with store._db() as conn:
+            rows = conn.execute("SELECT flags, label FROM clusters WHERE id = 99").fetchall()
+        assert len(rows) == 1
+        assert rows[0][0] == 3
+        assert rows[0][1] == "compreur nocturne"
+    finally:
+        store.close()
