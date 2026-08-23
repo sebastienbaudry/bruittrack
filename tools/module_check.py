@@ -1,7 +1,7 @@
 """Harness pre-vol BruitTrack -- GOAL.md M1 (criterium check.sh C4).
 
 Mode --offline: 5 checks hors materiel (CLI --help, config exemple,
-fingerprint/cluster, store :memory:, viz API + exemplar WAV).
+fingerprint/cluster, store :memory:, viz API + exemplar WAV + triage POST).
 No system network access; usable on dev post / CI before any
 hpdebian deploy.
 
@@ -196,7 +196,7 @@ def _seeded_store_for_viz(db_path: str, exemplars_dir: str):
 
 
 def check_viz_api(res: CheckResult) -> None:
-    """L7: viz API -- stats, events (off_ms), exemplar WAV."""
+    """L7: viz API -- stats, events (off_ms), exemplar WAV, triage POST."""
 
     from bruittrack.config import Config, StorageConfig
     from bruittrack.viz import BruitTrackHandler
@@ -241,8 +241,30 @@ def check_viz_api(res: CheckResult) -> None:
         ):
             w_ok = w.getnchannels() == 2 and w.getframerate() == 1000
 
-        ok = stats_ok and ev_ok and w_ok
-        detail = f"stats={stats_ok} events={ev_ok} wav={w_ok}"
+        triage_req = urllib.request.Request(
+            base_url + "/api/clusters/0/triage",
+            data=json.dumps({"flags": 1, "label": "preflight"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(triage_req, timeout=EXEMPT_TIMEOUT_S) as r:
+            triage_payload = json.loads(r.read().decode("utf-8"))
+        import sqlite3
+
+        triage_db = sqlite3.connect(str(p / "viz.db"))
+        row = triage_db.execute(
+            "SELECT flags, label FROM clusters WHERE id = 0"
+        ).fetchone()
+        triage_db.close()
+        triage_ok = (
+            triage_payload.get("success") is True
+            and row is not None
+            and int(row[0]) == 1
+            and row[1] == "preflight"
+        )
+
+        ok = stats_ok and ev_ok and w_ok and triage_ok
+        detail = f"stats={stats_ok} events={ev_ok} wav={w_ok} triage={triage_ok}"
     except Exception as e:  # noqa: BLE001
         ok, detail = False, str(e)
     finally:

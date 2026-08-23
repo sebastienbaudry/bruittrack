@@ -47,3 +47,6 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I15** Test store : `set_cluster_triage()` sur un cluster inexistant crée la ligne (id, label, flags) sans erreur.
       Fichier : `tests/test_store.py`.
       OK quand : `pytest tests/test_store.py -k fresh -q` vert (1 test) et les 68+ tests globaux restent verts.
+- [x] **I16** Coverage du triage POST dans `tools/module_check.py --offline` : sonde HTTP `POST /api/clusters/0/triage` (flags=1, label="preflight") + verification SQLite de la ligne creee ; resultat 5/5 OK.
+      Fichier : `tools/module_check.py`.
+      OK quand : `python tools/module_check.py --offline` affiche `triage=True`.
