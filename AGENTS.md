@@ -5,6 +5,20 @@ Python (Debian 13) : capture stéréo 2 capteurs, détection/indexation
 d'événements sonores récurrents (1 ligne SQLite/événement), visualisation
 temporelle interactive.
 
+## Prendre en compte uniquement les évènements qui dépassent l'émergence autorisée par la loi
+RÈGLES DE CALCUL DE L'ÉMERGENCE ACOUSTIQUE (CSP Art. R1336-7)1. Variables d'entrée requis bruit_ambiant : niveau sonore total mesuré avec la nuisance, en dB(A).bruit_residuel : niveau sonore habituel mesuré sans la nuisance, en dB(A).horaire : heure du relevé au format HH:MM.duree_cumulee : durée totale de la nuisance en secondes ou minutes.2. Définition des paramètresPériode temporelle (seuil_base) :Si horaire est compris entre 07:00 et 21:59 $\rightarrow$ periode = DIURNE $\rightarrow$ seuil_base = 5 dB(A)Si horaire est compris entre 22:00 et 06:59 $\rightarrow$ periode = NOCTURNE $\rightarrow$ seuil_base = 3 dB(A)Terme correctif (correctif) selon duree_cumulee :duree_cumulee $\le 1\text{ min}$ (60s) $\rightarrow$ +6 dB(A)$1\text{ min} < \text{duree\_cumulee} \le 5\text{ min}$ $\rightarrow$ +5 dB(A)$5\text{ min} < \text{duree\_cumulee} \le 20\text{ min}$ $\rightarrow$ +4 dB(A)$20\text{ min} < \text{duree\_cumulee} \le 2\text{ h}$ (120 min) $\rightarrow$ +3 dB(A)$2\text{ h} < \text{duree\_cumulee} \le 4\text{ h}$ (240 min) $\rightarrow$ +2 dB(A)$4\text{ h} < \text{duree\_cumulee} \le 8\text{ h}$ (480 min) $\rightarrow$ +1 dB(A)duree_cumulee $> 8\text{ h}$ $\rightarrow$ +0 dB(A)3. 
+Algorithme d'évaluation
+1. Calculer l'émergence mesurée :
+   emergence_mesuree = bruit_ambiant - bruit_residuel
+2. Calculer le seuil maximum autorisé :
+   emergence_limite = seuil_base + correctif
+3. Évaluer la conformité :
+   SI emergence_mesuree <= emergence_limite :
+       CONFORME (Légal)
+   SINON :
+       NON_CONFORME (Infraction)
+4. Règle de mesure spécifique (Contrainte de contrôle)SI duree_cumulee $< 10\text{ secondes}$ ALORS la durée d'enregistrement du bruit_ambiant doit obligatoirement être $\ge 10\text{ secondes}$. Si ce n'est pas le cas, déclarer le relevé comme INVALIDE.
+
 ## Contrainte majeure : HP T620
 x86 ~1,5 GHz, 4 Go RAM, 16 Go SSD, pas de GPU, 24/7 fanless → tous les
 choix d'architecture en découlent.

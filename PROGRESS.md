@@ -242,3 +242,8 @@ Last updated: 2026-08-22
 - Note: on-target user is sbaudry with no password-lesssudo; the production service will run with modified code after the next restart (documented).
 
 - [x] **It.93** I10 ✅ get_stats 24h: cut-off float en param (test store).
+
+## I29 + CI fixes (2026-07-18+)
+- Pipeline tests injectés sans sleep (13 s → 2.4 s), warmup floor explicite, closure assert avant stop() — commit 197774c
+- MockAudioCapture.burst_ticks : knob public documenté pour tests de burst synthétique
+- ruff check + format --check verts ; pytest 81 passed
