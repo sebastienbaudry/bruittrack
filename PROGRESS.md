@@ -44,6 +44,26 @@ Corriger toutes les erreurs listées dans BUGS.md.
   SLOW_BLOCK_STREAK=3) ; warning `Engine.step()` apres 3 lents consecutifs,
   stall 20 ms injectable MockAudioCapture, 4 tests ; suite 45 pass.
 
+
+## CI fixes, tests, and docs — batch `#de15001` (current)
+
+| Area | What was done | Evidence |
+|---|---|---|
+ruff clean | Fixed every lint error that remains in the repo (`ruff check .`) | `ruff check . && ruff format --check && pytest -q` → `All checks passed!` + `67 passed in 7.45s` (2026-08-22, local) |
+| I10/I11 | `EventStore.get_stats()` with 24 h counter (explicit cast) and `prune_orphaned_exemplars`; tests in `tests/test_store.py` | `git log --oneline -5` |`test_get_stats_events_last_24h`, `test_prune_orphaned_exemplars*` green |
+| I5/M9 | `bruittrack perf` subcommand (CPU/RSS budget against systemd MainPID, exit 0/1/2) + 4 tests | `tests/test_perf.py`; docs/decision-log entry |
+| CLI/UX | cmd_test device from `cfg.audio.device`; `--json` flag on stats; floor health lines (`[floor]`) in `test --verbose-floor` ; IN1/IN2 buttons + markers with tooltips in dashboard (zero deps) | `tests/test_cli.py`, `tests/test_bugfixes.py::test_verbose_floor_flag_and_health_line`, `tests/test_viz_api.py` |
+| store robustness | `EventStore.close()` idempotent, single `_db()` conn reused across ops (`:memory:` fixed), lock for buffer; WAL/NORMAL defaults documented in README | 47 passing tests (2026-08-22) |
+| Docs/assumptions | PROGRESS.md, BUGS.md, IMPROVEMENTS.md, ASSUMPTIONS A017/A018 (pi-t620 deployment layout + sox not audited headless); README updated (scipy note, budget < 10 % CPU) | files on disk, `git log --oneline -8` |
+
+### Evidence snapshot (local, 2026-08-22)
+```text
+$ ruff check . && ruff format --check && pytest -q
+All checks passed!
+67 passed in 7.45s
+```
+ruff_rc=0; suite fully green; `bash -n tools/install_hp.sh` clean.
+
 Last updated: 2026-08-22
 
 ## M2/M3 — 2026-08-22
