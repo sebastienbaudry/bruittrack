@@ -41,10 +41,14 @@ ALSA 48k → LP 4 biquads Butter fc=400 Hz via `scipy.signal.sosfilt`
 (1er ajout autorisé, activé — entry decision-log) → décim ×48 → 1000 Hz
 (ring 33k) → blocs 100 ms → Welch 2048 pts (2 s), overlap 50 %, 7 seg →
 EMA α=0.5 → floor = médiane glissante 300 ticks/bin → émergence (dB),
-bins 0..98 (0–48 Hz, 0,49 Hz/bin) → seuil 10 dB, debounce 5 ticks (0,5 s),
-hystérésis 3 dB, découpe à 30 s → 1 ligne DB + fp 16 o.
+bins jusqu'à `freq_max` (défaut 150 Hz, ~bin 304) → seuil 10 dB, debounce 5
+ticks (0,5 s), hystérésis 3 dB, découpe à 30 s → 1 ligne DB + fp 16 o.
 - 1er tick = seed (floor = 1er PSD) ; aucun événement avant 300 ticks (~30 s).
-- Résolutions 100 ms / 0,49 Hz ; > 48 Hz hors périmètre.
+- Résolutions 100 ms / 0,49 Hz ; bornes de bande **paramétrables** :
+  `min_event_hz` (défaut 2.0) et `freq_max` (défaut 150.0) — le matériel ne
+  résout pas de façon fiable sous 2 Hz ; > 150 Hz hors périmètre.
+- Bornes de détection : bins `freq ≥ min_event_hz` jusqu'à `freq_max` ; le bin DC
+  (0 Hz) reste exclu du pic (entry décision DC ci-dessous).
 
 ## Détection / fingerprint / clustering
 - Par bin et par canal ; tag canal dominant (`both` si émergence > seuil sur
@@ -58,7 +62,7 @@ hystérésis 3 dB, découpe à 30 s → 1 ligne DB + fp 16 o.
 - flags : bit0 connue, bit1 ignorée, bit2 exemplaire → triage via API web.
 
 ## DB data/bruittrack.db — table events
-id PK | t0 REAL unix | dur REAL (≤30) | bin_i INT 0..98 | freq REAL
+id PK | t0 REAL unix | dur REAL (≤30) | bin_i INT &lt;faut bin max&gt; 150 Hz>/0,49) | freq REAL
 (bin_i×0,48828) | lvl_g,lvl_d REAL | off_ms REAL (−8..+8) | fp BLOB(16) |
 flags INT | cluster INT NULL.
 Exemplars : `exemplars/ex_<cluster>_<id>.raw` (256 ms @1 kHz 2ch float16),

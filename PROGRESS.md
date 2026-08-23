@@ -260,3 +260,4 @@ Last updated: 2026-08-22
 - Service redémarré avec sudo (PID 38648, `ExecMainStartTimestamp` 2026-08-23 20:37:23)
 - Purge DB : 0 événement freq=0 restant (1263 événements conservés)
 - EOL tools/install_hp.sh : `od -c | grep '\r'` en détection robuste msys/GNU
+- [I42] UI backlog : items I38 (graduation axe X + echelle 1h/6h/24h/Tout), I39 (fenetre glissante anti-tassement + brushing), I40 (lien bidirectionnel scatter<->tableau), I41 (filtres rapports canal/elevation/cluster) engages dans IMPROVEMENTS.md.

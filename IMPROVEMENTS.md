@@ -106,3 +106,15 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
       OK quand : `grep -c "min_event_hz\|freq_max" AGENTS.md docs/decision-log.md config.toml.example` retourne ≥1 occurrences dans les 3 fichiers et le texte décrit la raison matériel (« non fiable sous 2 Hz ») + portée configurable.
 - [ ] **I37** Purge hpdebian des événements `0 < freq < min_event_hz` (conséquence I35, même règle que purge 0 Hz I32 mais étendue) + note dans le README de la commande de purge.
       Cible : SSH pi-t620 SQL ; Fichier : README.md. OK quand : `SELECT count(*) FROM events WHERE freq < 2.0` = 0 sur /opt/bruittrack et la commande SQL est réutilisable via scripts/purge_lowfreq.sql à la suite.
+- [ ] **I38** UI Timeline « Fréquence / Temps » : graduations visibles sur l'axe X (repères HH:MM clairs, ex. 19:00/19:30/20:00) + sélecteur d'échelle ajustable (Boutons 1h / 6h / 24h / Tout).
+      Fichiers : src/bruittrack/viz.py (HTML/canvas de la timeline ; le JSON des events porte déjà t0), README.md (section dashboard).
+      OK quand : le HTML servi contient les 4 boutons d'échelle et des labels HH:MM calculés côté client sur l'axe, et `bash tools/check.sh` verte.
+- [ ] **I39** UI Timeline : supprimer le tassement des points à droite — fenêtre temporelle glissante dynamique (affichage centré sur les N dernières heures d'événements, pas depuis epoch) + option zoom type brushing (sélection d'une plage qui zoom l'axe).
+      Fichiers : src/bruittrack/viz.py ; acceptation testée via `tools/module_check.py`/pytest endpoint si lisible.
+      OK quand : un flux avec événements récents montre les points étalés sur la largeur et une sélection de plage recentre l'échelle (vérifiable par curl du HTML + comportement client documenté dans README).
+- [ ] **I40** Lien bidirectionnel scatter ↔ tableau : clic sur un point du Frequency/Time chart → surbrillance de la ligne correspondante dans « Derniers Événements » (et clic sur une ligne → surbrillance du point) ; scroll automatique à la ligne.
+      Fichier : src/bruittrack/viz.py (mapping id d'événement ↔ élément DOM, classes CSS actives).
+      OK quand : les deux directions de highlight existent dans le HTML servi et testent le wiring (`pytest -k crosshair -q` ajouté ou `module_check.py` vérifie la présence du handler + de l'attr id par évènement).
+- [ ] **I41** Filtres rapides au-dessus du tableau « Derniers Événements » : par canal (IN1 Air / IN2 Structural / Tous), par émergence minimale (sliders/sélecteur, ex. >+10 dB), par cluster (list déroulante alimentée par /api/clusters).
+      Fichiers : src/bruittrack/viz.py (+ option: GET /api/events?chan=&min_lvl=&cluster= si backend) ; tests/test_viz_api.py si endpoint ajouté.
+      OK quand : les 3 filtres sont rendus au-dessus du tableau, appliquent le filtre côté client par défaut et la commande curl documentée renvoie la liste filtrée ; `bash tools/check.sh` verte.
