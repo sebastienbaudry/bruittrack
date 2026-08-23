@@ -83,6 +83,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   table { width: 100%; border-collapse: collapse; text-align: left; }
   tr[data-ev-id] { cursor: pointer; }
   tr.ev-row-selected { background: #312e8155; outline: 1px solid #6366f1; }
+  .flt { background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 4px; padding: 2px 6px; font-size: 13px; }
   th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
   th { color: var(--text-muted); font-size: 12px; text-transform: uppercase; background: rgba(0,0,0,0.15); }
   tr:hover { background: var(--bg-card-hover); }
@@ -153,9 +154,13 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   <div class="card">
     <div class="card-title">Derniers Événements</div>
     <div style="max-height: 480px; overflow-y: auto;">
-      <div style="margin: 0 0 8px 0; display: flex; gap: 6px; align-items: center;">
-        <input type="checkbox" id="onlyLegal" style="accent-color: #ef4444;" onchange="applyLegalFilter()" />
+      <div style="margin: 0 0 8px 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+        <input type="checkbox" id="onlyLegal" style="accent-color: #ef4444;" onchange="applyFilters()" />
         <label for="onlyLegal" style="font-size: 13px; cursor: pointer; color: #fca5a5;">Légaux uniquement (▲)</label>
+        <select id="chanFilter" class="flt" onchange="applyFilters()"><option value="">Tous canaux</option><option value="l">IN1 (Air)</option><option value="d">IN2 (Struct)</option><option value="b">Les 2</option></select>
+        <label for="minLvlFilter" style="font-size: 13px; color:#94a3b8;">Ém. ≥</label>
+        <input type="number" id="minLvlFilter" class="flt" value="0" min="0" step="1" onchange="applyFilters()" /><span style="font-size:12px;color:#94a3b8;">dB</span>
+        <select id="clusterFilter" class="flt" onchange="applyFilters()"><option value="">Tous clusters</option></select>
       </div>
       <table>
         <thead>
@@ -238,8 +243,7 @@ async function refreshAll() {
 
   if (events) {
     eventsData = events;
-    const showLegalOnly = document.getElementById('onlyLegal').checked;
-    const visible = showLegalOnly ? events.filter(e => e.over_legal) : events;
+    const visible = filterEvents(events); // filtres rapides I41 + légal
     renderEventsTable(visible);
     drawTimeline(visible);
   }
@@ -247,14 +251,38 @@ async function refreshAll() {
   if (clusters) {
     clustersData = clusters;
     renderClustersTable(clusters);
+    fillClusterFilter(clusters); // liste déroulante I41
   }
 }
 
-function applyLegalFilter() {
+function chanOf(e) { // canal dominant, cohérent avec les badges du tableau
+  return e.lvl_d > e.lvl_g + 2 ? 'd' : (Math.abs(e.lvl_g - e.lvl_d) <= 2 ? 'b' : 'l');
+}
+
+function filterEvents(list) {
   const only = document.getElementById('onlyLegal').checked;
-  const visible = only ? eventsData.filter(function (e) { return e.over_legal; }) : eventsData;
+  const chan = document.getElementById('chanFilter').value;
+  const minLvl = parseFloat(document.getElementById('minLvlFilter').value || '0');
+  const clu = document.getElementById('clusterFilter').value;
+  return (list || []).filter(e =>
+    (!only || e.over_legal) &&
+    (chan === '' || chanOf(e) === chan) &&
+    (Math.max(e.lvl_g, e.lvl_d) >= minLvl) &&
+    (clu === '' || String(e.cluster) === clu));
+}
+
+function applyFilters() {
+  const visible = filterEvents(eventsData);
   renderEventsTable(visible);
   drawTimeline(visible);
+}
+
+function fillClusterFilter(clusters) {
+  const sel = document.getElementById('clusterFilter');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Tous clusters</option>' +
+    (clusters || []).map(c => `<option value="${c.cluster_id}">#${c.cluster_id}</option>`).join('');
+  if (prev !== '' && (clusters || []).some(c => String(c.cluster_id) === prev)) sel.value = prev;
 }
 
 function renderEventsTable(events) {
