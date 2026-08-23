@@ -229,3 +229,13 @@ def test_events_query_params_invalid_return_400(viz_server):
                 assert False, f"attendu 400 pour {q}, obtenu {resp.status}"
         except urllib.error.HTTPError as e:
             assert e.code == 400, f"attendu 400 pour {q}, obtenu {e.code}"
+
+def test_health_endpoint_returns_ok_and_event_count(viz_server):
+    """I31 : GET /api/health -> 200 {ok:true, events_db_rows>=3} (store seedee au module)."""
+    base, _store, _tmp = viz_server
+    with urllib.request.urlopen(base + "/api/health", timeout=5) as resp:
+        assert resp.status == 200
+        data = json.loads(resp.read())
+    assert data["ok"] is True
+    assert isinstance(data["events_db_rows"], int)
+    assert data["events_db_rows"] >= 3

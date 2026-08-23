@@ -435,6 +435,14 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(payload)
             return
 
+        if path == "/api/health":
+            try:
+                total = self.store.get_stats()["total_events"]
+                self._send_json({"ok": True, "events_db_rows": total})
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+
         if path == "/api/stats":
             stats = self.store.get_stats()
             self._send_json(stats)

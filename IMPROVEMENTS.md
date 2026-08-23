@@ -89,4 +89,4 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 ## Post-v1.0.0
 - [x] **I29** test_pipeline.py : seule 2 tests Engine — ajouter simulation synthetique de pic > seuil (floor + 12 dB) produisant >=1 event via Engine.step + flush store tmp_path. OK quand : pytest vert, nouveau test test_engine_synthetic_spike_fires.
 - [ ] **I30** .github/release.md ou script/creer_release.py : publier la release GitHub v1.0.0 (POST /repos/{o}/{r}/releases via token) ; descriptif = notes ci-jointes CI 3.11-3.13, budget HP T620, commande purge. OK quand : `gh release view v1.0.0` (ou GET API) reponse 200.
-- [ ] **I31** src/bruittrack/viz.py do_GET : verifier les routes existantes + ajouter /api/health (200 JSON {ok: true, events_db_rows}) avec test test_health_returns_200 dans tests/test_viz_api.py. OK quand : pytest vert.
+- [x] **I31** src/bruittrack/viz.py do_GET : verifier les routes existantes + ajouter /api/health (200 JSON {ok: true, events_db_rows}) avec test test_health_returns_200 dans tests/test_viz_api.py. OK quand : pytest vert.
