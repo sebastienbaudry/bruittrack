@@ -3,19 +3,23 @@
 from __future__ import annotations
 
 import contextlib
+import sqlite3
 import threading
 import time
-
-import sqlite3
-
-import pytest
-import bruittrack.store as store_mod
 
 import numpy as np
 import pytest
 
-from bruittrack.config import Config, StorageConfig, AudioConfig, DspConfig, DetectorConfig, VizConfig
-from bruittrack.dsp import DspPipeline, SosFilter
+import bruittrack.store as store_mod
+from bruittrack.config import (
+    AudioConfig,
+    Config,
+    DetectorConfig,
+    DspConfig,
+    StorageConfig,
+    VizConfig,
+)
+from bruittrack.dsp import DspPipeline
 from bruittrack.events import SoundEvent
 from bruittrack.store import EventStore
 
@@ -47,7 +51,7 @@ class TestEventStoreThreadSafety:
         for t in threads:
             t.join(timeout=15)
 
-        count = store.flush()
+        store.flush()
         assert store.get_stats()["total_events"] == 40
 
     def test_add_event_autoflush_no_deadlock(self, tmp_path):
@@ -128,7 +132,7 @@ class TestWelchNormalization:
                          n_buffer=512, freq_max=48.0, lp_cutoff_hz=400.0)
         t = np.arange(dp.n_seg) / (dp.sample_rate / dp.decimation)
         x = np.ones((len(t), 2), dtype=np.float32) * 0.5
-        psd1, psd2 = dp.process_block(x)
+        psd1, _ = dp.process_block(x)
         # DC bin should dominate and be much larger than others
         assert psd1[0] > psd1[5]
 
@@ -324,17 +328,18 @@ class TestExemplarWav:
         raw.write_bytes(stereo.tobytes())
 
         wav = _exemplar_to_wav(raw)
-        wf = wave.open(io.BytesIO(wav), "rb")
-        assert wf.getnchannels() == 2
-        assert wf.getsampwidth() == 2
-        assert wf.getframerate() == 1000
-        assert wf.getnframes() == 128
+        with wave.open(io.BytesIO(wav), "rb") as wf:
+            assert wf.getnchannels() == 2
+            assert wf.getsampwidth() == 2
+            assert wf.getframerate() == 1000
+            assert wf.getnframes() == 128
 
 
 def test_verbose_floor_flag_and_health_line(tmp_path, capsys) -> None:
     """--verbose-floor: format sans exception + cmd_test synthétique rc=0."""
-    import numpy as np
     from types import SimpleNamespace
+
+    import numpy as np
 
     from bruittrack.__main__ import cmd_test, format_floor_health
     from bruittrack.dsp import FloorTracker
@@ -376,10 +381,9 @@ def test_stats_json_flag(tmp_path, monkeypatch):
     store.add_event(ev)
     store.flush()
     cfg = tmp_path / "cfg.toml"
-    cfg.write_text(
-        "[storage]\ndb_path = \"%s\"\nexemplars_dir = \"%s\"\n"
-        % ((tmp_path / "t.db").as_posix(), (tmp_path / "ex").as_posix())
-    )
+    db_p = (tmp_path / "t.db").as_posix()
+    ex_p = (tmp_path / "ex").as_posix()
+    cfg.write_text(f"[storage]\ndb_path = \"{db_p}\"\nexemplars_dir = \"{ex_p}\"\n")
     buf = io.StringIO()
     monkeypatch.setattr(_sys, "argv", ["bruittrack", "--config", str(cfg), "stats", "--json"])
     with contextlib.redirect_stdout(buf):

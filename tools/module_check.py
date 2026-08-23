@@ -50,7 +50,7 @@ class CheckResult:
 def check_cli(res: CheckResult) -> None:
     """L1: installed CLI, all subcommands visible."""
     out = subprocess.run([sys.executable, "-m", "bruittrack", "--help"],
-                         capture_output=True, text=True, timeout=10)
+                         capture_output=True, text=True, timeout=10, check=False)
     text = out.stdout + out.stderr
     cmd_ok = all(c in text for c in ("devices", "test", "start", "viz",
                                      "stats", "perf"))
@@ -217,10 +217,12 @@ def check_viz_api(res: CheckResult) -> None:
             and all(isinstance(e, dict) and "off_ms" in e for e in ev_list)
         )
 
-        with urllib.request.urlopen(base_url + "/api/exemplar/0",
-                                    timeout=EXEMPT_TIMEOUT_S) as r:
-            with wave.open(io.BytesIO(r.read())) as w:
-                w_ok = (w.getnchannels() == 2 and w.getframerate() == 1000)
+        req_url = base_url + "/api/exemplar/0"
+        with (
+            urllib.request.urlopen(req_url, timeout=EXEMPT_TIMEOUT_S) as r,
+            wave.open(io.BytesIO(r.read())) as w,
+        ):
+            w_ok = (w.getnchannels() == 2 and w.getframerate() == 1000)
 
         ok = stats_ok and ev_ok and w_ok
         detail = f"stats={stats_ok} events={ev_ok} wav={w_ok}"

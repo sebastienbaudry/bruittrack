@@ -8,15 +8,14 @@ from __future__ import annotations
 import http.server
 import io
 import json
-from pathlib import Path
-import struct
 import urllib.parse
 import wave
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 
 from bruittrack.config import Config
-from bruittrack.events import FLAG_EXEMPLAR, FLAG_IGNORED, FLAG_KNOWN
 from bruittrack.store import EventStore
 
 

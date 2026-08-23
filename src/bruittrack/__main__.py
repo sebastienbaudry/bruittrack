@@ -12,11 +12,12 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -123,7 +124,7 @@ def cmd_test(args: argparse.Namespace) -> int:
                 continue
 
             tick += 1
-            psd1, psd2, em1, em2, events = engine.step(raw_block)
+            _psd1, _psd2, em1, em2, events = engine.step(raw_block)
 
             max_em1 = float(np.max(em1))
             max_em2 = float(np.max(em2))
@@ -282,7 +283,6 @@ def cmd_stats(args: argparse.Namespace) -> int:
 def cmd_perf(args: argparse.Namespace) -> int:
     """Échantillonner le CPU/RSS d'un PID et les comparer aux budgets M9."""
     import os as _os
-
     import platform
 
     pid = args.pid or _os.getpid()

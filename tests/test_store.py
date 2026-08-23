@@ -1,8 +1,9 @@
 """Tests for SQLite EventStore."""
 
-from pathlib import Path
 import tempfile
 import time
+from pathlib import Path
+
 import pytest
 
 from bruittrack.events import SoundEvent

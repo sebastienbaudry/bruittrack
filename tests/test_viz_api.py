@@ -6,9 +6,9 @@ Acceptance IMPROVEMENTS.md item viz :
 - homepage HTML servie.
 """
 
+import http.server
 import io
 import json
-import http.server
 import threading
 import urllib.request
 import wave

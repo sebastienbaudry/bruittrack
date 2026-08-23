@@ -8,7 +8,14 @@ from bruittrack.capture import (
     AudioCapture,
     MockAudioCapture,
 )
-from bruittrack.config import Config, StorageConfig, AudioConfig, DspConfig, DetectorConfig, VizConfig
+from bruittrack.config import (
+    AudioConfig,
+    Config,
+    DetectorConfig,
+    DspConfig,
+    StorageConfig,
+    VizConfig,
+)
 from bruittrack.pipeline import Engine
 from bruittrack.store import EventStore
 

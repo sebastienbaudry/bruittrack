@@ -1,8 +1,10 @@
 """Decisive per-subpart tick benchmark for HP T620 (run inside /opt/bruittrack)."""
-import numpy as np
 import time
+
+import numpy as np
 from scipy.signal import sosfilt
-from bruittrack.dsp import design_butterworth_lp_sos, DspPipeline, FloorTracker
+
+from bruittrack.dsp import DspPipeline, FloorTracker, design_butterworth_lp_sos
 
 N = 300
 x = (np.random.rand(4800, 2) - 0.5) * 10
@@ -50,8 +52,7 @@ def f_welch_only():
         c = np.fft.rfft(s[:, 1] * hann)
         acc1 += (a[mask].abs() ** 2).astype(np.float32)
         acc2 += (c[mask].abs() ** 2).astype(np.float32)
-    db1 = 10 * np.log10(acc1 / pipe.n_welch_segments + 1e-12)
-    db2 = 10 * np.log10(acc2 / pipe.n_welch_segments + 1e-12)
+    return acc1, acc2
 
 
 def f_process_block():

@@ -10,13 +10,15 @@ Features:
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from pathlib import Path
 import re
 import sqlite3
 import threading
 import time
-from typing import Any, Iterator
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
+from types import TracebackType
+from typing import Any, Self
 
 from bruittrack.events import SoundEvent
 
@@ -102,10 +104,15 @@ class EventStore:
         # itself migrates from any prior (non-WAL) database on first open.
         self._init_db()
 
-    def __enter__(self) -> EventStore:
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None = None,
+        exc_val: BaseException | None = None,
+        exc_tb: TracebackType | None = None,
+    ) -> None:
         self.close()
 
     @contextmanager

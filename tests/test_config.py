@@ -1,8 +1,9 @@
 """Tests for configuration parsing and validation."""
 
-from pathlib import Path
 import os
 import tempfile
+from pathlib import Path
+
 import pytest
 
 from bruittrack.config import Config, load_config
@@ -69,9 +70,7 @@ def test_load_config_from_file() -> None:
 
 def test_storage_relative_paths_resolved_against_config_dir() -> None:
     """db_path/exemplars_dir relatifs sont resolus par rapport au dossier du config.toml."""
-    import pytest
 
-    cfg = load_config()
     (Path("data").resolve()).mkdir(parents=True, exist_ok=True)
     rel_toml = "[storage]\ndb_path = 'data/proj.db'\nexemplars_dir = 'projsnap'\n"
     with tempfile.TemporaryDirectory() as td:

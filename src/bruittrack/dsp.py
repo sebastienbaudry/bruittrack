@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import numpy as np
 
-
 try:  # optional fast path — see docs/decision-log.md
     from scipy.signal import sosfilt
 
@@ -326,7 +325,7 @@ def compute_channel_delay_ms(
     Positive delay: Left leads Right.
     Negative delay: Right leads Left.
     """
-    max_lag_samples = int(round(max_lag_ms * fs_low / 1000.0))
+    max_lag_samples = round(max_lag_ms * fs_low / 1000.0)
     if max_lag_samples < 1:
         return 0.0
 

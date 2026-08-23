@@ -1,11 +1,13 @@
-import numpy as np
-import scipy.signal as signal
-import sounddevice as sd
 import matplotlib
+import numpy as np
+import sounddevice as sd
+from scipy import signal
+
 matplotlib.use('TkAgg')  # Backend interactif imposé explicitement (nécessite python3-tk)
-import matplotlib.pyplot as plt
 import queue
 import time
+
+import matplotlib.pyplot as plt
 
 # --- CONFIGURATION ---
 ID_MAUDIO = None        # None = périphérique d'enregistrement par défaut du système

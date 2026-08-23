@@ -33,6 +33,10 @@ bruittrack = "bruittrack.__main__:main"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+per-file-ignores = { "src/bruittrack/*.py" = ["BLE001", "S110"] }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

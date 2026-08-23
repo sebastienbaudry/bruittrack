@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 
-from bruittrack.capture import AudioCapture, MockAudioCapture, SLOW_BLOCK_STREAK
+from bruittrack.capture import SLOW_BLOCK_STREAK, AudioCapture, MockAudioCapture
 from bruittrack.config import Config
 from bruittrack.dsp import DspPipeline, FloorTracker, compute_channel_delay_ms
 from bruittrack.events import EventDetector, SoundEvent
@@ -121,7 +122,7 @@ class Engine:
 
         # 2. Update floor tracker
         self.floor_tracker.update(psd1, psd2)
-        em1, em2, f1, f2 = self.floor_tracker.compute_emergence(psd1, psd2)
+        em1, em2, _, _ = self.floor_tracker.compute_emergence(psd1, psd2)
 
         events: list[SoundEvent] = []
         # 3. Detect events once warmed up

@@ -83,7 +83,7 @@ def test_dsp_pipeline_frequency_identification() -> None:
     # Target test tone: 20 Hz
     target_freq = 20.0
     # Expected peak bin: round(20 / (1000 / 2048)) = round(20 / 0.48828) = 41
-    expected_bin = int(round(target_freq / dsp.bin_resolution))
+    expected_bin = round(target_freq / dsp.bin_resolution)
 
     # Feed enough blocks (~85 blocks = 8.5s) to fill the 8192 buffer
     n_blocks = 90
@@ -129,7 +129,7 @@ def test_floor_tracker() -> None:
     psd_spike = psd_base.copy()
     psd_spike[10] = -30.0
 
-    em1, em2, f1, f2 = ft.compute_emergence(psd_spike, psd_spike)
+    em1, em2, _, _ = ft.compute_emergence(psd_spike, psd_spike)
     assert np.isclose(em1[10], 20.0, atol=1.0)
     assert np.isclose(em2[10], 20.0, atol=1.0)
 

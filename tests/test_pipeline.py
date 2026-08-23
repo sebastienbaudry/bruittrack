@@ -1,9 +1,7 @@
 """End-to-end tests for the Engine pipeline."""
 
-from pathlib import Path
 import tempfile
-import numpy as np
-import pytest
+from pathlib import Path
 
 from bruittrack.capture import MockAudioCapture
 from bruittrack.config import Config
@@ -35,7 +33,7 @@ def test_pipeline_engine_simulation() -> None:
 
         # Run 10 ticks to pass warmup and generate data
         for _ in range(10):
-            psd1, psd2, em1, em2, events = engine.step()
+            engine.step()
 
         engine.stop()
 

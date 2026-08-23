@@ -11,10 +11,10 @@ Fingerprint layout (16 bytes):
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
 import struct
 import time
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -84,13 +84,13 @@ def encode_fingerprint(
             val = max(0.0, float(emergence_spectrum[idx]))
             # Relative quantization on 3 bits (0..7)
             ratio = min(1.0, val / peak_val)
-            q = int(round(ratio * 7.0))
+            q = round(ratio * 7.0)
         else:
             q = 0
         neighbors.append(q)
 
     # Delay class (-20 to +20 ms, clamped)
-    delay_class = int(round(off_ms))
+    delay_class = round(off_ms)
     delay_class = max(-20, min(20, delay_class))
 
     return struct.pack(
@@ -149,10 +149,8 @@ def fingerprints_match(fp1: bytes, fp2: bytes) -> bool:
 
     # Manhattan distance on quantized neighbors
     dist_neighbors = sum(abs(a - b) for a, b in zip(d1.neighbors, d2.neighbors))
-    if dist_neighbors > 2:
-        return False
 
-    return True
+    return dist_neighbors <= 2
 
 
 class ClusterIndex:
@@ -300,9 +298,7 @@ class EventDetector:
 
             # Check termination conditions: hysteresis drop or max duration
             should_close = False
-            if current_max_em < self.release_threshold_db:
-                should_close = True
-            elif duration_s >= self.max_duration_s:
+            if current_max_em < self.release_threshold_db or duration_s >= self.max_duration_s:
                 should_close = True
 
             if should_close:

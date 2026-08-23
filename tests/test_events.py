@@ -1,9 +1,8 @@
 """Tests for EventDetector, Fingerprinting, and ClusterIndex."""
 
-from pathlib import Path
 import tempfile
+
 import numpy as np
-import pytest
 
 from bruittrack.events import (
     ClusterIndex,
