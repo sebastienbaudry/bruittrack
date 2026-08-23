@@ -106,3 +106,9 @@
 - **Contexte** : le respect des budgets T620 (M9, GOAL.md) exigeait une preuve automatisée et machine-readable ; jusqu'ici elle passait par `ps` manuel + comparaison à la main.
 - **Décision** : sous-commande `perf --pid <PID>` (défaut : processus courant). Deux lectures de `/proc/<pid>/stat` espacées de `PERF_SAMPLE_SECONDS = 15 s` → %CPU (diff utime+stime / CLOCK_TICKS) et RSS (field 24, × page size). Seuils nommés `CPU_MAX_PCT = 15`, `RSS_MAX_KB = 153_600` — zéro magic number. Codes sortie machine : **0** « CONFORME », **1** PID illisible / non-Linux (compteur gelé), **2** « NON-CONFORME ». Sur prod, PID canonique = `systemctl show -p MainPID --value bruittrack`.
 - **Justification** : 15 s de fenêtre lisse la variabilité DSP sans allonger le gate ; % dérivés d'entiers /proc (pas de `psutil`, pas de dépendance). Conformes au budget process unique (~48k it/s). Preuves prod : it.64 CPU 12.9 % RC=0 ; it.67 CPU 12.6 % / RSS 123.5 Mo RC=0 (uptime > 10 h) ; couvert par 4 tests unitaires fake-/proc (`tests/test_perf.py`, I5).
+
+## [2026-08-24] Clusters triage sans event visibles dans /api/clusters (I17)
+
+- **Contexte** : `set_cluster_triage()` (`store.py`) cree la ligne `clusters` via UPSERT, meme avant le 1er event du cluster ; mais `get_clusters_summary()` agregait depuis `events` (JOIN gauche), donc un cluster etiquete "a venir" etait invisible dans `GET /api/clusters` et la CLI.
+- **Decision** : 2eme requete en union logique dans Python — clusters sans aucun event renvoyes avec `event_count=0`, `first_seen`/`last_seen=NULL`, stats a zero ; pas de schema ni d'ordre change.
+- **Justification** : coherence triage/affichage sans nouvelle table (regle budget) ; cout = 1 `NOT EXISTS` par lecture (WAL, table faible volume ~lignes/an) — negligeable T620. Test : `tests/test_store.py::test_clusters_summary_includes_triage_orphans`.
