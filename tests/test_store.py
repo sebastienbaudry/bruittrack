@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from bruittrack.events import SoundEvent
+from bruittrack.events import FLAG_OVER_LEGAL, SoundEvent
 from bruittrack.store import EventStore
 
 
@@ -348,3 +348,27 @@ def test_get_events_filters_and_pagination() -> None:
         page2 = store.get_events(limit=1, offset=2)[0]
         assert page2["t0"] == pytest.approx(1700000000.0)
         store.close()
+
+
+def test_get_events_exposes_over_legal_flag() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store = EventStore(db_path=Path(tmpdir) / "test.db", batch_size=1, batch_timeout_s=1.0)
+        for t0, fl in ((1700000020.0, FLAG_OVER_LEGAL), (1700000030.0, 0)):
+            store.add_event(
+                SoundEvent(
+                    t0=t0,
+                    dur=1.0,
+                    bin_i=5,
+                    freq=2.44,
+                    lvl_g=5.0,
+                    lvl_d=3.0,
+                    off_ms=0.0,
+                    fp=b"2" * 16,
+                    flags=fl,
+                    cluster=None,
+                )
+            )
+        store.flush()
+        rows = {int(r["flags"]): r for r in store.get_events(limit=10)}
+        assert rows[FLAG_OVER_LEGAL]["over_legal"] is True
+        assert rows[0]["over_legal"] is False

@@ -20,7 +20,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
 
-from bruittrack.events import SoundEvent
+from bruittrack.events import FLAG_OVER_LEGAL, SoundEvent
 
 
 @contextmanager
@@ -311,6 +311,7 @@ class EventStore:
             results = []
             for row in conn.execute(query, params).fetchall():
                 d = dict(row)
+                d["over_legal"] = bool(int(d.get("flags") or 0) & FLAG_OVER_LEGAL)
                 if isinstance(d.get("fp"), (bytes, memoryview)):
                     d["fp_hex"] = bytes(d["fp"]).hex()
                     del d["fp"]
