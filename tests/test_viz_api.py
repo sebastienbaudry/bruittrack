@@ -58,6 +58,8 @@ def viz_server(tmp_path_factory):
     (exemplars / "ex_1.raw").write_bytes(
         np.random.default_rng(42).normal(0.0, 0.1, size=512).astype("float16").tobytes()
     )
+    # Exemplaire corrompu (I24) : taille incoherente float16
+    (exemplars / "ex_7.raw").write_bytes(b"abc")
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -182,3 +184,13 @@ def test_clusters_includes_triage_orphan(viz_server):
     orphan = [c for c in rows if c["cluster_id"] == 77]
     assert orphan, f"cluster orphelin 77 absent de /api/clusters : {rows[:3]}"
     assert orphan[0]["event_count"] == 0
+
+
+def test_exemplar_corrupt_returns_500(viz_server):
+    """Un .raw troncore doit renvoyer 500 (I24)."""
+    base, _store, _tmp = viz_server
+    try:
+        with urllib.request.urlopen(base + "/api/exemplar/7.wav", timeout=5) as resp:
+            assert resp.status == 200
+    except urllib.error.HTTPError as e:
+        assert e.code == 500, f"attendu 500, obtenu {e.code}"

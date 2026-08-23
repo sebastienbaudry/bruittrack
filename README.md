@@ -26,6 +26,26 @@ python -m bruittrack viz                  # http://localhost:8760
 
 Service systemd : [systemd/bruittrack.service](systemd/bruittrack.service)
 (adapteur `User=`, `WorkingDirectory=`).
+## Utilisation
+
+`python -m bruittrack [-c CONFIG] <sous-commande>` — config unique source : `config.toml`.
+
+| Sous-commande | Options | Rôle |
+|---|---|---|
+| `devices` | — | Liste les paires in/out ALSA (M-Track Plus, 48 kHz) |
+| `test` | `-s/--seconds`, `--synthetic`, `--verbose-floor` | Test court sans persistance (synthétique si pas de carte) |
+| `start` | — | Boucle temps réel 24/7 (Démarrage rapide) |
+| `viz` | `-p/--port` (8760), `--host` (0.0.0.0) | Serveur HTTP stdlib : dashboards + API JSON |
+| `stats` | `--play ID`, `--json` | Top clusters + exemplaires (replay SoX) ; JSON pour scripts |
+| `perf` | `--pid` | CPU/RAM via /proc, ou attach à un PID systemd |
+| `prune` | — | Supprime les exemplaires orphelins + VACUUM (opt) |
+
+### API du dashboard
+
+`GET /` · `GET /api/events[?since&limit&offset&cluster]` · `GET /api/clusters[?limit]` · `GET /api/stats` · `GET /api/exemplar/\<id\>.wav` · `POST /api/clusters/\<id\>/triage {flags, label}` (bit 0 connue, bit 1 ignorée) — cf. section Triage plus bas.
+
+La rétention (`retention_days`) s'applique automatiquement au démarrage et quotidiennement via le pipeline ; `prune` nettoie orphelins quand l'exemplaire n'a plus que 0 événement rattaché sur la vue clusters.
+
 
 ## Architecture (résumé)
 
