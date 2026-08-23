@@ -60,6 +60,6 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I19** UI web : `triageCluster()` envoie seulement `flags` — ajouter un label (prompt) au triage dans le dashboard, corps JSON `{flags, label}`.
       Fichier : `src/bruittrack/viz.py` (bloc JS ~ligne 278).
       OK quand : le body du fetch triage contient `label` et le README section Triage reste cohérement.
-- [ ] **I20** Test HTTP I17 : `GET /api/clusters` inclut un cluster orphelin (event_count=0) via viz_server + set_cluster_triage avant lecture.
+- [x] **I20** Test HTTP I17 : `GET /api/clusters` inclut un cluster orphelin (event_count=0) via viz_server + set_cluster_triage avant lecture.
       Fichier : `tests/test_viz_api.py`.
       OK quand : `pytest tests/test_viz_api.py -k orphan -q` vert.

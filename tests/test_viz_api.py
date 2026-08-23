@@ -169,3 +169,16 @@ def test_triage_endpoint_rejects_bad_payload(viz_server):
     with pytest.raises(urllib.error.HTTPError) as excinfo:
         urllib.request.urlopen(req, timeout=5)
     assert excinfo.value.code == 400
+
+
+def test_clusters_includes_triage_orphan(viz_server):
+    """I17/I20 : un cluster triagé sans event apparaît dans GET /api/clusters (event_count=0)."""
+
+    base, store, _tmp = viz_server
+    store.set_cluster_triage(77, 1, "orphelin de test")
+
+    payload = _get_json(base, "/api/clusters?limit=200")
+    rows = payload if isinstance(payload, list) else payload.get("clusters", [])
+    orphan = [c for c in rows if c["cluster_id"] == 77]
+    assert orphan, f"cluster orphelin 77 absent de /api/clusters : {rows[:3]}"
+    assert orphan[0]["event_count"] == 0
