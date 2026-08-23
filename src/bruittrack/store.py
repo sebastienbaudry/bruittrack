@@ -243,7 +243,6 @@ class EventStore:
     # Read path: each call opens a fresh short-lived connection, so no
     # connection is ever shared across threads.
 
-
     @staticmethod
     def _table_exists(conn: sqlite3.Connection, table: str) -> bool:
         """Check a table exists without erroring on fresh/empty DB."""
@@ -253,9 +252,7 @@ class EventStore:
         ).fetchone()
         return row is not None
 
-    def load_all_cluster_fingerprints(
-        self, limit: int = 100_000
-    ) -> dict[int, bytes]:
+    def load_all_cluster_fingerprints(self, limit: int = 100_000) -> dict[int, bytes]:
         """Load representative fingerprints for all known clusters.
 
         Capped at ``limit`` groups (safeguard RAM T620) ; logged warning if truncated.
@@ -282,9 +279,7 @@ class EventStore:
             result: dict[int, bytes] = {}
             for group in rows:
                 rid, cid = group["first_id"], group["cluster"]
-                row = conn.execute(
-                    "SELECT fp FROM events WHERE id = ?", (rid,)
-                ).fetchone()
+                row = conn.execute("SELECT fp FROM events WHERE id = ?", (rid,)).fetchone()
                 if row is not None:
                     result[cid] = bytes(row["fp"])
             return result
@@ -373,9 +368,7 @@ class EventStore:
                 )
             ]
 
-    def set_cluster_triage(
-        self, cluster_id: int, flags: int, label: str | None = None
-    ) -> bool:
+    def set_cluster_triage(self, cluster_id: int, flags: int, label: str | None = None) -> bool:
         """Set triage flags (known/ignored) and optional label on a cluster."""
         with self._db() as conn:
             if label is not None:
@@ -406,9 +399,7 @@ class EventStore:
 
         cutoff = time.time() - (retention_days * 86400.0)
         with self._db() as conn:
-            deleted = conn.execute(
-                "DELETE FROM events WHERE t0 < ?", (cutoff,)
-            ).rowcount
+            deleted = conn.execute("DELETE FROM events WHERE t0 < ?", (cutoff,)).rowcount
             conn.commit()
             return deleted
 
@@ -423,7 +414,9 @@ class EventStore:
         with self._db(readonly=True) as conn:
             known = {
                 row[0]
-                for row in conn.execute("SELECT DISTINCT cluster FROM events WHERE cluster IS NOT NULL")
+                for row in conn.execute(
+                    "SELECT DISTINCT cluster FROM events WHERE cluster IS NOT NULL"
+                )
             }
         removed = 0
         for f in d.glob("ex_*.raw"):

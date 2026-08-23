@@ -1,4 +1,5 @@
 """Decisive per-subpart tick benchmark for HP T620 (run inside /opt/bruittrack)."""
+
 import time
 
 import numpy as np

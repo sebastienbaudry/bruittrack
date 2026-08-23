@@ -22,14 +22,22 @@ from bruittrack.store import EventStore
 
 def _make_engine(tmp_path) -> tuple[Engine, MockAudioCapture]:
     cfg = Config(
-        audio=AudioConfig(device=None, sample_rate=48000, decimation=48,
-                          block_size=4800, channels=2),
-        dsp=DspConfig(n_seg=2048, noverlap=1024, n_buffer=8192, freq_max=48.0,
-                      ema_alpha=0.5, floor_history_len=300, lp_cutoff_hz=400.0),
-        detector=DetectorConfig(threshold_db=10.0, hysteresis_db=3.0,
-                                debounce_ticks=5, max_duration_s=30.0),
-        storage=StorageConfig(db_path=str(tmp_path / "m6.db"), batch_size=50,
-                              batch_timeout_s=5.0),
+        audio=AudioConfig(
+            device=None, sample_rate=48000, decimation=48, block_size=4800, channels=2
+        ),
+        dsp=DspConfig(
+            n_seg=2048,
+            noverlap=1024,
+            n_buffer=8192,
+            freq_max=48.0,
+            ema_alpha=0.5,
+            floor_history_len=300,
+            lp_cutoff_hz=400.0,
+        ),
+        detector=DetectorConfig(
+            threshold_db=10.0, hysteresis_db=3.0, debounce_ticks=5, max_duration_s=30.0
+        ),
+        storage=StorageConfig(db_path=str(tmp_path / "m6.db"), batch_size=50, batch_timeout_s=5.0),
         viz=VizConfig(host="127.0.0.1", port=8080),
     )
     mock = MockAudioCapture(block_size=4800, noise_level=0.01, seed=1)

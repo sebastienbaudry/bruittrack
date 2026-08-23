@@ -51,6 +51,8 @@ def list_audio_devices() -> list[dict[str, Any]]:
                 }
             )
     return input_devices
+
+
 def resolve_device_input(device_spec: str) -> int | str:
     """Resolves a device specification to a sounddevice-usable identifier.
 
@@ -258,7 +260,9 @@ class MockAudioCapture:
         lag = expected_next - time.monotonic()
         if lag > 0:
             time.sleep(lag)
-        self._last_time = max(self._last_time + self.block_size / self.sample_rate, time.monotonic())
+        self._last_time = max(
+            self._last_time + self.block_size / self.sample_rate, time.monotonic()
+        )
 
         return block
 

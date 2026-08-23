@@ -112,9 +112,7 @@ def decode_fingerprint(fp: bytes) -> DecodedFingerprint:
     if len(fp) != 16:
         raise ValueError(f"Fingerprint must be 16 bytes, got {len(fp)}")
 
-    version, bin_peak, n0, n1, n2, n3, n4, dom_ch, delay_class = struct.unpack(
-        ">BH5BBb6x", fp
-    )
+    version, bin_peak, n0, n1, n2, n3, n4, dom_ch, delay_class = struct.unpack(">BH5BBb6x", fp)
     return DecodedFingerprint(
         version=version,
         bin_peak=bin_peak,

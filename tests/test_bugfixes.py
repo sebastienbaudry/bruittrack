@@ -40,9 +40,16 @@ class TestEventStoreThreadSafety:
 
         def worker(start: int, n: int) -> None:
             for i in range(n):
-                ev = SoundEvent(t0=time.time(), dur=1.0, bin_i=start + i % 50,
-                                freq=0.0, lvl_g=12.0, lvl_d=8.0, off_ms=0.0,
-                                fp=b"\x00" * 16)
+                ev = SoundEvent(
+                    t0=time.time(),
+                    dur=1.0,
+                    bin_i=start + i % 50,
+                    freq=0.0,
+                    lvl_g=12.0,
+                    lvl_d=8.0,
+                    off_ms=0.0,
+                    fp=b"\x00" * 16,
+                )
                 store.add_event(ev)
 
         threads = [threading.Thread(target=worker, args=(i * 10, 10)) for i in range(4)]
@@ -59,8 +66,16 @@ class TestEventStoreThreadSafety:
         the inner path must not re-acquire the held lock (deadlock)."""
         store = EventStore(db_path=str(tmp_path / "t.db"), batch_size=2)
         for i in range(3):
-            ev = SoundEvent(t0=time.time(), dur=1.0, bin_i=i, freq=0.0,
-                            lvl_g=12.0, lvl_d=8.0, off_ms=0.0, fp=b"\x00" * 16)
+            ev = SoundEvent(
+                t0=time.time(),
+                dur=1.0,
+                bin_i=i,
+                freq=0.0,
+                lvl_g=12.0,
+                lvl_d=8.0,
+                off_ms=0.0,
+                fp=b"\x00" * 16,
+            )
             store.add_event(ev)  # would hang if lock not managed correctly
         store.flush()
         assert store.get_stats()["total_events"] == 3
@@ -75,8 +90,16 @@ class TestFlushRecovery:
         store = _make_store(tmp_path)
         # Inject a dummy connection that raises
         events = [
-            SoundEvent(t0=time.time(), dur=1.0, bin_i=i, freq=0.0,
-                       lvl_g=12.0, lvl_d=8.0, off_ms=0.0, fp=b"\x00" * 16)
+            SoundEvent(
+                t0=time.time(),
+                dur=1.0,
+                bin_i=i,
+                freq=0.0,
+                lvl_g=12.0,
+                lvl_d=8.0,
+                off_ms=0.0,
+                fp=b"\x00" * 16,
+            )
             for i in range(5)
         ]
         ev = events[0]
@@ -85,6 +108,7 @@ class TestFlushRecovery:
         class _FailingConn:
             def execute(self, q, params=()):
                 raise sqlite3.OperationalError("simulated disk full")
+
             def executemany(self, q, rows):
                 raise sqlite3.OperationalError("simulated disk full")
 
@@ -112,8 +136,16 @@ class TestRetentionWiring:
         store = _make_store(tmp_path)
         # Old event (1000 days ago)
         old_t0 = time.time() - 1000 * 86400
-        ev = SoundEvent(t0=old_t0, dur=1.0, bin_i=5, freq=0.0,
-                        lvl_g=12.0, lvl_d=8.0, off_ms=0.0, fp=b"\x00" * 16)
+        ev = SoundEvent(
+            t0=old_t0,
+            dur=1.0,
+            bin_i=5,
+            freq=0.0,
+            lvl_g=12.0,
+            lvl_d=8.0,
+            off_ms=0.0,
+            fp=b"\x00" * 16,
+        )
         store.add_event(ev)
         store.flush()
 
@@ -128,8 +160,15 @@ class TestRetentionWiring:
 class TestWelchNormalization:
     def test_welch_constant_power(self):
         """Constant signal → PSD ≈ amplitude² / N (within tolerance)."""
-        dp = DspPipeline(sample_rate=48000, decimation=48, n_seg=256, noverlap=128,
-                         n_buffer=512, freq_max=48.0, lp_cutoff_hz=400.0)
+        dp = DspPipeline(
+            sample_rate=48000,
+            decimation=48,
+            n_seg=256,
+            noverlap=128,
+            n_buffer=512,
+            freq_max=48.0,
+            lp_cutoff_hz=400.0,
+        )
         t = np.arange(dp.n_seg) / (dp.sample_rate / dp.decimation)
         x = np.ones((len(t), 2), dtype=np.float32) * 0.5
         psd1, _ = dp.process_block(x)
@@ -138,10 +177,17 @@ class TestWelchNormalization:
 
     def test_window_sum_used(self):
         """window_scale must equal Σ(w²) of the Hann window, not (Σw)²."""
-        dp = DspPipeline(sample_rate=48000, decimation=48, n_seg=256, noverlap=128,
-                         n_buffer=512, freq_max=48.0, lp_cutoff_hz=400.0)
+        dp = DspPipeline(
+            sample_rate=48000,
+            decimation=48,
+            n_seg=256,
+            noverlap=128,
+            n_buffer=512,
+            freq_max=48.0,
+            lp_cutoff_hz=400.0,
+        )
         w = np.hanning(dp.n_seg)
-        expected = float(np.sum(w ** 2))
+        expected = float(np.sum(w**2))
         assert abs(dp.window_scale - expected) < max(1e-6, 1e-6 * abs(expected)), (
             f"window_scale={dp.window_scale} != Σw²={expected}"
         )
@@ -153,6 +199,7 @@ class TestWelchNormalization:
 class TestRetentionDefault:
     def test_default_retention_is_365(self):
         from bruittrack.config import load_config
+
         cfg = load_config()  # no file → defaults
         assert cfg.storage.retention_days == 365
 
@@ -164,6 +211,7 @@ class TestRetentionDefault:
 
     def test_toml_missing_key_keeps_default(self, toml_no_retention):
         from bruittrack.config import load_config
+
         cfg = load_config(toml_no_retention)
         assert cfg.storage.retention_days == 365
 
@@ -174,12 +222,21 @@ class TestRetentionDefault:
 class TestConfigValidation:
     def _base_config(self) -> Config:
         return Config(
-            audio=AudioConfig(device=None, sample_rate=48000, decimation=48,
-                              block_size=4800, channels=2),
-            dsp=DspConfig(n_seg=2048, noverlap=1024, n_buffer=8192, freq_max=48.0,
-                          ema_alpha=0.5, floor_history_len=300, lp_cutoff_hz=400.0),
-            detector=DetectorConfig(threshold_db=10.0, hysteresis_db=3.0,
-                                    debounce_ticks=5, max_duration_s=30.0),
+            audio=AudioConfig(
+                device=None, sample_rate=48000, decimation=48, block_size=4800, channels=2
+            ),
+            dsp=DspConfig(
+                n_seg=2048,
+                noverlap=1024,
+                n_buffer=8192,
+                freq_max=48.0,
+                ema_alpha=0.5,
+                floor_history_len=300,
+                lp_cutoff_hz=400.0,
+            ),
+            detector=DetectorConfig(
+                threshold_db=10.0, hysteresis_db=3.0, debounce_ticks=5, max_duration_s=30.0
+            ),
             storage=StorageConfig(db_path=":memory:", batch_size=50, batch_timeout_s=5.0),
             viz=VizConfig(host="0.0.0.0", port=8080),
         )
@@ -234,7 +291,9 @@ class TestConfigValidation:
 
 def run():
     import sys
+
     sys.exit(pytest.main([__file__, "-v"]))
+
 
 if __name__ == "__main__":
     run()
@@ -283,8 +342,16 @@ class TestFlushErrorPreservation:
 
     @staticmethod
     def _ev(bin_i: int):
-        return SoundEvent(t0=1.0, dur=1.0, bin_i=bin_i, freq=float(bin_i),
-                          lvl_g=5.0, lvl_d=4.0, off_ms=0.0, fp=b"\x02" * 16)
+        return SoundEvent(
+            t0=1.0,
+            dur=1.0,
+            bin_i=bin_i,
+            freq=float(bin_i),
+            lvl_g=5.0,
+            lvl_d=4.0,
+            off_ms=0.0,
+            fp=b"\x02" * 16,
+        )
 
     def test_flush_error_preserves_buffer(self, tmp_path) -> None:
         s = EventStore(db_path=str(tmp_path / "f.db"), batch_size=3)
@@ -310,6 +377,7 @@ class TestFlushErrorPreservation:
 
         assert failures["n"] == 2
         assert s.get_stats()["total_events"] == 4
+
 
 # ---------------------------------------------------------------------------
 # BUG-05: exemplar float16 raw -> int16 WAV conversion
@@ -376,14 +444,23 @@ def test_stats_json_flag(tmp_path, monkeypatch):
     from bruittrack.__main__ import main
 
     store = _make_store(tmp_path)
-    ev = SoundEvent(t0=1_000.0, dur=1.5, bin_i=18, freq=18 * 0.49, lvl_g=12.0, lvl_d=3.0, off_ms=-1.2,
-                    fp=b"\x01" * 16, flags=0)
+    ev = SoundEvent(
+        t0=1_000.0,
+        dur=1.5,
+        bin_i=18,
+        freq=18 * 0.49,
+        lvl_g=12.0,
+        lvl_d=3.0,
+        off_ms=-1.2,
+        fp=b"\x01" * 16,
+        flags=0,
+    )
     store.add_event(ev)
     store.flush()
     cfg = tmp_path / "cfg.toml"
     db_p = (tmp_path / "t.db").as_posix()
     ex_p = (tmp_path / "ex").as_posix()
-    cfg.write_text(f"[storage]\ndb_path = \"{db_p}\"\nexemplars_dir = \"{ex_p}\"\n")
+    cfg.write_text(f'[storage]\ndb_path = "{db_p}"\nexemplars_dir = "{ex_p}"\n')
     buf = io.StringIO()
     monkeypatch.setattr(_sys, "argv", ["bruittrack", "--config", str(cfg), "stats", "--json"])
     with contextlib.redirect_stdout(buf):

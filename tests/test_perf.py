@@ -54,35 +54,27 @@ def _run_perf(monkeypatch, samples, pid=42):
 def test_perf_conforme_within_budget(monkeypatch):
     rss_pages = 30_000  # 120 Mo < 150 Mo
     # delta=100 jiffies over a 15 s window (CLOCK_TICKS≈100) -> ~6-7 %
-    rc, out = _run_perf(
-        monkeypatch, [_stat_text(100, 0, rss_pages), _stat_text(200, 0, rss_pages)]
-    )
+    rc, out = _run_perf(monkeypatch, [_stat_text(100, 0, rss_pages), _stat_text(200, 0, rss_pages)])
     assert rc == 0
     assert "CONFORME" in out
 
 
 def test_perf_non_conforme_cpu(monkeypatch):
     # delta=500 jiffies over ~15 s -> ~33 % > 15 %
-    rc, out = _run_perf(
-        monkeypatch, [_stat_text(100, 0, 30_000), _stat_text(500, 200, 30_000)]
-    )
+    rc, out = _run_perf(monkeypatch, [_stat_text(100, 0, 30_000), _stat_text(500, 200, 30_000)])
     assert rc == 2
     assert "NON-CONFORME" in out
 
 
 def test_perf_non_conforme_rss(monkeypatch):
     rss_pages = 40_000  # 160 Mo > 150 Mo, CPU within budget
-    rc, out = _run_perf(
-        monkeypatch, [_stat_text(100, 0, rss_pages), _stat_text(150, 0, rss_pages)]
-    )
+    rc, out = _run_perf(monkeypatch, [_stat_text(100, 0, rss_pages), _stat_text(150, 0, rss_pages)])
     assert rc == 2
     assert "NON-CONFORME" in out
 
 
 def test_perf_pid_gone_returns_1(monkeypatch):
     # utime/stime frozen between samples -> PID absent or /proc refused
-    rc, out = _run_perf(
-        monkeypatch, [_stat_text(100, 5, 30_000), _stat_text(100, 5, 31_000)]
-    )
+    rc, out = _run_perf(monkeypatch, [_stat_text(100, 5, 30_000), _stat_text(100, 5, 31_000)])
     assert rc == 1
     assert "Impossible de mesurer" in out

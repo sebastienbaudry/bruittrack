@@ -201,7 +201,7 @@ def test_sos_filter_benchmark_48k_under_50ms() -> None:
     y = filt.filter(x)
     elapsed = time.perf_counter() - t0
     assert y.shape == (48_000, 2)
-    assert elapsed < 0.050, f"SosFilter trop lent: {elapsed*1000:.1f} ms > 50 ms"
+    assert elapsed < 0.050, f"SosFilter trop lent: {elapsed * 1000:.1f} ms > 50 ms"
 
 
 def test_sosfilter_fallback_warning(monkeypatch: pytest.MonkeyPatch) -> None:

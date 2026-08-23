@@ -25,9 +25,9 @@ import urllib.request
 import wave
 
 # --- Named thresholds (zero magic number) -------------------------------
-EXEMPLAR_FLOAT16_BYTES: int = 512   # 256 frames x 2 ch x float16
-SEED_EVENTS: int = 3                # events seeded inside the store
-EXEMPT_TIMEOUT_S: float = 5.0       # timeout HTTP of probes
+EXEMPLAR_FLOAT16_BYTES: int = 512  # 256 frames x 2 ch x float16
+SEED_EVENTS: int = 3  # events seeded inside the store
+EXEMPT_TIMEOUT_S: float = 5.0  # timeout HTTP of probes
 
 
 class CheckResult:
@@ -49,13 +49,16 @@ class CheckResult:
 
 def check_cli(res: CheckResult) -> None:
     """L1: installed CLI, all subcommands visible."""
-    out = subprocess.run([sys.executable, "-m", "bruittrack", "--help"],
-                         capture_output=True, text=True, timeout=10, check=False)
+    out = subprocess.run(
+        [sys.executable, "-m", "bruittrack", "--help"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
     text = out.stdout + out.stderr
-    cmd_ok = all(c in text for c in ("devices", "test", "start", "viz",
-                                     "stats", "perf"))
-    res.add("cli --help", out.returncode == 0 and cmd_ok,
-            f"rc={out.returncode} cmds={cmd_ok}")
+    cmd_ok = all(c in text for c in ("devices", "test", "start", "viz", "stats", "perf"))
+    res.add("cli --help", out.returncode == 0 and cmd_ok, f"rc={out.returncode} cmds={cmd_ok}")
 
 
 def check_config(res: CheckResult) -> None:
@@ -65,8 +68,7 @@ def check_config(res: CheckResult) -> None:
 
     ok, detail = True, ""
     try:
-        src = pathlib.Path(__file__).resolve().parent.parent / \
-            "config.toml.example"
+        src = pathlib.Path(__file__).resolve().parent.parent / "config.toml.example"
         with tempfile.TemporaryDirectory(prefix="bt_offline_") as tmp:
             dest = pathlib.Path(tmp) / "config.toml"
             shutil.copy(src, dest)
@@ -135,10 +137,18 @@ def check_store(res: CheckResult) -> None:
         store = EventStore(db_path=":memory:", batch_size=5)
         now = 1_750_000_000.0
         for i in range(SEED_EVENTS):
-            store.add_event(SoundEvent(
-                t0=now + i * 3.0, dur=1.2 + i * 0.1, bin_i=12 + i,
-                freq=(12 + i) * 0.48828, lvl_g=9.5 + i * 0.7, lvl_d=6.5,
-                off_ms=1.0, fp=b"\x0a" * 16))
+            store.add_event(
+                SoundEvent(
+                    t0=now + i * 3.0,
+                    dur=1.2 + i * 0.1,
+                    bin_i=12 + i,
+                    freq=(12 + i) * 0.48828,
+                    lvl_g=9.5 + i * 0.7,
+                    lvl_d=6.5,
+                    off_ms=1.0,
+                    fp=b"\x0a" * 16,
+                )
+            )
         n = store.flush()
         stats = store.get_stats()
         total = int(stats.get("total_events", -1))
@@ -161,16 +171,27 @@ def _seeded_store_for_viz(db_path: str, exemplars_dir: str):
     store = EventStore(db_path=db_path, batch_size=5)
     base = 1_750_000_000.0
     for i in range(SEED_EVENTS):
-        store.add_event(SoundEvent(
-            t0=base + i * 2.0, dur=1.5, bin_i=10 + i,
-            freq=(10 + i) * 0.48828, lvl_g=12.0 + i, lvl_d=8.0, off_ms=1.1,
-            fp=b"\x11" * 16))
+        store.add_event(
+            SoundEvent(
+                t0=base + i * 2.0,
+                dur=1.5,
+                bin_i=10 + i,
+                freq=(10 + i) * 0.48828,
+                lvl_g=12.0 + i,
+                lvl_d=8.0,
+                off_ms=1.1,
+                fp=b"\x11" * 16,
+            )
+        )
     store.flush()
     ex_dir = pathlib.Path(exemplars_dir)
     ex_dir.mkdir(parents=True, exist_ok=True)
     (ex_dir / "ex_0.raw").write_bytes(
-        np.random.default_rng(7).normal(0.0, 0.1,
-                                         size=EXEMPLAR_FLOAT16_BYTES // 2).astype("float16").tobytes())
+        np.random.default_rng(7)
+        .normal(0.0, 0.1, size=EXEMPLAR_FLOAT16_BYTES // 2)
+        .astype("float16")
+        .tobytes()
+    )
     return store
 
 
@@ -185,26 +206,22 @@ def check_viz_api(res: CheckResult) -> None:
     server: http.server.ThreadingHTTPServer | None = None
     try:
         p = pathlib.Path(tmpdir.name)
-        store = _seeded_store_for_viz(str(p / "viz.db"),
-                                      str(p / "exemplars"))
-        config = Config(storage=StorageConfig(db_path=str(p / "viz.db"),
-                                              exemplars_dir=str(p /
-                                                               "exemplars")))
-        handler = type("_H", (BruitTrackHandler,), {"store": store,
-                                                     "config": config})
+        store = _seeded_store_for_viz(str(p / "viz.db"), str(p / "exemplars"))
+        config = Config(
+            storage=StorageConfig(db_path=str(p / "viz.db"), exemplars_dir=str(p / "exemplars"))
+        )
+        handler = type("_H", (BruitTrackHandler,), {"store": store, "config": config})
         server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
         port = server.server_address[1]
         threading.Thread(target=server.serve_forever, daemon=True).start()
 
         base_url = f"http://127.0.0.1:{port}"
-        with urllib.request.urlopen(base_url + "/api/stats",
-                                    timeout=EXEMPT_TIMEOUT_S) as r:
+        with urllib.request.urlopen(base_url + "/api/stats", timeout=EXEMPT_TIMEOUT_S) as r:
             payload = json.loads(r.read().decode("utf-8"))
             stats_ok = int(payload.get("total_events", -1)) >= SEED_EVENTS
 
         ev_query = f"/api/events?limit={SEED_EVENTS}"
-        with urllib.request.urlopen(base_url + ev_query,
-                                    timeout=EXEMPT_TIMEOUT_S) as r:
+        with urllib.request.urlopen(base_url + ev_query, timeout=EXEMPT_TIMEOUT_S) as r:
             ev_payload = json.loads(r.read().decode("utf-8"))
         # /api/events renvoie une liste nue (ou {"events": [...]}) selon version.
         if isinstance(ev_payload, dict):
@@ -222,7 +239,7 @@ def check_viz_api(res: CheckResult) -> None:
             urllib.request.urlopen(req_url, timeout=EXEMPT_TIMEOUT_S) as r,
             wave.open(io.BytesIO(r.read())) as w,
         ):
-            w_ok = (w.getnchannels() == 2 and w.getframerate() == 1000)
+            w_ok = w.getnchannels() == 2 and w.getframerate() == 1000
 
         ok = stats_ok and ev_ok and w_ok
         detail = f"stats={stats_ok} events={ev_ok} wav={w_ok}"
@@ -246,10 +263,10 @@ def run_offline(res: CheckResult) -> bool:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Harness verification modules BruitTrack.")
-    parser.add_argument("--offline", action="store_true",
-                        help="matrice hors materiel (poste dev / CI)")
+    parser = argparse.ArgumentParser(description="Harness verification modules BruitTrack.")
+    parser.add_argument(
+        "--offline", action="store_true", help="matrice hors materiel (poste dev / CI)"
+    )
     args = parser.parse_args()
 
     res = CheckResult()

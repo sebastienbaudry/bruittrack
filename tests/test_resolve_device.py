@@ -30,8 +30,9 @@ def test_resolve_exact_name_match_first_pass(monkeypatch):
         {"name": "Some Other Device", "max_input_channels": 1},
         {"name": "M-Track Plus: USB Audio (hw:2,0)", "max_input_channels": 2},
     ]
-    monkeypatch.setitem(__import__("sys").modules, "sounddevice",
-                        _install_fake_sd(devices)["sounddevice"])
+    monkeypatch.setitem(
+        __import__("sys").modules, "sounddevice", _install_fake_sd(devices)["sounddevice"]
+    )
     assert resolve_device_input("M-Track Plus: USB Audio (hw:2,0)") == 2
 
 
@@ -40,14 +41,16 @@ def test_resolve_substring_match_second_pass(monkeypatch):
         {"name": "/DEFAULT INPUT", "max_input_channels": 0},
         {"name": "M-Track Plus: USB Audio (hw:2,0)", "max_input_channels": 2},
     ]
-    monkeypatch.setitem(__import__("sys").modules, "sounddevice",
-                        _install_fake_sd(devices)["sounddevice"])
+    monkeypatch.setitem(
+        __import__("sys").modules, "sounddevice", _install_fake_sd(devices)["sounddevice"]
+    )
     assert resolve_device_input("M-Track Plus") == 1
 
 
 def test_resolve_unknown_name_raises(monkeypatch):
     devices = [{"name": "Other Deck", "max_input_channels": 2}]
-    monkeypatch.setitem(__import__("sys").modules, "sounddevice",
-                        _install_fake_sd(devices)["sounddevice"])
+    monkeypatch.setitem(
+        __import__("sys").modules, "sounddevice", _install_fake_sd(devices)["sounddevice"]
+    )
     with pytest.raises(ValueError):
         resolve_device_input("No Such Device")

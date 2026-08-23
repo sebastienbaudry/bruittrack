@@ -41,6 +41,8 @@ def format_floor_health(floor_tracker) -> str:
         f"[floor] {status} | médiane {float(np.median(f1)):.1f} / {float(np.median(f2)):.1f} dB"
         f" | ptp {float(np.ptp(f1)):.1f} / {float(np.ptp(f2)):.1f} dB"
     )
+
+
 from bruittrack.config import load_config
 from bruittrack.pipeline import Engine
 from bruittrack.store import EventStore
@@ -95,7 +97,9 @@ def cmd_test(args: argparse.Namespace) -> int:
                 block_size=config.audio.block_size,
             )
         except Exception as e:
-            print(f"Impossible d'ouvrir le périphérique audio ({e}). Bascule en mode synthétique...")
+            print(
+                f"Impossible d'ouvrir le périphérique audio ({e}). Bascule en mode synthétique..."
+            )
             capture = MockAudioCapture(
                 sample_rate=config.audio.sample_rate,
                 channels=config.audio.channels,
@@ -104,6 +108,7 @@ def cmd_test(args: argparse.Namespace) -> int:
 
     # Use in-memory store for test mode to avoid polluting production DB
     from bruittrack.store import EventStore
+
     test_store = EventStore(db_path=":memory:")
     engine = Engine(config=config, capture=capture, store=test_store)
 
@@ -134,7 +139,11 @@ def cmd_test(args: argparse.Namespace) -> int:
             if getattr(args, "verbose_floor", False) and tick % FLOOR_HEALTH_EVERY_TICKS == 0:
                 print(f"{tick:6d}  | {format_floor_health(engine.floor_tracker)}")
 
-            warm_str = "OK" if engine.floor_tracker.is_warmed_up else f"{tick}/{config.detector.warmup_ticks}"
+            warm_str = (
+                "OK"
+                if engine.floor_tracker.is_warmed_up
+                else f"{tick}/{config.detector.warmup_ticks}"
+            )
             event_str = f"DETECTÉ ! #{events[0].cluster} ({events[0].dur}s)" if events else ""
 
             # Visual bar
@@ -223,7 +232,9 @@ def cmd_stats(args: argparse.Namespace) -> int:
         cluster_id = args.play
         raw_file = Path(config.storage.exemplars_dir) / f"ex_{cluster_id}.raw"
         if not raw_file.is_file():
-            print(f"Aucun extrait audio exemplaire trouvé pour le cluster #{cluster_id} ({raw_file})")
+            print(
+                f"Aucun extrait audio exemplaire trouvé pour le cluster #{cluster_id} ({raw_file})"
+            )
             return 1
 
         print(f"Lecture de l'exemplaire #{cluster_id} (256 ms @ 1kHz, 2 canaux)...")
@@ -236,7 +247,9 @@ def cmd_stats(args: argparse.Namespace) -> int:
             wav_path.write_bytes(_exemplar_to_wav(raw_file))
             subprocess.run(["play", tmp_name], check=True)
         except FileNotFoundError:
-            print("Commande 'play' (SoX) non disponible. Utilisez le serveur web `viz` pour écouter.")
+            print(
+                "Commande 'play' (SoX) non disponible. Utilisez le serveur web `viz` pour écouter."
+            )
         finally:
             wav_path.unlink(missing_ok=True)
         return 0
@@ -335,7 +348,9 @@ def main() -> int:
         description="BruitTrack - Traqueur de bruits récurrents et infrasons 24/7",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    parser.add_argument("--config", "-c", type=str, default=None, help="Chemin du fichier config.toml")
+    parser.add_argument(
+        "--config", "-c", type=str, default=None, help="Chemin du fichier config.toml"
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Sous-commandes")
 
@@ -344,10 +359,18 @@ def main() -> int:
 
     # test
     test_p = subparsers.add_parser("test", help="Test live en terminal sans GUI")
-    test_p.add_argument("--seconds", "-s", type=int, default=30, help="Durée du test en secondes (défaut: 30)")
-    test_p.add_argument("--synthetic", action="store_true", help="Utiliser un signal de test synthétique")
-    test_p.add_argument("--verbose-floor", dest="verbose_floor", action="store_true",
-                        help="Imprimer l'état du FloorTracker (chaud, médiane) toutes les 10 s")
+    test_p.add_argument(
+        "--seconds", "-s", type=int, default=30, help="Durée du test en secondes (défaut: 30)"
+    )
+    test_p.add_argument(
+        "--synthetic", action="store_true", help="Utiliser un signal de test synthétique"
+    )
+    test_p.add_argument(
+        "--verbose-floor",
+        dest="verbose_floor",
+        action="store_true",
+        help="Imprimer l'état du FloorTracker (chaud, médiane) toutes les 10 s",
+    )
 
     # start
     subparsers.add_parser("start", help="Démarrer le démon de capture et détection")
@@ -359,15 +382,22 @@ def main() -> int:
 
     # stats
     stats_p = subparsers.add_parser("stats", help="Afficher les statistiques de la base")
-    stats_p.add_argument("--play", type=int, default=None, help="Rejouer l'extrait audio d'un cluster")
-    stats_p.add_argument("--json", action="store_true", help="Sortie JSON machine (conforme matrice de vérification M6)")
+    stats_p.add_argument(
+        "--play", type=int, default=None, help="Rejouer l'extrait audio d'un cluster"
+    )
+    stats_p.add_argument(
+        "--json",
+        action="store_true",
+        help="Sortie JSON machine (conforme matrice de vérification M6)",
+    )
 
     # perf
     perf_p = subparsers.add_parser(
         "perf", help=f"Vérifier le budget CPU/RSS d'un PID sur {PERF_SAMPLE_SECONDS} s (matrice M9)"
     )
-    perf_p.add_argument("--pid", type=int, default=None,
-                        help="PID à mesurer (défaut: le processus courant)")
+    perf_p.add_argument(
+        "--pid", type=int, default=None, help="PID à mesurer (défaut: le processus courant)"
+    )
 
     # prune
     subparsers.add_parser(

@@ -128,7 +128,6 @@ class SosFilter:
         return y_out
 
 
-
 class DspPipeline:
     """Complete DSP pipeline for infrasound and low-frequency feature extraction."""
 
@@ -162,7 +161,9 @@ class DspPipeline:
         # Welch parameters
         self.step = self.n_seg - self.noverlap
         self.n_welch_segments = (self.n_buffer - self.n_seg) // self.step + 1
-        self.hann_window = 0.5 * (1.0 - np.cos(2.0 * np.pi * np.arange(self.n_seg) / (self.n_seg - 1)))
+        self.hann_window = 0.5 * (
+            1.0 - np.cos(2.0 * np.pi * np.arange(self.n_seg) / (self.n_seg - 1))
+        )
         self.hann_window = self.hann_window.astype(np.float32)
         self.window_scale = float(np.sum(self.hann_window**2))
 

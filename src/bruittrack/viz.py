@@ -429,9 +429,7 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
             offset = int(qs.get("offset", [0])[0])
             since = float(qs["since"][0]) if "since" in qs else None
             cluster = int(qs["cluster"][0]) if "cluster" in qs else None
-            events = self.store.get_events(
-                limit=limit, offset=offset, since=since, cluster=cluster
-            )
+            events = self.store.get_events(limit=limit, offset=offset, since=since, cluster=cluster)
             self._send_json(events)
             return
 

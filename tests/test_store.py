@@ -110,8 +110,16 @@ def test_concurrent_writer_and_readers(tmp_path: Path) -> None:
             t0 = time.time()
             for i in range(n_events):
                 store.add_event(
-                    SoundEvent(t0=t0 + i, dur=1.0, bin_i=i % 20, freq=float(i),
-                               lvl_g=5.0, lvl_d=4.0, off_ms=0.0, fp=b"\x01" * 16)
+                    SoundEvent(
+                        t0=t0 + i,
+                        dur=1.0,
+                        bin_i=i % 20,
+                        freq=float(i),
+                        lvl_g=5.0,
+                        lvl_d=4.0,
+                        off_ms=0.0,
+                        fp=b"\x01" * 16,
+                    )
                 )
             store.flush()
         except BaseException as exc:  # noqa: BLE001
@@ -125,8 +133,11 @@ def test_concurrent_writer_and_readers(tmp_path: Path) -> None:
         except BaseException as exc:  # noqa: BLE001
             errors.append(exc)
 
-    threads = [_t.Thread(target=writer), _t.Thread(target=reader, args=(1,)),
-               _t.Thread(target=reader, args=(2,))]
+    threads = [
+        _t.Thread(target=writer),
+        _t.Thread(target=reader, args=(1,)),
+        _t.Thread(target=reader, args=(2,)),
+    ]
     for t in threads:
         t.start()
     deadline = time.time() + 30
@@ -192,9 +203,16 @@ def test_prune_orphaned_exemplars(tmp_path: Path) -> None:
 
     # Once cluster 2 exists in DB, its exemplar survives; unknown ones die.
     ev = SoundEvent(
-        t0=time.time(), dur=1.0, bin_i=5, freq=2.5,
-        lvl_g=8.0, lvl_d=7.0, off_ms=0.0,
-        fp=b"k" * 16, flags=0, cluster=2,
+        t0=time.time(),
+        dur=1.0,
+        bin_i=5,
+        freq=2.5,
+        lvl_g=8.0,
+        lvl_d=7.0,
+        off_ms=0.0,
+        fp=b"k" * 16,
+        flags=0,
+        cluster=2,
     )
     store.add_event(ev)
     store.flush()
@@ -205,6 +223,7 @@ def test_prune_orphaned_exemplars(tmp_path: Path) -> None:
     assert removed == 1  # only ex_5.raw removed
     assert (ex_dir / "ex_2.raw").is_file()
     assert not (ex_dir / "ex_5.raw").exists()
+
 
 def test_cluster_fingerprints_cap_and_speed(tmp_path: Path) -> None:
     """Cap 100k groups + rebuild of 200k synthetic events stays < 8 s."""
