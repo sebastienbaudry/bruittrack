@@ -163,3 +163,44 @@ def test_event_detector_ignores_dc_bin() -> None:
         evs = det.update(quiet, quiet, audio_buf, off_ms=0.0, unix_time=t)
         assert len(evs) == 1
         assert evs[0].bin_i == 25
+
+
+class TestComputeFlags:
+    """_compute_flags: bit3 over-legal-limit (CSP R1336-7)."""
+
+    def _det(self, peak_g, peak_d, t0_unix):
+        from bruittrack.events import EventDetector
+
+        det = EventDetector()
+        det.peak_lvl_g = peak_g
+        det.peak_lvl_d = peak_d
+        det.t0_unix = t0_unix
+        return det
+
+    def test_below_limit_no_flag(self):
+        import time as _t
+
+        from bruittrack.legal import emergence_limit
+
+        ts = 1_750_000_000.0
+        lt = _t.localtime(ts)
+        limite = emergence_limit(lt.tm_hour, lt.tm_min, 2.0)
+        det = self._det(max(0.0, limite - 4.0), 0.0, ts)
+        assert self._mask(det, 2.0) == 0
+
+    def test_above_limit_flag_set(self):
+        import time as _t
+
+        from bruittrack.legal import emergence_limit
+
+        ts = 1_750_000_000.0
+        lt = _t.localtime(ts)
+        limite = emergence_limit(lt.tm_hour, lt.tm_min, 2.0)
+        det = self._det(limite + 3.0, 0.0, ts)
+        from bruittrack.events import FLAG_OVER_LEGAL
+
+        assert self._mask(det, 2.0) & FLAG_OVER_LEGAL
+
+    @staticmethod
+    def _mask(det, duration_s):
+        return det._compute_flags(duration_s)
