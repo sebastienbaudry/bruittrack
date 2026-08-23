@@ -76,7 +76,12 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
       Fichier : tests/test_viz_api.py. OK quand : pytest -k corrupt vert.
 - [ ] **I25** CI matrix 3.12/3.13 mais pyproject.toml declare requires-python >=3.11 : ajouter un job 3.11 (planchier declaree) dans .github/workflows/ci.yml.
       Fichier : .github/workflows/ci.yml. OK quand : le matrix porte 3 versions et le YAML reste valide.
-- [ ] **I26** viz.py : valider les params GET /api/events (since=abc, limit<=0, offset<0 -> HTTP 400 au lieu d'errno/traceback) + tests test_viz_api.py.
+- [x] **I26** viz.py : valider les params GET /api/events (since=abc, limit<=0, offset<0 -> HTTP 400 au lieu d'errno/traceback) + tests test_viz_api.py.
       Fichier : src/bruittrack/viz.py. OK quand : des requests de test avec since=abc et limit=0 recoivent 400, gate verte.
 - [ ] **I27** config.py : retenir les erreurs de validation (retention_days >= 0, seuils > 0) - levees au chargement avec un message lisible + tests test_config.py.
       Fichier : src/bruittrack/config.py. OK quand : pytest -k config vert et une config invalide echoue proprement en CLI.
+
+
+## Release
+
+- [ ] **I28** Version stable : tag/v1.0.0 + déploiement sur le HP T620 (systemd/bruittrack.service), puis purge DB serveur des événements non significatifs (freq=0.0 pré-fix 80dbfe9, événements <<seuil noise>). Fichier : scripts/purge_noise.sql (nouveau) + README. OK quand : la purge est scriptable en une commande déclarée dans le README, après un état de CI vert et gates locales passer.

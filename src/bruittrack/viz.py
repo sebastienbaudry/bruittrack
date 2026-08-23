@@ -426,10 +426,17 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
             return
 
         if path == "/api/events":
-            limit = int(qs.get("limit", [100])[0])
-            offset = int(qs.get("offset", [0])[0])
-            since = float(qs["since"][0]) if "since" in qs else None
-            cluster = int(qs["cluster"][0]) if "cluster" in qs else None
+            try:
+                limit = int(qs.get("limit", [100])[0])
+                offset = int(qs.get("offset", [0])[0])
+                since = float(qs["since"][0]) if "since" in qs else None
+                cluster = int(qs["cluster"][0]) if "cluster" in qs else None
+            except (ValueError, IndexError):
+                self.send_error(400, "Paramètre de requête invalide")
+                return
+            if limit <= 0 or offset < 0:
+                self.send_error(400, "limit doit > 0 et offset >= 0")
+                return
             events = self.store.get_events(limit=limit, offset=offset, since=since, cluster=cluster)
             self._send_json(events)
             return

@@ -194,3 +194,14 @@ def test_exemplar_corrupt_returns_500(viz_server):
             assert resp.status == 200
     except urllib.error.HTTPError as e:
         assert e.code == 500, f"attendu 500, obtenu {e.code}"
+
+
+def test_events_query_params_invalid_return_400(viz_server):
+    """I26 : params invalides (since texte, limit<=0, offset<0) -> 400."""
+    base, _store, _tmp = viz_server
+    for q in ("since=abc", "limit=0", "offset=-1", "limit=-5"):
+        try:
+            with urllib.request.urlopen(base + "/api/events?" + q, timeout=5) as resp:
+                assert False, f"attendu 400 pour {q}, obtenu {resp.status}"
+        except urllib.error.HTTPError as e:
+            assert e.code == 400, f"attendu 400 pour {q}, obtenu {e.code}"
