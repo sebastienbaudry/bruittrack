@@ -118,3 +118,8 @@
 - Contexte : beaucoup d'événements `bin_i=0` (0 Hz) en base sur le serveur, l'affichage web étant fidèle. Cause : `argmax` de la détection porte sur les bins 0..98 ; le bin 0 (moyenne DC) monte au-dessus du floor à tout transient de niveau et claque un pseudo-événement.
 - Décision : la recherche du pic est bornée aux bins 1..98 (`events.py`, `on_tick`) ; le bin DC ne déclenche plus jamais.
 - Justification : 0 Hz correspond à une dérive de niveau, pas à un bruit périodique ; spec : bins utiles 0–48 Hz mais le pic DC n'apporte aucune info discriminante. Test regression `test_event_detector_ignores_dc_bin`.
+## [2026-08-24] Conformite legale sur les events: flag bit3 + legal.py (CSP R1336-7)
+
+- Contexte : la spec exige de ne considerer que les events depassant l emergence autorisee par la loi ; aucun event n etait marqua de ce critere, store/viz ne pouvaient pas filter.
+- Decision : module bruittrack/legal.py (periode diurne 07h00-21h59 base 5 dB, nocturne base 3 dB, correctif de duree +6 au plus fort) et EventDetector._compute_flags() : bit3 = FLAG_OVER_LEGAL pose si max(lvl_g, lvl_d) depasse emergence_limit(evaluee a l heure locale du t0 ; tz naive volontaire, noqa DTZ006).
+- Justification : evaluation au close de l event (1 comparaison), zero nouvelle table ; bit3 complete les bits 0-2 sans changer le schema. Limitation documentee : duree_cumulee approximee par la duree de l event (au plus court, donc au correctif maximal +6, choix conservateur). Tests : tests/test_legal.py (6) + TestComputeFlags (2).
