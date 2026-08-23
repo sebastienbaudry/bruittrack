@@ -88,6 +88,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   .btn { background: var(--border); color: var(--text); border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; transition: 0.15s; }
   .btn:hover { background: var(--primary); color: #000; }
   .btn-sm { padding: 2px 6px; font-size: 11px; }
+  .btn-active { background: rgba(59, 130, 246, 0.25); color: #93c5fd; }
   .btn-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
   .btn-danger:hover { background: var(--danger); color: white; }
   .btn-success { background: rgba(16, 185, 129, 0.2); color: var(--success); }
@@ -135,6 +136,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
     <button id="toggleChG" class="btn btn-sm" onclick="toggleChannel(0)">IN1 (Air)</button>
     <button id="toggleChD" class="btn btn-sm" onclick="toggleChannel(1)">IN2 (Struct)</button>
+    <span style="opacity:.4">|</span>
+    <button id="winBtn1h" class="btn btn-sm" onclick="setTimeWin(3600,this)">1h</button>
+    <button id="winBtn6h" class="btn btn-sm" onclick="setTimeWin(21600,this)">6h</button>
+    <button id="winBtn24h" class="btn btn-sm btn-active" onclick="setTimeWin(86400,this)">24h</button>
+    <button id="winBtnTout" class="btn btn-sm" onclick="setTimeWin(null,this)">Tout</button>
     <span id="evtTip" style="font-family:monospace; font-size:12px; color:#e2e8f0; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
   </div>
   <canvas id="timelineCanvas" width="1000" height="260"></canvas>
@@ -302,6 +308,37 @@ async function triageCluster(clusterId, flags) {
 
 let showCh = { l: true, d: true };
 let timelinePoints = []; // {x, y, ev} pour tooltips/clic
+let timeWindow = 86400; // secondes affichées; null = Tout (plage calée sur les données)
+let lastVisible = []; // dernier jeu d'événements visibles (refilterable sans refetch)
+
+function setTimeWin(seconds, btn) {
+  timeWindow = seconds;
+  ['winBtn1h', 'winBtn6h', 'winBtn24h', 'winBtnTout'].forEach(id =>
+    document.getElementById(id).classList.remove('btn-active'));
+  if (btn) btn.classList.add('btn-active');
+  drawTimeline(lastVisible.length ? lastVisible : eventsData);
+}
+
+function drawTimeTicks(ctx, w, h, minT, span) {
+  // graduation axe X horodatée ; pas adaptatif pour ~90 px entre marqueurs
+  const steps = [900, 1800, 3600, 7200, 21600, 144000];
+  let step = span / Math.max(3, Math.floor((w - 50) / 90));
+  for (const s of steps) { if (step <= s) { step = s; break; } }
+  if (step > span) step = Math.min(144000, Math.max(900, span / 4));
+  const x0 = 40, x1 = w - 10;
+  ctx.strokeStyle = '#334155';
+  ctx.fillStyle = '#64748b';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'center';
+  for (let t = Math.ceil(minT / step) * step; t <= minT + span; t += step) {
+    const x = x0 + ((t - minT) / span) * (x1 - x0);
+    if (x > x1) break;
+    ctx.beginPath(); ctx.moveTo(x, h); ctx.lineTo(x, h - 5); ctx.stroke();
+    const d = new Date(t * 1000);
+    ctx.fillText(d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }), x, h - 9);
+  }
+  ctx.textAlign = 'left';
+}
 
 function toggleChannel(idx) {
   if (idx === 0) showCh.l = !showCh.l; else showCh.d = !showCh.d;
@@ -346,6 +383,8 @@ function drawTimeline(events) {
   const canvas = document.getElementById('timelineCanvas');
   const ctx = canvas.getContext('2d');
   hideEvtTip();
+  timelinePoints.length = 0;
+  lastVisible = Array.isArray(events) ? events : [];
   const w = canvas.width;
   const h = canvas.height;
 
@@ -369,8 +408,16 @@ function drawTimeline(events) {
   if (!events || events.length === 0) return;
 
   const now = Date.now() / 1000;
-  const timeSpan = 3600 * 24; // Last 24 hours
-  const minT = now - timeSpan;
+  let timeSpan, minT;
+  if (timeWindow) { // fenêtre glissante 1h/6h/24h
+    timeSpan = timeWindow; minT = now - timeWindow;
+  } else { // Tout : plage recouvrant tous les événements + horizon présent
+    const ts = events.map(e => e.t0);
+    const maxT = Math.max(now, ...ts);
+    const minTAll = Math.min(...ts);
+    minT = minTAll; timeSpan = Math.max(3600, maxT - minT);
+  }
+  drawTimeTicks(ctx, w, h, minT, timeSpan);
 
   events.forEach(e => {
     const x = 40 + ((e.t0 - minT) / timeSpan) * (w - 50);
