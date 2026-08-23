@@ -175,6 +175,36 @@ def test_get_stats_events_last_24h(tmp_path: Path) -> None:
     assert stats["total_events"] == 2
 
 
+def test_prune_orphaned_exemplars(tmp_path: Path) -> None:
+    """prune_orphaned_exemplars deletes only ex_<cluster>.raw absent from DB."""
+    ex_dir = tmp_path / "exemplars"
+    ex_dir.mkdir()
+    (ex_dir / "ex_7.raw").write_bytes(b"x" * 8)
+    (ex_dir / "ex_2.raw").write_bytes(b"y" * 8)
+    (ex_dir / "nope.raw").write_text("x")
+    store = EventStore(db_path=tmp_path / "e.db", batch_size=3)
+
+    # Empty DB: both ex_*.raw are orphans; non-conforming name untouched.
+    removed = store.prune_orphaned_exemplars(ex_dir)
+    assert removed == 2
+    assert (ex_dir / "nope.raw").is_file()
+
+    # Once cluster 2 exists in DB, its exemplar survives; unknown ones die.
+    ev = SoundEvent(
+        t0=time.time(), dur=1.0, bin_i=5, freq=2.5,
+        lvl_g=8.0, lvl_d=7.0, off_ms=0.0,
+        fp=b"k" * 16, flags=0, cluster=2,
+    )
+    store.add_event(ev)
+    store.flush()
+    (ex_dir / "ex_2.raw").write_bytes(b"y" * 8)  # known exemplar restored
+    (ex_dir / "ex_5.raw").write_bytes(b"z" * 8)  # cluster 5 unknown -> orphan
+
+    removed = store.prune_orphaned_exemplars(ex_dir)
+    assert removed == 1  # only ex_5.raw removed
+    assert (ex_dir / "ex_2.raw").is_file()
+    assert not (ex_dir / "ex_5.raw").exists()
+
 def test_cluster_fingerprints_cap_and_speed(tmp_path: Path) -> None:
     """Cap 100k groups + rebuild of 200k synthetic events stays < 8 s."""
     import time as _time

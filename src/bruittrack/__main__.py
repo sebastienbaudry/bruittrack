@@ -315,6 +315,19 @@ def cmd_perf(args: argparse.Namespace) -> int:
     return 0 if ok else 2
 
 
+def cmd_prune(args: argparse.Namespace) -> int:
+    """Supprimer les exemplaires audio orphelins (cluster absent de la base)."""
+    config = load_config(args.config)
+    store = EventStore(
+        db_path=config.storage.db_path,
+        batch_size=config.storage.batch_size,
+    )
+    removed = store.prune_orphaned_exemplars(config.storage.exemplars_dir)
+    print(f"Exemplaires orphelins supprimés : {removed}")
+    store.close()
+    return 0
+
+
 def main() -> int:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -356,6 +369,12 @@ def main() -> int:
     perf_p.add_argument("--pid", type=int, default=None,
                         help="PID à mesurer (défaut: le processus courant)")
 
+    # prune
+    subparsers.add_parser(
+        "prune",
+        help="Supprimer les exemplaires audio orphelins (cluster non présent en base)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "devices":
@@ -370,6 +389,8 @@ def main() -> int:
         return cmd_stats(args)
     elif args.command == "perf":
         return cmd_perf(args)
+    elif args.command == "prune":
+        return cmd_prune(args)
     else:
         parser.print_help()
         return 0

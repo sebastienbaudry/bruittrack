@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
+import re
 import sqlite3
 import threading
 import time
@@ -403,6 +404,29 @@ class EventStore:
             ).rowcount
             conn.commit()
             return deleted
+
+    def prune_orphaned_exemplars(self, exemplars_dir: str | Path) -> int:
+        """Delete `ex_<cluster>.raw` files whose cluster no longer exists in DB.
+
+        Returns the number of orphaned files removed. Missing dir → 0.
+        """
+        d = Path(exemplars_dir)
+        if not d.is_dir():
+            return 0
+        with self._db(readonly=True) as conn:
+            known = {
+                row[0]
+                for row in conn.execute("SELECT DISTINCT cluster FROM events WHERE cluster IS NOT NULL")
+            }
+        removed = 0
+        for f in d.glob("ex_*.raw"):
+            m = re.fullmatch(r"ex_(\d+)\.raw", f.name)
+            if not m:
+                continue
+            if int(m.group(1)) not in known:
+                f.unlink(missing_ok=True)
+                removed += 1
+        return removed
 
     def close(self) -> None:
         """Flush pending buffer, then release the persistent :memory: connection."""

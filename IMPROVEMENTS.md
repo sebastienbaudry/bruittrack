@@ -32,7 +32,7 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
       OK quand : `Config.validate()` lève un `ValueError` si `lp_cutoff_hz <= 0` ou `>= sample_rate / 2`, et `pytest tests/test_config.py` vert.
 - [x] **I10** Cast numérique explicite du filtre 24h dans `EventStore.get_stats()` : cut-off calculé en Python (`time.time() - 86_400.0`) et passé en paramètre, comparaison `REAL t0 >= ?` plutôt que `strftime` string (test `tests/test_store.py::test_get_stats_events_last_24h`).      Fichiers : `src/bruittrack/store.py`, `tests/test_store.py`.
       OK quand : `get_stats()` utilise `CAST(strftime('%s', 'now', '-1 day') AS REAL)` et `pytest tests/test_store.py` vert.
-- [ ] **I11** Nettoyage des extraits audio exemplaires orphelins (`prune_orphaned_exemplars`).
+- [x] **I11** Nettoyage des extraits audio exemplaires orphelins (`prune_orphaned_exemplars`).
       Fichiers : `src/bruittrack/store.py`, `tests/test_store.py`.
       OK quand : une méthode `prune_orphaned_exemplars()` supprime les fichiers `ex_<id>.raw` orphelins dans `exemplars_dir` et `pytest tests/test_store.py` vert.
 - [ ] **I12** Avertissement au démarrage si fallback SOS pure-Python actif (`scipy` absent).
