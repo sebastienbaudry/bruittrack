@@ -63,3 +63,10 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I20** Test HTTP I17 : `GET /api/clusters` inclut un cluster orphelin (event_count=0) via viz_server + set_cluster_triage avant lecture.
       Fichier : `tests/test_viz_api.py`.
       OK quand : `pytest tests/test_viz_api.py -k orphan -q` vert.
+
+- [x] **I21** `EventStore.get_events()` (src/bruittrack/store.py:296) : aucun test des filtres `since`/`offset`/`cluster`. Ajouter `test_get_events_filters_and_pagination` dans tests/test_store.py (3 events t0 consécutifs ; since=mi → sous-ensemble exact ; limit+offset + desc ; cluster=5 isole un event).
+      OK quand : `pytest tests/test_store.py -k filters_and_pagination -q` vert.
+- [ ] **I22** `retention_days` (config.py:54) validé mais jamais consommé. Ajouter `EventStore.purge_old(now)` (src/bruittrack/store.py) supprimant events avec t0 < now − N jours (+ exemplaires orphelins), appelé au démarrage (src/bruittrack/__main__.py, cmd_start) + test tests/test_store.py.
+      OK quand : `pytest -k retention -q` vert et purge visible dans `bash tools/check.sh`.
+- [ ] **I23** Smoke CLI : tests/test_bugfixes.py — subprocess `python -m bruittrack <cmd> --help` (devices|test|start|viz|stats) s' exécute en 0, garantissant l'appontage argparse.
+      OK quand : `pytest -k cli_help -q` vert.

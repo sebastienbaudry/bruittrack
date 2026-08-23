@@ -307,3 +307,44 @@ def test_clusters_summary_includes_triage_orphans(tmp_path):
         assert orphan["label"] == "a venir"
     finally:
         store.close()
+
+
+def test_get_events_filters_and_pagination() -> None:
+    """I21 : filtres since/cluster + pagination limit/offset (tri t0 DESC) de get_events()."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "filters.db"
+        store = EventStore(db_path=db_path, batch_size=10, batch_timeout_s=10.0)
+
+        for i, cluster in enumerate([5, 5, 9]):
+            store.add_event(
+                SoundEvent(
+                    t0=1700000000.0 + i * 10,
+                    dur=1.0,
+                    bin_i=30,
+                    freq=14.65,
+                    lvl_g=10.0,
+                    lvl_d=9.0,
+                    off_ms=0.0,
+                    fp=b"\x02" * 16,
+                    cluster=cluster,
+                )
+            )
+        store.flush()
+
+        # Tri t0 DESC : event le plus récent d'abord
+        first = store.get_events(limit=1)[0]
+        assert first["t0"] == pytest.approx(1700000020.0)
+
+        # since= mi-fenêtre → 2 events les plus récents conservés
+        since = 1700000009.5
+        got = store.get_events(limit=10, since=since)
+        assert [round(e["t0"]) for e in got] == [1700000020, 1700000010]
+
+        # Filtre cluster
+        c5 = store.get_events(limit=10, cluster=5)
+        assert len(c5) == 2 and all(e["cluster"] == 5 for e in c5)
+
+        # Pagination : page de 2 → le plus ancien reste à l'offset 2
+        page2 = store.get_events(limit=1, offset=2)[0]
+        assert page2["t0"] == pytest.approx(1700000000.0)
+        store.close()
