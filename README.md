@@ -103,6 +103,17 @@ curl -s 'http://localhost:8080/api/clusters?limit=20'
 
 ```
 
+### Purge post-rangement (une seule commande)
+Apres la correction 80dbfe9, purger les evenements non-significatifs en base :
+artefacts DC (`freq=0.0`) dont emergence max(lvl_g,lvl_d) < 10 dB.
+```bash
+systemctl stop bruittrack
+sqlite3 data/bruittrack.db < scripts/purge_noise.sql
+systemctl start bruittrack
+```
+Le script affiche un apercu (COUNT) AVANT, execute DELETE + VACUUM et
+reporte le nombre de lignes supprimees.
+
 ## Vérification des modules
 Matrice cible 1:1 avec GOAL.md c.3–c.5 + lignes M1/M2 locales : chaque
 module est validé isolément sur la cible avec une preuve commandée
