@@ -252,3 +252,11 @@ Last updated: 2026-08-22
 - [x] Audit versions sur la cible : bruittrack 1.0.0 (editable install /opt/bruittrack, dist-info 1.0.0), les 7 modules (config/dsp/events/pipeline/store/viz/capture) sont importables depuis /opt/bruittrack/src ; numpy 2.5.2, scipy 1.18.1, sounddevice 0.5.6 — aucune mise à jour nécessaire.
 - [x] Purga des événements 0 Hz : suppression de 397 lignes (1631 → 1234), vérification a posteriori zeroHz=0 ; script déposé dans tools/_purge_0hz.py.
 - [x] Redémarrage force du service : `systemctl restart bruittrack` OK ; état active+enabled ; DSP PID 37300 RSS ≈123 Mo (<150 Mo), viz PID 30570 actif.
+
+## Deploy hpdebian v1.0.0 (2026-08-23 20:37 CEST)
+- Vérifié par SSH pi-t620 : `src/bruittrack/__init__.py` → `__version__ = "1.0.0"`,
+  `pyproject.toml` → `version = "1.0.0"`, pip metadata bruittrack 1.0.0 ✅
+- Aucun update requis (déjà en 1.0.0)
+- Service redémarré avec sudo (PID 38648, `ExecMainStartTimestamp` 2026-08-23 20:37:23)
+- Purge DB : 0 événement freq=0 restant (1263 événements conservés)
+- EOL tools/install_hp.sh : `od -c | grep '\r'` en détection robuste msys/GNU

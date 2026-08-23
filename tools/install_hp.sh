@@ -39,6 +39,29 @@ git -C "${APP_DIR}/git" checkout main
 git -C "${APP_DIR}/git" pull --ff-only || echo "ATTENTION : non-FF ; re-execution manuelle"
 cd "${APP_DIR}/git"
 
+# Normalisation des fins de ligne CRLF -> LF (editeurs Windows) : un '\r'
+# residuel casse python (SyntaxError dans les chaines), .toml, sed et les
+# units systemd. Idempotent : no-op si le corpus est deja en LF.
+# Une seule passe sur ${APP_DIR} couvre les deux layouts :
+#   - classique et déploy réel (hpdebian) : fichiers sous ${APP_DIR}/git
+step "normalisation EOL CRLF->LF"
+NORM_CR=0
+while IFS= read -r -d '' f; do
+  # od : lecture brute des octets (robuste msys/GNU, pas de conversion de fins de ligne)
+  if od -An -v "$f" | grep -q '\\r'; then
+    sed -i 's/\r$//' "$f"
+    NORM_CR=$((NORM_CR + 1))
+    echo "  LF : ${f#${APP_DIR}/}"
+  fi
+done < <(find "${APP_DIR}" \
+          \( -type d \( -name .git -o -name .venv -o -name data \) -prune \) -o \
+          \( -type f \( -name '*.py' -o -name '*.toml' -o -name '*.sh' \
+                 -o -name '*.service' -o -name '*.md' -o -name '*.cfg' \
+                 -o -name '*.example' \) -print0 \))
+if [ "${NORM_CR}" = "0" ]; then
+  echo "  corpus deja en LF"
+fi
+
 step "venv .venv + install editable"
 [ -d .venv ] || ${PYTHON_BIN} -m venv .venv
 . .venv/bin/activate  # noqa: shellcheck
