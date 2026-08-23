@@ -106,7 +106,6 @@ def test_lp_cutoff_hz_must_be_below_nyquist() -> None:
         cfg.dsp.lp_cutoff_hz = original
 
 
-
 def test_retention_days_validation_error() -> None:
     """I27 : retention_days negative doit lever une erreur lisible."""
     cfg = Config()

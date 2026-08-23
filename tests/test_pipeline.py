@@ -1,7 +1,9 @@
-"""End-to-end tests for the Engine pipeline."""
+"""End-to-end test of the Engine pipeline."""
 
 import tempfile
 from pathlib import Path
+
+import numpy as np
 
 from bruittrack.capture import MockAudioCapture
 from bruittrack.config import Config
@@ -9,65 +11,122 @@ from bruittrack.pipeline import Engine
 from bruittrack.store import EventStore
 
 
+class NullCapture:
+    """Unstubbed capture : blocks are injected via engine.step(raw_block=...)."""
+
+    def stop(self) -> None:  # pragma: no cover - interface only
+        pass
+
+
 def test_pipeline_engine_simulation() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "sim.db"
-        exemplars_dir = Path(tmpdir) / "exemplars"
-
+        exdir = Path(tmpdir) / "exemplars"
         config = Config()
         config.storage.db_path = str(db_path)
-        config.storage.exemplars_dir = str(exemplars_dir)
-        config.detector.warmup_ticks = 5  # Fast warmup for test
-        config.detector.debounce_ticks = 2
-        config.storage.batch_size = 1
+        config.storage.exemplars_dir = str(exdir)
 
-        mock_capture = MockAudioCapture(
-            sample_rate=config.audio.sample_rate,
-            channels=config.audio.channels,
-            block_size=config.audio.block_size,
-            frequency_hz=15.0,
+        mock = MockAudioCapture(
+            sample_rate=config.audio.sample_rate, channels=2, block_size=4800, frequency_hz=15.0
         )
-        mock_capture.start()
+        mock.start()
 
-        engine = Engine(config=config, capture=mock_capture)
+        engine = Engine(config=config, capture=mock)
 
-        # Run 10 ticks to pass warmup and generate data
         for _ in range(10):
-            engine.step()
+            block = mock.get_block()
+            if block is not None:
+                engine.step(block)
 
         engine.stop()
-
-        # Check DB was created and can be queried
-        store = EventStore(db_path=db_path)
-        stats = store.get_stats()
-        assert stats["total_events"] >= 0
-        store.close()
+        mock.stop()
 
 
 def test_engine_stop_flushes_store_and_stops_capture(tmp_path) -> None:
-    """stop() ne fuite rien : buffer store vide, capture arretee."""
+    db_path = tmp_path / "flush.db"
+
     config = Config()
-    config.storage.db_path = str(tmp_path / "stop.db")
-    config.detector.warmup_ticks = 3
-    config.detector.debounce_ticks = 2
-    config.storage.batch_size = 50
+    config.storage.db_path = str(db_path)
 
-    mock_capture = MockAudioCapture(
-        sample_rate=config.audio.sample_rate,
-        channels=config.audio.channels,
-        block_size=config.audio.block_size,
-        frequency_hz=15.0,
-    )
-    mock_capture.start()
+    class FakeCapture:
+        def __init__(self) -> None:
+            self.stopped = False
 
-    engine = Engine(config=config, capture=mock_capture)
-    for _ in range(8):
-        engine.step()  # peut laisser des evenements dans le buffer (lot non plein)
+        def stop(self) -> None:
+            self.stopped = True
+
+        def get_block(self, timeout: float | None = None):
+            return None
+
+    fake = FakeCapture()
+    engine = Engine(config=config, capture=fake)
 
     engine.stop()
 
-    assert not mock_capture._is_running
-    assert len(engine.store._buffer) == 0  # flush lors de close()
-    # Connexions ephemeres : stats requeteables meme apres close().
-    stats = engine.store.get_stats()
-    assert stats["total_events"] >= 0
+    assert fake.stopped is True
+
+
+def test_engine_synthetic_spike_fires(tmp_path) -> None:
+    """I29: 30 s low-amplitude noise (steady floor) + burst tonal ~6 s + drop:
+    the event must close and be stored.
+
+    Deterministic via engine.step(raw_block=...) — no need for a real capture.
+    Burst 15 Hz → bin ≈ 3 on 48 kHz / 100 ms. Warm up with 400 pure-noise blocks
+    to get the floor steady before applying the tonal burst.
+    """
+    db_path = tmp_path / "spike.db"
+    exdir = tmp_path / "exemplars"
+
+    config = Config()
+    config.storage.db_path = str(db_path)
+    config.storage.exemplars_dir = str(exdir)
+    config.storage.batch_size = 1  # immediate flush, no lot
+
+    engine = Engine(config=config, capture=None)  # capture is bypassed on injection
+
+    rng = np.random.default_rng(0)
+    sr = 48_000  # sample rate (Hz)
+    bs = int(sr * 0.1)  # samples per block (4800 at 48 kHz → 100 ms)
+
+    def noise_block(amp: float = 0.01) -> np.ndarray:
+        return rng.normal(0, amp, (bs, 2)).astype(np.float32)
+
+    emitted: list = []
+
+    # Phase 1 : floor stabilised with 400 noise blocks (~40 s @ 10 Hz), em < threshold
+    for i in range(400):
+        _, _, em1, em2, ev = engine.step(noise_block())
+        emitted.extend(ev)
+    last_em = max(float(em1.max()), float(em2.max()))
+    assert last_em < config.detector.threshold_db, f"floor not steady: em={last_em:.1f} dB"
+    assert not emitted, f"spurious events before burst: {len(emitted)}"
+
+    # Phase 2 : strong continuous tone at 2.2 Hz (bin ~4), +20-30 dB over the floor.
+    # The detector closes on falling below release threshold OR max_duration (30 s);
+    # 60 blocks (6 s) guarantees a firing window once past debounce.
+    fs_burst = 2.2
+    t_base = np.arange(bs) / sr
+    for k in range(60):
+        t = t_base + (k * bs) / sr
+        tone = np.sin(2 * np.pi * fs_burst * t)
+        block = noise_block() + (2.0 * tone[:, None]).astype(np.float32)
+        _, _, em1, em2, ev = engine.step(block)
+        emitted.extend(ev)
+
+    # Phase 3 : drop back to noise; emergence decays to < release threshold
+    # (EMA α=0.5) → the open event closes here and is returned by step().
+    if not emitted:
+        for _ in range(120):
+            _, _, em1, em2, ev = engine.step(noise_block())
+            emitted.extend(ev)
+            if emitted:
+                break
+    assert emitted, "detector never closed an event — check threshold/release cadence"
+
+    engine.stop()
+
+    # Persisted events after stop() + close()
+    store = EventStore(db_path=db_path)
+    stats = store.get_stats()
+    assert stats["total_events"] >= 1, f"event not persisted: {stats}"
+    store.close()

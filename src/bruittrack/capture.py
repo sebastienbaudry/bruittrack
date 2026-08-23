@@ -206,6 +206,7 @@ class MockAudioCapture:
         self.consecutive_slow = 0
         # Stall simule injecte dans get_block() pour tester la detection de blocs lents.
         self.stall_s = 0.0
+        self.burst_ticks: int = 0  # burst amplitude injection pour tests (I29)
 
         self.sample_rate = sample_rate
         self.channels = channels
@@ -244,7 +245,8 @@ class MockAudioCapture:
         self._sample_idx += self.block_size
 
         # Synthetic signal: 23.5 Hz tone + Gaussian noise (deterministic if seed given)
-        tone = 0.1 * np.sin(2.0 * np.pi * self.frequency_hz * t)
+        amp = 2.0 if self.burst_ticks > 0 else 1.0
+        tone = (0.1 * amp) * np.sin(2.0 * np.pi * self.frequency_hz * t)
         noise = self._rng.normal(0, self.noise_level, (self.block_size, self.channels)).astype(
             np.float32
         )
@@ -260,6 +262,8 @@ class MockAudioCapture:
         lag = expected_next - time.monotonic()
         if lag > 0:
             time.sleep(lag)
+        if self.burst_ticks > 0:
+            self.burst_ticks -= 1
         self._last_time = max(
             self._last_time + self.block_size / self.sample_rate, time.monotonic()
         )
