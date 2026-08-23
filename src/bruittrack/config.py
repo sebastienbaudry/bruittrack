@@ -119,6 +119,12 @@ class Config:
             raise ValueError("Storage batch_timeout_s must be > 0")
         if self.storage.retention_days is not None and self.storage.retention_days <= 0:
             raise ValueError("Storage retention_days must be > 0 (or None to disable)")
+        nyquist = self.audio.sample_rate / 2.0
+        if not 0 < self.dsp.lp_cutoff_hz < nyquist:
+            raise ValueError(
+                f"DSP lp_cutoff_hz ({self.dsp.lp_cutoff_hz} Hz) must be in (0, {nyquist:.1f} Hz)"
+            )
+
         if not 1024 <= self.viz.port <= 65535:
             raise ValueError(f"Viz port must be in [1024, 65535] (got {self.viz.port})")
 

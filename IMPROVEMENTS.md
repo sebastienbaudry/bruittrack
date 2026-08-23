@@ -27,3 +27,16 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I8** Ajouter la ligne M9 (perf sur MainPID, RC attendu 0) à la matrice de smoke en fin d'install.
       Fichiers : `tools/install_hp.sh`.
       OK quand : `grep -c "bruittrack perf" tools/install_hp.sh` ≥ 1 et `bash -n tools/install_hp.sh` sans erreur.
+
+- [x] **I9** Validation de `lp_cutoff_hz` dans la configuration : 0 < lp_cutoff_hz < sample_rate/2 strict (config.py validate + test test_lp_cutoff_hz_must_be_below_nyquist).      Fichiers : `src/bruittrack/config.py`, `tests/test_config.py`.
+      OK quand : `Config.validate()` lève un `ValueError` si `lp_cutoff_hz <= 0` ou `>= sample_rate / 2`, et `pytest tests/test_config.py` vert.
+- [ ] **I10** Cast numérique explicite du filtre 24h dans `EventStore.get_stats()` : sécuriser la comparaison avec `REAL t0`.
+      Fichiers : `src/bruittrack/store.py`, `tests/test_store.py`.
+      OK quand : `get_stats()` utilise `CAST(strftime('%s', 'now', '-1 day') AS REAL)` et `pytest tests/test_store.py` vert.
+- [ ] **I11** Nettoyage des extraits audio exemplaires orphelins (`prune_orphaned_exemplars`).
+      Fichiers : `src/bruittrack/store.py`, `tests/test_store.py`.
+      OK quand : une méthode `prune_orphaned_exemplars()` supprime les fichiers `ex_<id>.raw` orphelins dans `exemplars_dir` et `pytest tests/test_store.py` vert.
+- [ ] **I12** Avertissement au démarrage si fallback SOS pure-Python actif (`scipy` absent).
+      Fichiers : `src/bruittrack/dsp.py`, `src/bruittrack/pipeline.py`, `tests/test_dsp.py`.
+      OK quand : un warning de log est émis à l'initialisation si `scipy.signal.sosfilt` est indisponible et `pytest tests/test_dsp.py` vert.
+

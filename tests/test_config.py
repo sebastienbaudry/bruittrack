@@ -87,3 +87,21 @@ def test_storage_relative_paths_resolved_against_config_dir() -> None:
             assert loaded.storage.exemplars_dir == str(cfg_dir / "projsnap")
         finally:
             os.chdir(prev_cwd)
+
+
+def test_lp_cutoff_hz_must_be_below_nyquist() -> None:
+    """I9 : lp_cutoff_hz doit être strictement dans (0, sample_rate/2)."""
+    import pytest
+
+    cfg = load_config()
+    original = cfg.dsp.lp_cutoff_hz
+    nyquist = cfg.audio.sample_rate / 2.0
+    try:
+        for bad in (0.0, -10.0, nyquist, 100000.0):
+            cfg.dsp.lp_cutoff_hz = bad
+            with pytest.raises(ValueError):
+                cfg.validate()
+        cfg.dsp.lp_cutoff_hz = 400.0
+        cfg.validate()  # valeur valide par défaut
+    finally:
+        cfg.dsp.lp_cutoff_hz = original
