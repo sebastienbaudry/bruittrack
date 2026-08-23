@@ -69,6 +69,15 @@ Pre-flight hors ligne avant déploiement : `tools/module_check.py --offline`
 (marge C4) — CLI, config load+validate, fingerprint+ClusterIndex, store
 `:memory:`, viz API (stats/events/exemplar WAV 2ch @1 kHz).
 
+### Triage via API
+Mise à jour du triage d'un cluster (`flags` : bit0=connue / bit1=ignorée + libellé), puis lecture :
+```bash
+curl -sX POST http://localhost:8080/api/clusters/1/triage \r
+  -H 'Content-Type: application/json' \r
+  -d '{"flags": 1, "label": "condensateur compresseur (nuit)"}'
+curl -s 'http://localhost:8080/api/clusters?limit=20'
+```
+
 ## Vérification des modules
 Matrice cible 1:1 avec GOAL.md c.3–c.5 + lignes M1/M2 locales : chaque
 module est validé isolément sur la cible avec une preuve commandée
