@@ -213,3 +213,8 @@ Last updated: 2026-08-22
 ## Iteration 83-84 — fix CWD db_path (stats --json dependait du CWD)
 - load_config() resout db_path/exemplars_dir relatifs par rapport au dossier du config.toml (resolve_rel).
 - Preuive it.82 cible: depuis /root stats 0 event, depuis /opt/bruittrack 582 ev./326 clusters (live) ; test_storage_relative_paths_resolved_against_config_dir ajouté (65 passed, CHECK OK).
+
+## It.ration 87 — FIX CWD DEPLOYED ON pi-t620
+- src/bruittrack/config.py + tests/test_config.py synced to /opt/bruittrack/ (md5cmp SAME).
+- Live proof from /opt: bruittrack --config /opt/bruittrack/...  stats --json → db_path=/opt/brUITTRACK/data/bruittack.db, total_events=595, total_clusters=330 (live, before correction from this CWD was 0).
+- Note: on-target user is sbaudry with no password-lesssudo; the production service will run with modified code after the next restart (documented).
