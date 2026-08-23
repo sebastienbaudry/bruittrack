@@ -127,3 +127,39 @@ def test_event_detector_debounce_and_emission() -> None:
         assert ev.dur > 0
         assert ev.cluster == 1
         assert not det.is_active
+
+
+def test_event_detector_ignores_dc_bin() -> None:
+    """A DC (bin 0, 0 Hz) spike must never create an event."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        det = EventDetector(
+            threshold_db=10.0,
+            hysteresis_db=3.0,
+            debounce_ticks=3,
+            max_duration_s=30.0,
+            exemplars_dir=tmpdir,
+        )
+
+        audio_buf = np.zeros((512, 2), dtype=np.float32)
+        quiet = np.zeros(99, dtype=np.float32)
+        dc_loud = np.zeros(99, dtype=np.float32)
+        dc_loud[0] = 40.0  # Huge +40 dB DC emergence
+
+        t = 2000.0
+        for _ in range(10):  # Long DC spike: must stay inactive
+            evs = det.update(dc_loud, dc_loud, audio_buf, off_ms=0.0, unix_time=t)
+            assert evs == []
+            t += 0.1
+        assert not det.is_active
+
+        # A real bin still triggers normally (mixed DC + bin 25)
+        mixed = dc_loud.copy()
+        mixed[25] = 18.0
+        for i in range(3):
+            evs = det.update(mixed, mixed, audio_buf, off_ms=0.0, unix_time=t)
+            t += 0.1
+            if i == 2:
+                assert det.is_active
+        evs = det.update(quiet, quiet, audio_buf, off_ms=0.0, unix_time=t)
+        assert len(evs) == 1
+        assert evs[0].bin_i == 25

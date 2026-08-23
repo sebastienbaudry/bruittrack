@@ -245,7 +245,12 @@ class EventDetector:
 
         # Combined max emergence per bin
         max_emergence = np.maximum(emergence1, emergence2)
-        current_peak_bin = int(np.argmax(max_emergence))
+        # Le bin 0 (DC) capte les transients de niveau, pas des bruits :
+        # on ne le prend jamais comme pic événement.
+        search = max_emergence[1:]
+        if search.size == 0:
+            return events_emitted
+        current_peak_bin = int(np.argmax(search)) + 1
         current_max_em = float(max_emergence[current_peak_bin])
         current_em1 = float(emergence1[current_peak_bin])
         current_em2 = float(emergence2[current_peak_bin])

@@ -112,3 +112,9 @@
 - **Contexte** : `set_cluster_triage()` (`store.py`) cree la ligne `clusters` via UPSERT, meme avant le 1er event du cluster ; mais `get_clusters_summary()` agregait depuis `events` (JOIN gauche), donc un cluster etiquete "a venir" etait invisible dans `GET /api/clusters` et la CLI.
 - **Decision** : 2eme requete en union logique dans Python — clusters sans aucun event renvoyes avec `event_count=0`, `first_seen`/`last_seen=NULL`, stats a zero ; pas de schema ni d'ordre change.
 - **Justification** : coherence triage/affichage sans nouvelle table (regle budget) ; cout = 1 `NOT EXISTS` par lecture (WAL, table faible volume ~lignes/an) — negligeable T620. Test : `tests/test_store.py::test_clusters_summary_includes_triage_orphans`.
+
+## [2026-08-24] Événements fantômes à 0 Hz (DC)
+
+- Contexte : beaucoup d'événements `bin_i=0` (0 Hz) en base sur le serveur, l'affichage web étant fidèle. Cause : `argmax` de la détection porte sur les bins 0..98 ; le bin 0 (moyenne DC) monte au-dessus du floor à tout transient de niveau et claque un pseudo-événement.
+- Décision : la recherche du pic est bornée aux bins 1..98 (`events.py`, `on_tick`) ; le bin DC ne déclenche plus jamais.
+- Justification : 0 Hz correspond à une dérive de niveau, pas à un bruit périodique ; spec : bins utiles 0–48 Hz mais le pic DC n'apporte aucune info discriminante. Test regression `test_event_detector_ignores_dc_bin`.
