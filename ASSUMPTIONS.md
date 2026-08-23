@@ -8,3 +8,5 @@ A017: replay sox non auditionné (pi-t620 headless, pas de sortie audio praticab
 ## A018 — Layout réel pi-t620 (it.77-79)
 Le dépôt déployé est PLAT : /opt/bruittrack contient src/, tools/, .venv/ (pas de dossier git/). Le script local de référence vise ${APP_DIR}/git/.venv ; le fallback [ -x ] || PYB=${APP_DIR}/.venv/bin/python rend la smoke M9 correcte sur les deux layouts. Preuve it.79 : PYB résolue /opt/bruittrack/.venv/bin/python, MAIN=27534, perf → CONFORME RC=0 (12.8 % / 123.5 Mo).
 - Conformite legale : bit3 (FLAG_OVER_LEGAL) pose si l event depasse la limite CSP R1336-7 evaluee avec duree_cumulee approximee par la duree de l event et l heure locale du t0.
+2026-08-23 I30: scripts/creer_release.py crible ruff; publication deferree a un GITHUB_TOKEN (aucun token local, pas de gh CLI)
+2026-08-23 Supposition I39: le pinceau est toujours actif sur la timeline; dblclic/Echap retournent a la fenetre par boutons.
