@@ -694,12 +694,12 @@ function drawTimeline(events) {
     minT = minTAll; timeSpan = Math.max(3600, maxT - minT);
   }
   tlScale = {minT, span: timeSpan}; // conversion px→temps pour le zoom (I39)
-  const fv = freqBounds(); // I54 : vue Y courante [fLo, fHi]
+  const fvw = freqBounds(); // I54 : vue Y courante [fLo, fHi] (renomme — const dup dans drawTimeline)
   tlLastEvts = evs;
   drawTimeTicks(ctx, w, h, minT, timeSpan);
 
   evs.forEach(e => {
-    if (e.freq < fv[0] || e.freq > fv[1]) return; // hors bande visible (vue Y zoomée, I54)
+    if (e.freq < fvw[0] || e.freq > fvw[1]) return; // hors bande visible (vue Y zoomée, I54)
     const x = 40 + ((e.t0 - minT) / timeSpan) * (w - 50);
     const y = yOfFreq(e.freq);
 
