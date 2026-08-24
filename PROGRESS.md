@@ -72,3 +72,10 @@ Via `ssh pi-t620` (mots de passe passLinux1!) : vérifier:
 4. Build wheel → deploy Pi → verifs (API + page + stats DB).
 
 Commit par etape: `git add -A && git commit -m "..."`.
+
+## I44 — TERMINE (local, $(date +%Y-%m-%d)), deployment en cours
+- events.py reparate + CRLF normalise ; ClusterIndex(max_bin_delta) + EventDetector(
+  cluster_freq_tolerance_hz) + pipeline propagation ; ruff check/format OK ; 98 tests verts.
+- commit 04017c6 I44 + chore format test_viz_api.py.
+- Wheel dist/bruittrack-1.0.0-py3-none-any.whl (pep427 OK).
+- Pi DB : 0 ligne freq <= 2 Hz pending (cleanup deja fait), total 952 events.

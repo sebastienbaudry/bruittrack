@@ -87,7 +87,6 @@ def test_events_api_contains_tooltip_fields(viz_server):
     assert levels == pytest.approx([12.5, 13.5, 14.5])
 
 
-
 def test_events_api_exposes_over_legal_flag(viz_server):
     base, store, _ = viz_server
     events = _get_json(base, "/api/events?limit=10")
@@ -111,6 +110,8 @@ def test_events_api_exposes_over_legal_flag(viz_server):
     events = _get_json(base, "/api/events?limit=10")
     top = [ev for ev in events if ev["flags"] == FLAG_OVER_LEGAL]
     assert len(top) == 1 and top[0]["over_legal"] is True
+
+
 def test_stats_api_reflects_counted_events(viz_server):
     base, _, _ = viz_server
     stats = _get_json(base, "/api/stats")
@@ -229,6 +230,7 @@ def test_events_query_params_invalid_return_400(viz_server):
                 assert False, f"attendu 400 pour {q}, obtenu {resp.status}"
         except urllib.error.HTTPError as e:
             assert e.code == 400, f"attendu 400 pour {q}, obtenu {e.code}"
+
 
 def test_health_endpoint_returns_ok_and_event_count(viz_server):
     """I31 : GET /api/health -> 200 {ok:true, events_db_rows>=3} (store seedee au module)."""
