@@ -241,3 +241,41 @@ def test_health_endpoint_returns_ok_and_event_count(viz_server):
     assert data["ok"] is True
     assert isinstance(data["events_db_rows"], int)
     assert data["events_db_rows"] >= 3
+
+
+def test_homepage_injects_dsp_frequency_bounds(viz_server):
+    """Axe Y dynamique : la page expose freq_max/min_event_hz de la config DSP.
+
+    Plus d'echelle 48 Hz en dur coté client ; les placeholders __FREQ_MAX__ /
+    __MIN_EVENT_HZ__ sont remplaces dans do_GET a partir de self.config.dsp.
+    """
+    base, _store, _tmp = viz_server
+    with urllib.request.urlopen(base + "/", timeout=5) as resp:
+        body = resp.read().decode("utf-8")
+    # Valeurs par defaut du DspConfig (150.0 / 2.0), formatees %g
+    assert "let FREQ_MAX = 150;" in body
+    assert "let MIN_EVENT_HZ = 2;" in body
+    assert "__FREQ_MAX__" not in body and "__MIN_EVENT_HZ__" not in body
+    assert "/ 48." not in body and "<= 48" not in body
+
+
+def test_homepage_respects_custom_freq_max(tmp_path):
+    """Une config custom (freq_max=200) doit etre injectee telle quelle."""
+    store = _seed_store(tmp_path)
+    config = Config(
+        storage=StorageConfig(db_path=str(tmp_path / "viz2.db"), exemplars_dir=str(tmp_path / "ex"))
+    )
+    config.dsp.freq_max = 200.0
+    handler = type("HandlerT2", (BruitTrackHandler,), {"store": store, "config": config})
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5) as resp:
+            body = resp.read().decode("utf-8")
+        assert "let FREQ_MAX = 200;" in body
+    finally:
+        server.shutdown()
+        server.server_close()
+        store.close()

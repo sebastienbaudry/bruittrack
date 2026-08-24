@@ -133,7 +133,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
 <div class="card">
   <div class="card-title">
-    <span>Timeline Fréquence / Temps (0 - 48 Hz)</span>
+    <span>Timeline Fréquence / Temps (0 – __FREQ_MAX__ Hz)</span>
     <span id="canvasTooltip" style="font-size:12px; color:var(--accent);">Survolez un point</span>
   </div>
   <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
@@ -337,6 +337,11 @@ async function triageCluster(clusterId, flags) {
   refreshAll();
 }
 
+// Bornes de fréquence injectées côté serveur depuis la configuration DSP
+// (placeholders __FREQ_MAX__ / __MIN_EVENT_HZ__ remplacés par BruitTrackHandler)
+// — zéro magic number, axe Y couvre exactement 0..freq_max.
+let FREQ_MAX = __FREQ_MAX__;
+let MIN_EVENT_HZ = __MIN_EVENT_HZ__;
 let showCh = { l: true, d: true };
 let timelinePoints = []; // {x, y, ev} pour tooltips/clic
 let timeWindow = 86400; // secondes affichées; null = Tout (plage calée sur les données)
@@ -411,8 +416,10 @@ function hideEvtTip() { document.getElementById('evtTip').style.display = 'none'
   let raf = null;
   function showTip(e) {
     const rect = canvas.getBoundingClientRect();
-    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    // Espace logique = pixels CSS (le backing store hi-DPI est mis à l'échelle
+    // via setTransform dans drawTimeline), donc mapping direct client→logique.
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
     let best = null, bd = 10 * 10; // rayon 10 px
     for (const p of timelinePoints) {
       const dx = p.x - mx, dy = p.y - my;
@@ -437,30 +444,68 @@ function hideEvtTip() { document.getElementById('evtTip').style.display = 'none'
   canvas.addEventListener('mouseleave', hideEvtTip);
 })();
 
+function yOfFreq(f) { // Hz → px logique Y ; l'axe couvre exactement 0..FREQ_MAX
+  const h = TL_CKVH;
+  return h - 20 - (f / FREQ_MAX) * (h - 40);
+}
+
+// 'Nice step' : ~5-6 divisions lisibles quel que soit FREQ_MAX (1,2,5 × 10^n)
+function niceHzStep(rough) {
+  const p = Math.pow(10, Math.floor(Math.log10(Math.max(rough, 1e-9))));
+  for (const m of [1, 2, 5, 10]) { if (m * p >= rough) return m * p; }
+  return 10 * p;
+}
+
+// Ligne crête : alignement half-pixel pour des traits de 1 px nets (pas flous)
+function sharpLine(ctx, x0, y0, x1, y1) {
+  ctx.beginPath();
+  ctx.moveTo(Math.round(x0) + 0.5, Math.round(y0) + 0.5);
+  ctx.lineTo(Math.round(x1) + 0.5, Math.round(y1) + 0.5);
+  ctx.stroke();
+}
+
 function drawTimeline(events) {
   const canvas = document.getElementById('timelineCanvas');
   const ctx = canvas.getContext('2d');
   hideEvtTip();
   timelinePoints.length = 0;
   lastVisible = Array.isArray(events) ? events : [];
-  const w = canvas.width;
-  const h = canvas.height;
+
+  // Hi-DPI : le backing store est dimensionné sur (taille CSS × devicePixelRatio)
+  // et tout est dessiné en pixels CSS via setTransform → échelles/netteté fines.
+  const dpr = window.devicePixelRatio || 1;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = TL_CKWW;      // largeur logique en px CSS
+  const h = TL_CKVH;      // hauteur logique fixe (px CSS)
 
   ctx.clearRect(0, 0, w, h);
 
-  // Background grid
-  ctx.strokeStyle = '#1e293b';
+  // Grille d'arrière-plan + échelle Y dynamique bornée à FREQ_MAX
   ctx.lineWidth = 1;
-  for (let f = 0; f <= 48; f += 10) {
-    const y = h - (f / 48.0) * (h - 40) - 20;
-    ctx.beginPath();
-    ctx.moveTo(40, y);
-    ctx.lineTo(w - 10, y);
-    ctx.stroke();
+  const stepHz = niceHzStep(FREQ_MAX / 5);
+  for (let f = 0; f <= FREQ_MAX + 1e-9; f += stepHz) {
+    const y = yOfFreq(Math.min(f, FREQ_MAX));
+    ctx.strokeStyle = '#1e293b';
+    sharpLine(ctx, 40, y, w - 10, y);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(f) + ' Hz', 36, y + 4);
+  }
+  ctx.textAlign = 'left';
 
-    ctx.fillStyle = '#64748b';
-    ctx.font = '10px monospace';
-    ctx.fillText(f + ' Hz', 5, y + 3);
+  // Seuil Min fiable (Paramètre min_event_hz) : ligne pointillée de repéraison
+  if (MIN_EVENT_HZ > 0 && MIN_EVENT_HZ < FREQ_MAX) {
+    const ym = yOfFreq(MIN_EVENT_HZ);
+    ctx.strokeStyle = 'rgba(245,158,11,.35)';
+    ctx.setLineDash([4, 4]);
+    sharpLine(ctx, 40, ym, w - 10, ym);
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(245,158,11,.6)';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('f_min ' + MIN_EVENT_HZ + ' Hz', 36, ym - 4);
+    ctx.textAlign = 'left';
   }
 
   if (!events || events.length === 0) return;
@@ -481,8 +526,9 @@ function drawTimeline(events) {
   drawTimeTicks(ctx, w, h, minT, timeSpan);
 
   events.forEach(e => {
+    if (e.freq < 0 || e.freq > FREQ_MAX) return; // hors bande du graphique
     const x = 40 + ((e.t0 - minT) / timeSpan) * (w - 50);
-    const y = h - (e.freq / 48.0) * (h - 40) - 20;
+    const y = yOfFreq(e.freq);
 
     // toggles de canal: canal caché si l'autre domine de > 2 dB sur celui-ci
     const onL = !(e.lvl_d > e.lvl_g + 2);
@@ -525,7 +571,7 @@ function drawTimeline(events) {
       ctx.fillRect(bx0, 20, bx1 - bx0, h - 40);
       ctx.strokeStyle = '#3b82f6';
       ctx.lineWidth = 1;
-      ctx.strokeRect(bx0, 20, bx1 - bx0, h - 40);
+      ctx.strokeRect(Math.round(bx0) + 0.5, 20.5, Math.round(bx1 - bx0), h - 41);
     }
   }
 }
@@ -537,9 +583,9 @@ function drawTimeline(events) {
   let dragX0 = null;
   let raf = 0;
   const drawSoon = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => drawTimelineFull()); };
-  const toCanvasX = (e) => { // pixels CSS → coordonnées canvas (crosshair étiré)
+  const toCanvasX = (e) => { // espace logique = px CSS (setTransform hi-DPI actif)
     const r = canvas.getBoundingClientRect();
-    return ((e.clientX - r.left) / r.width) * canvas.width;
+    return e.clientX - r.left;
   };
   canvas.addEventListener('mousedown', (e) => { dragX0 = toCanvasX(e); tlBrushPx = null; });
   canvas.addEventListener('mousemove', (e) => {
@@ -569,8 +615,27 @@ function drawTimeline(events) {
   });
 })();
 
-// Initial fetch & poll every 10s
-refreshAll();
+// ===== Hi-DPI : le backing store suit la largeur réelle et devicePixelRatio =====
+const TL_CSS_H = 260;
+let TL_CKWW = 1000;      // largeur logique (px CSS), init = fallback canvas
+let TL_CKVH = 260;
+
+function fitCanvas() {
+  const canvas = document.getElementById('timelineCanvas');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const r = canvas.getBoundingClientRect();
+  const cw = Math.max(320, r.width || 0);
+  canvas.width = Math.round(cw * dpr);   // backing store natif (net sur écrans rétina)
+  canvas.height = Math.round(TL_CSS_H * dpr);
+  TL_CKWW = cw;
+  TL_CKVH = TL_CSS_H;
+  drawTimelineFull();
+}
+window.addEventListener('resize', () => requestAnimationFrame(fitCanvas));
+
+// Initial : fit hi-DPI puis fetch + poll every 10s
+requestAnimationFrame(() => { fitCanvas(); refreshAll(); });
 setInterval(refreshAll, 10000);
 </script>
 </body>
@@ -599,7 +664,11 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
         qs = urllib.parse.parse_qs(parsed.query)
 
         if path in ("/", "/index.html"):
-            payload = HTML_DASHBOARD.encode("utf-8")
+            # Injection des bornes DSP configurées (zéro magic number client)
+            payload = (
+                HTML_DASHBOARD.replace("__FREQ_MAX__", f"{self.config.dsp.freq_max:g}")
+                .replace("__MIN_EVENT_HZ__", f"{self.config.dsp.min_event_hz:g}")
+            ).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(payload)))
