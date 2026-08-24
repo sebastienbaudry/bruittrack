@@ -114,3 +114,8 @@ Commit par etape: `git add -A && git commit -m "..."`.
 
 ## Loop graph-readability (I46)
 - [x] Axe Y dynamique: __FREQ_MAX__/__MIN_EVENT_HZ__ injectes dans do_GET depuis config.dsp ; echelle/graduations/netteté HiDPI (dpr backing store, half-pixel, font 12px) ; 2 nouveaux tests injection (15 defaut / 200 custom)
+
+## [I48-I50] Déployé pi-t620 (it. 1-3)
+- wheel bruittrack-1.0.0-py3-none-any.whl scp+pip --force-reinstall dans /opt/bruittrack/.venv
+- restart bruittrack + bruittrack-viz ; is-active active/active ; API 8760 ok (rows 1379)
+- site-packages vérifié : hoverYpx(10)/tlLastEvts(3)/freqTip(3)/TL_CSS_H ; pip check net
