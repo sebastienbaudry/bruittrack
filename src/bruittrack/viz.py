@@ -349,6 +349,8 @@ let timeWindow = 86400; // secondes affichées; null = Tout (plage calée sur le
 let tlMode = null;     // null = fenêtre boutons; else {minT, span} en s (zoom brushing, I39)
 let tlScale = null;    // plage active {minT, span} pour conversion px→temps du brushing
 let tlBrushPx = null;  // {x0, x1} rect de sélection pendant glisser (coords canvas)
+let hoverYpx = null;   // I50 : Y du curseur (px logique) → fil horizontal de repère
+let tlLastEvts = null; // I50 : dernières données dessinées (redraw crosshair sans refetch)
 let lastVisible = []; // dernier jeu d'événements visibles (refilterable sans refetch)
 let selectedEvId = null; // événement sélectionné : lien scatter ↔ tableau (I40)
 
@@ -416,12 +418,14 @@ function toggleChannel(idx) {
 function hideEvtTip() {
   document.getElementById('evtTip').style.display = 'none';
   const ft = document.getElementById('freqTip'); if (ft) ft.style.display = 'none';
+  // I50 : nettoyage du fil de repère sans boucle (redraw seulement si le fil était actif)
+  if (hoverYpx !== null && tlLastEvts !== null) { hoverYpx = null; drawTimelineFull(); }
 }
 
 // Click/hover sur marker → tooltip bin_i + freq + lvl_g/d (acceptance IMPROVEMENTS)
 (function attachTips() {
   const canvas = document.getElementById('timelineCanvas');
-  let raf = null;
+  let raf = null, hoverRaf = 0;
   function showTip(e) {
     const rect = canvas.getBoundingClientRect();
     // Espace logique = pixels CSS (le backing store hi-DPI est mis à l'échelle
@@ -437,6 +441,10 @@ function hideEvtTip() {
       ft.textContent = '≈ ' + fUnder.toFixed(1) + ' Hz';
       ft.style.display = 'inline';
     } else { ft.style.display = 'none'; }
+
+    // I50 : fil horizontal à la hauteur du curseur (redraw throttle rAF, saut si inchangé)
+    const ly = my >= 20 && my <= TL_CSS_H - 20 ? Math.round(my) : null;
+    if (ly !== hoverYpx) { hoverYpx = ly; if (!hoverRaf) hoverRaf = requestAnimationFrame(() => { hoverRaf = 0; drawTimelineFull(); }); }
 
     let best = null, bd = 10 * 10; // rayon 10 px
     for (const p of timelinePoints) {
@@ -526,6 +534,14 @@ function drawTimeline(events) {
     ctx.textAlign = 'left';
   }
 
+  // I50 : fil horizontal pointillé à la hauteur du curseur = comparaison immédiate avec l'échelle
+  if (hoverYpx != null && hoverYpx >= 20 && hoverYpx <= h - 20) {
+    ctx.strokeStyle = 'rgba(147,197,253,.45)';
+    ctx.setLineDash([3, 3]);
+    sharpLine(ctx, 40, hoverYpx, w - 10, hoverYpx);
+    ctx.setLineDash([]);
+  }
+
   if (!events || events.length === 0) { lastVisible = []; } // état vide affiché au centre (I48)
 
   const evs = Array.isArray(events) ? events : [];
@@ -545,6 +561,7 @@ function drawTimeline(events) {
     minT = minTAll; timeSpan = Math.max(3600, maxT - minT);
   }
   tlScale = {minT, span: timeSpan}; // conversion px→temps pour le zoom (I39)
+  tlLastEvts = evs;
   drawTimeTicks(ctx, w, h, minT, timeSpan);
 
   evs.forEach(e => {

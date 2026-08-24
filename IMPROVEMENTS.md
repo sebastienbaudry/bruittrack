@@ -125,5 +125,6 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
       Fichier : src/bruittrack/viz.py (drawTimeline/drawTimeTicks).
       OK quand : HTML servi contient les 2 ajouts (grep verticalGrid / noEventsHint dans viz.py) et `bash tools/check.sh` verte.
 - [x] **I49** Tooltip des graduations Y : le survol de l'axe fréquent montre la fréquence exacte sous le curseur (net + orientable sans zoom).
+- [x] **I50** Fil horizontal pointillé (crosshair) à la hauteur du curseur sur le chronogramme : comparaison immédiate avec l'échelle Y, redraw throttle rAF sur les dernières données dessinées.
       Fichier : src/bruittrack/viz.py (mousemove existant : ajouter ligne freq sous curseur).
       OK quand : le handler mousemove expose `freqUnder` sur le tooltip et check.sh verte.
