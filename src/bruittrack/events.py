@@ -148,11 +148,8 @@ def fingerprints_match(
     d1 = decode_fingerprint(fp1)
     d2 = decode_fingerprint(fp2)
 
-    # Bin peak distance
+    # Bin peak distance (tolerance in bins, derived from config Hz)
     if abs(d1.bin_peak - d2.bin_peak) > max_bin_delta:
-        return False
-    # Bin peak distance
-    if abs(d1.bin_peak - d2.bin_peak) > 2:
         return False
 
     # Channel compatibility
@@ -172,10 +169,11 @@ def fingerprints_match(
 class ClusterIndex:
     """In-memory index of sound clusters for fast matching."""
 
-    def __init__(self) -> None:
+    def __init__(self, max_bin_delta: int = 1) -> None:
         # Map cluster_id -> representative fingerprint
         self.clusters: dict[int, bytes] = {}
         self._next_id = 1
+        self.max_bin_delta = max_bin_delta
 
     def add_existing(self, cluster_id: int, fp: bytes) -> None:
         """Register an existing cluster from persistent storage."""
@@ -190,7 +188,7 @@ class ClusterIndex:
             (cluster_id, is_new)
         """
         for c_id, ref_fp in self.clusters.items():
-            if fingerprints_match(fp, ref_fp):
+            if fingerprints_match(fp, ref_fp, self.max_bin_delta):
                 return c_id, False
 
         # Create new cluster
@@ -214,6 +212,7 @@ class EventDetector:
         exemplars_dir: str | Path = "exemplars",
         min_event_hz: float = 2.0,
         max_event_hz: float | None = None,
+        cluster_freq_tolerance_hz: float = 0.5,
     ) -> None:
         self.threshold_db = threshold_db
         self.release_threshold_db = max(0.0, threshold_db - hysteresis_db)
@@ -227,8 +226,9 @@ class EventDetector:
         self.max_event_hz = max_event_hz
         self.min_bin = max(1, math.ceil(min_event_hz / bin_resolution_hz))
 
-        # Cluster index
-        self.cluster_index = ClusterIndex()
+        # Cluster index. Peak-bin tolerance in bins, derived from Hz (I44).
+        self.cluster_max_bin_delta = max(0, round(cluster_freq_tolerance_hz / bin_resolution_hz))
+        self.cluster_index = ClusterIndex(self.cluster_max_bin_delta)
 
         # State tracking
         self.is_active = False
@@ -273,7 +273,7 @@ class EventDetector:
         hi = max_emergence.size
         if self.max_event_hz is not None:
             hi = min(hi, int(self.max_event_hz / self.bin_resolution_hz) + 1)
-        search = max_emergence[self.min_bin:hi]
+        search = max_emergence[self.min_bin : hi]
         if search.size == 0:
             return events_emitted
         current_peak_bin = int(np.argmax(search)) + self.min_bin

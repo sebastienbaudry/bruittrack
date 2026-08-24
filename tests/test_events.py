@@ -37,6 +37,49 @@ def test_fingerprint_encode_decode_roundtrip() -> None:
     assert decoded.neighbors[2] == 7  # Peak quantized to 7
 
 
+def _fp_at(bin_peak: int) -> bytes:
+    spectrum = np.zeros(99, dtype=np.float32)
+    spectrum[bin_peak] = 20.0
+    return encode_fingerprint(bin_peak, spectrum, dominant_ch=0, off_ms=0.0)
+
+
+def test_fingerprints_match_max_bin_delta() -> None:
+    """Peak-bin tolerance is explicit via max_bin_delta (I44)."""
+    base = _fp_at(30)
+
+    # Default (1 bin): Δ=1 ok, Δ=2 rejected
+    assert fingerprints_match(base, _fp_at(31))
+    assert not fingerprints_match(base, _fp_at(32))
+
+    # max_bin_delta=3: Δ=3 ok, Δ=4 rejected
+    assert fingerprints_match(base, _fp_at(33), 3)
+    assert not fingerprints_match(base, _fp_at(34), 3)
+
+
+def test_event_detector_cluster_tolerance_hz() -> None:
+    """cluster_freq_tolerance_hz → bins (resolution = 48000/2^16 ≈ 0.48828125 Hz)."""
+    res = 0.48828125
+    det_tight = EventDetector(cluster_freq_tolerance_hz=0.5)
+    assert det_tight.cluster_max_bin_delta == max(0, round(0.5 / res))
+    assert det_tight.cluster_index.max_bin_delta == det_tight.cluster_max_bin_delta
+
+    det_wide = EventDetector(cluster_freq_tolerance_hz=1.47)
+    expected_wide = max(0, round(1.47 / res))  # ≈ 3 bins
+    assert det_wide.cluster_index.max_bin_delta == expected_wide
+
+
+def test_cluster_index_max_bin_delta() -> None:
+    """ClusterIndex honors its tolerance when matching (I44)."""
+    index = ClusterIndex(max_bin_delta=3)
+    c1, is_new = index.match_or_create(_fp_at(30))
+    assert is_new
+    # Δ=4 would be rejected by default (1 bin) but accepted at 3 bins? No: 4 > 3 → new cluster
+    c2, is_new2 = index.match_or_create(_fp_at(33))
+    assert not is_new2 and c2 == c1
+    c3, is_new3 = index.match_or_create(_fp_at(34))
+    assert is_new3 and c3 != c1
+
+
 def test_fingerprints_match() -> None:
     spectrum1 = np.zeros(99, dtype=np.float32)
     spectrum1[30] = 20.0

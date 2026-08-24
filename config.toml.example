@@ -60,6 +60,10 @@ max_duration_s = 30.0
 # Nombre de blocs d'échauffement au démarrage avant d'autoriser les détections (300 = 30 s)
 warmup_ticks = 300
 
+# Tolerance de frequence (Hz) pour fusionner des evenements dans le meme cluster,
+# sur le bin dominant (convertie en bins : round(tol / 0.48828125))
+cluster_freq_tolerance_hz = 0.5
+
 [storage]
 # Chemin de la base de données SQLite
 db_path = "data/bruittrack.db"

@@ -73,6 +73,7 @@ class Engine:
             exemplars_dir=config.storage.exemplars_dir,
             min_event_hz=config.dsp.min_event_hz,
             max_event_hz=config.dsp.freq_max,
+            cluster_freq_tolerance_hz=config.detector.cluster_freq_tolerance_hz,
         )
 
         # Storage
