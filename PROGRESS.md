@@ -98,3 +98,10 @@ Commit par etape: `git add -A && git commit -m "..."`.
 - Rewrite events.cluster en 1..N canonique + reattribuexemplaires (flags bit2) + migration fichiers ex_*
 - Dry-run locale base synthetique : A(50),A,B(51),C(class -3) -> {1:A,A,B}+{2:C} ; exemplaires migres proprement
 - A appliquer sur pi-t620 (956 events) apres confirmation operateur
+
+## [RECLUSTER APPLIQUE SUR PI] 2026-07-14 ~09:40
+- Sauvegarde : /tmp/bruittrack.db.backup-recluster (pi-t620)
+- Resultat : 562 -> 623 clusters (regles d'entrainement) ; 980 lignes reassignees ; 539 exemplaires migres
+- Coherence : 539 flags exemplaire =\u003c=> 539 fichiers ex_*.raw ; sans file orpheline / tmp residue
+- Services redemarres (bruittrack.service PID recent, viz port 8760) ; /api/health ok ; API /events correct
+- Note : events continues d'entrer en live avec les nouveaux numéros de cluster (id ~1897+)
