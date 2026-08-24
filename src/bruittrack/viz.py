@@ -613,8 +613,10 @@ function yToAnchorTime(mx) { // temps (s) sous l'abscisse mx de la plage active 
   return tlScale ? tlScale.minT + ((mx - 40) / (TL_CKWW - 50)) * tlScale.span : null;
 }
 function zoomTimeAt(mx, k) { // zoom temps ancré au curseur ; bornes [10 s, max(90 j, étendue données)]
-  if (!tlScale) return;
-  const aT = yToAnchorTime(mx);
+  // I58b : ancrage sur l'etat cible (tlMode || tlScale rendu) — molettes rapides avant RAF
+  const tgt = tlMode || tlScale;
+  if (!tgt) return;
+  const aT = tgt.minT + ((mx - 40) / (TL_CKWW - 50)) * tgt.span;
   let loSpan = 10; // 10 s minimum
   let hiSpan = 90 * 86400; // 90 jours maximum
   if (lastVisible.length >= 2) {
@@ -622,8 +624,8 @@ function zoomTimeAt(mx, k) { // zoom temps ancré au curseur ; bornes [10 s, max
     for (const p of lastVisible) { if (p.t0 < tMin) tMin = p.t0; if (p.t0 > tMax) tMax = p.t0; } // lastVisible = événements bruts (cf. drawTimeline L634)
     hiSpan = Math.min(hiSpan, Math.max(tMax - tMin, 3600));
   }
-  let span = Math.max(loSpan, Math.min(hiSpan, tlScale.span * k));
-  const fx = (aT - tlScale.minT) / tlScale.span; // fraction d'ancrage sous le curseur
+  let span = Math.max(loSpan, Math.min(hiSpan, tgt.span * k));
+  const fx = (aT - tgt.minT) / tgt.span; // fraction d'ancrage sous le curseur
   tlMode = {minT: aT - fx * span, span: span};
   syncTlButtons();
 }
@@ -688,10 +690,12 @@ function drawTimeline(events) {
 
   const now = Date.now() / 1000;
   let timeSpan, minT;
-  if (evs.length === 0) { // I48 : graphe vide → horizon 6 h + message centré (évite Math.min sur liste vide)
-    timeSpan = 21600; minT = now - timeSpan;
-  } else if (tlMode) { // zoom par brushing : plage fixe choisie par l'utilisateur (I39)
+  if (tlMode) { // zoom/brushing : plage fixe choisie par l'utilisateur (I39/I58b) — prioritaire
+    // même si la fenêtre contient zéro événement : l'ancrage du zoom doit rester stable,
+    // sinon chaque redraw recentre sur Date.now() et le point sous le curseur dérive.
     timeSpan = tlMode.span; minT = tlMode.minT;
+  } else if (evs.length === 0) { // I48 : graphe vide → horizon 6 h (bootstrap uniquement)
+    timeSpan = 21600; minT = now - timeSpan;
   } else if (timeWindow) { // fenêtre glissante 1h/6h/24h
     timeSpan = timeWindow; minT = now - timeWindow;
   } else { // Tout : plage recouvrant tous les événements + horizon présent
