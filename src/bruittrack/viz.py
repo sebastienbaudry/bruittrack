@@ -389,12 +389,13 @@ function drawTimeTicks(ctx, w, h, minT, span) {
   const x0 = 40, x1 = w - 10;
   ctx.strokeStyle = '#334155';
   ctx.fillStyle = '#64748b';
-  ctx.font = '10px monospace';
+  ctx.font = '12px monospace';
   ctx.textAlign = 'center';
   for (let t = Math.ceil(minT / step) * step; t <= minT + span; t += step) {
     const x = x0 + ((t - minT) / span) * (x1 - x0);
     if (x > x1) break;
-    ctx.beginPath(); ctx.moveTo(x, h); ctx.lineTo(x, h - 5); ctx.stroke();
+    const xt = Math.round(x) + 0.5;   // graduation alignée half-pixel : net en HiDPI comme en QVGA
+    ctx.beginPath(); ctx.moveTo(xt, h); ctx.lineTo(xt, h - 5); ctx.stroke();
     const d = new Date(t * 1000);
     ctx.fillText(d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }), x, h - 9);
   }

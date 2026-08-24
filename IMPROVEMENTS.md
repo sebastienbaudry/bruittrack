@@ -118,3 +118,12 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I41** Filtres rapides au-dessus du tableau « Derniers Événements » : par canal (IN1 Air / IN2 Structural / Tous), par émergence minimale (sliders/sélecteur, ex. >+10 dB), par cluster (list déroulante alimentée par /api/clusters).
       Fichiers : src/bruittrack/viz.py (+ option: GET /api/events?chan=&min_lvl=&cluster= si backend) ; tests/test_viz_api.py si endpoint ajouté.
       OK quand : les 3 filtres sont rendus au-dessus du tableau, appliquent le filtre côté client par défaut et la commande curl documentée renvoie la liste filtrée ; `bash tools/check.sh` verte.
+- [x] **I47** Échelle temps net : font 10→12px et graduations half-pixel alignées (rendering HiDPI cohérent avec le reste du graphe).
+      Fichier : src/bruittrack/viz.py (drawTimeTicks).
+      OK quand : drawTimeTicks en font 12px et tick X alignées à Math.round(x)+0.5 ; check.sh verte.
+- [ ] **I48** Aides visuelles du chronogramme : grille verticale temps (lignes claires aux graduations) + message vide "Aucun événement" centré quand aucun point.
+      Fichier : src/bruittrack/viz.py (drawTimeline/drawTimeTicks).
+      OK quand : HTML servi contient les 2 ajouts (grep verticalGrid / noEventsHint dans viz.py) et `bash tools/check.sh` verte.
+- [ ] **I49** Tooltip des graduations Y : le survol de l'axe fréquent montre la fréquence exacte sous le curseur (net + orientable sans zoom).
+      Fichier : src/bruittrack/viz.py (mousemove existant : ajouter ligne freq sous curseur).
+      OK quand : le handler mousemove expose `freqUnder` sur le tooltip et check.sh verte.
