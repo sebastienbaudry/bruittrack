@@ -128,3 +128,8 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I50** Fil horizontal pointillé (crosshair) à la hauteur du curseur sur le chronogramme : comparaison immédiate avec l'échelle Y, redraw throttle rAF sur les dernières données dessinées.
       Fichier : src/bruittrack/viz.py (mousemove existant : ajouter ligne freq sous curseur).
       OK quand : le handler mousemove expose `freqUnder` sur le tooltip et check.sh verte.
+
+## Backlog it. 4 (additions)
+- [ ] **I51** Script deploy pi-t620 idempotent `scripts/deploy_pi.sh` : build wheel locale PEP427, scp vers /tmp avec nom conforme, `sudo -S pip install --force-reinstall`, restart bruittrack + bruittrack-viz (port 8760), verify curl health + grep markers I48-I50 sur site-packages — accepte si il retourne 0 et affiche DEPLOY_OK.
+- [ ] **I52** Purge exemplaires orphelins : `store.apply_retention` supprime les lignes events mais pas les fichiers `exemplars/ex_*.raw` correspondants (src/bruittrack/store.py) — au moins un test qui cree exemplaire + event puis purge et verifie fichier absent.
+- [ ] **I53** Bouton UI « resaut */5s » : l autorefresh est deja gere par le timer JS ; ajouter sur la barre du chronogramme un indicateur visuel de dernier refresh (temps relatif) — accepte si le span existe et se met a jour sans modifie drawTimeline.
