@@ -129,8 +129,13 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
       Fichier : src/bruittrack/viz.py (mousemove existant : ajouter ligne freq sous curseur).
       OK quand : le handler mousemove expose `freqUnder` sur le tooltip et check.sh verte.
 
+## Backlog it. 6 (ajouts I53b+)
+- [ ] **I55** Commit du script de regression zoom `tools/zoom_repro.js` (node + stub DOM : invariance du point sous le curseur molette) — OK quand : `git status --porcelain tools/zoom_repro.js` vide et `node tools/zoom_repro.js src/bruittrack/viz.py` renvoie INVA_OK ou sort un diagnostic lisible sans crash.
+- [ ] **I56** Badge MAJ en temps relatif : `updateMaj()` affiche « il y a Xs » si < 60 s sinon hh:mm:ss, rafraichi par interval 1 s existant — OK quand : le HTML contient `relMaj( et le test marqueur correspondance passe.
+- [ ] **I57** README.md : documenter l aboli plafond 200 (boutons Tout/90j + zoom charge via `?since=`, watermark anti-relance) — Fichier : README.md. OK quand : grep 'limit=20000\|fenetrage' README.md > 0 et check.sh verte.
+
 ## Backlog it. 4 (additions)
 - [x] **I51 (DEPLOY_OK rc=0)** Script deploy pi-t620 idempotent `scripts/deploy_pi.sh` : build wheel locale PEP427, scp vers /tmp avec nom conforme, `sudo -S pip install --force-reinstall`, restart bruittrack + bruittrack-viz (port 8760), verify curl health + grep markers I48-I50 sur site-packages — accepte si il retourne 0 et affiche DEPLOY_OK.
 - [x] **I52 Purge exemplaires orphelins : `store.apply_retention` supprime les lignes events mais pas les fichiers `exemplars/ex_*.raw` correspondants (src/bruittrack/store.py) — au moins un test qui cree exemplaire + event puis purge et verifie fichier absent.
-- [ ] **I53** Bouton UI « resaut */5s » : l autorefresh est deja gere par le timer JS ; ajouter sur la barre du chronogramme un indicateur visuel de dernier refresh (temps relatif) — accepte si le span existe et se met a jour sans modifie drawTimeline.
+- [x] **I53** Bouton UI « resaut */5s » : l autorefresh est deja gere par le timer JS ; ajouter sur la barre du chronogramme un indicateur visuel de dernier refresh (temps relatif) — accepte si le span existe et se met a jour sans modifie drawTimeline. FAIT (I53b, commit 2418242) : span `majBadge` + `updateMaj()` en fin de refreshAll (heure absolute MAJ hh:mm:ss), sans toucher drawTimeline.
 - [x] **I54 Zoom/dézoom 2 axes du chronogramme** : molette sur le canvas = zoom synchronisé temps (ancré au curseur) + fréquence (`axZoom(`), fenêtrage dynamique `/api/events?since=` via `fetchWindow(` + merge dédup par id, Ctrl+glisser vertical = translate axe fréquence (`panFreqBy(`), reset double-clic / Échap / badge `zoomBadge` re-cliquable, plafond tableau 500 lignes via `renderTableRow(`. Fichiers : `src/bruittrack/viz.py`, `tests/test_viz_zoom.py`, `tools/zoom_check.sh`. OK quand : `bash tools/zoom_check.sh` exit 0 (Z1–Z6) et `bash tools/check.sh` verte avec ≥ 103 tests.

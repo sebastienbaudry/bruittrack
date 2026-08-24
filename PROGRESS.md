@@ -18,6 +18,9 @@
 
 - [2026-08-25] I55 (commis 874d463) — Correction zoom terminée : brush `toTime` employait `canvas.width` (px device HiDPI) au lieu des px CSS → décalé sur écran rétina. Suppression plafond 200 : fetch initial `?limit=20000` + `fetchWindow()` en fin de `refreshAll()` (boutons ET zoom), merge clampé dataSince/dataUntil, watermark `winCursorT` anti-relance. Gate : 104 tests passés, ruff OK, JS node --check OK, zoom_check 7/8 (core oui ; B2 = deploy à refaire sur pi-t620).
 
+- [2026-08-25] I55+ deployé pi-t620 DEPLOY_OK (health ok, DB 1590 lignes > ancien plafond 200 ; markers live ok). zoom_check **SCORE 8/8** incl. B2.
+- [2026-08-25] I53 (commis 2418242) — badge « MAJ hh:mm:ss » (`majBadge` + `updateMaj()` en fin de refreshAll réussi). Bouton « Tout » déjà présent. 104 tests passés.
+
 ## What was tried / failed
 
 - write tool drops path key under heavy quoting -> use heredoc cat > f <<'EOF' (quote delimiter to avoid expansion) then wc -c + grep marker.
