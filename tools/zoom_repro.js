@@ -32,6 +32,15 @@ const els = {};
 const tickCalls = []; // (minT, span) réellement dessinées par drawTimeTicks
 const state = { events: [], lastDrawMinT: null, lastDrawSpan: null, points: [] };
 
+// Jeu de données injecté via le stub fetch ci-dessous (12 evt / 11 h).
+// NB : on ne peut PAS passer par g.lastVisible = [...] — lastVisible est déclaré
+// avec let dans le script embarqué (liaison lexicale qui masque la propriété
+// globale du sandbox) ; seules les données chargées par refreshAll() comptent.
+const EVS = [];
+for (let i = 0; i < 12; i++) {
+  EVS.push({ id: i + 1, t0: 1_700_000_000 + i * 3600, freq: 20 + i * 9, lvl_g: 12, lvl_d: 12, dur: 8, cluster: (i % 4) + 1, off_ms: 0 });
+}
+
 // Captures : patch de drawTimeTicks + comptage des arcs dessinés
 function sandbox() {
   const g = {
@@ -48,7 +57,18 @@ function sandbox() {
     setTimeout: (fn) => 0, clearTimeout: () => {},
     // requestAnimationFrame : exécuté immédiatement mais une seule fois
     requestAnimationFrame: makeRAF(), cancelAnimationFrame: () => {},
-    fetchJson: async (url) => [], // pas de réseau : aucune donnée serveur
+    // Stub fetch : répond aux 3 endpoints consommés par refreshAll/fetchWindow.
+    // Sans lui, eventsData reste vide et drawTimeline recale minT sur
+    // Date.now() à chaque redraw (branche état vide) → fausse dérive d'ancrage.
+    fetch: async (url) => ({
+      ok: true,
+      json: async () => {
+        if (String(url).includes('/api/clusters')) return [];
+        if (String(url).includes('/api/stats')) return { total_events: EVS.length };
+        if (String(url).includes('/api/events')) return EVS;
+        return null;
+      },
+    }),
     Date, Math, JSON, Map, Set, Promise, Object, Array, Number, Infinity, isNaN, parseFloat,
   };
   g.window = { devicePixelRatio: 2, addEventListener: () => {} };
@@ -78,15 +98,16 @@ try {
 
 // exécute les rAF initiaux (fitCanvas + refreshAll)
 while (rafQueue.length) { const q = rafQueue; rafQueue = []; q.forEach((f) => f()); }
-await new Promise((r) => setTimeout(r, 50));
-
+(async () => {
 const g = gObj;
 if (typeof g.axZoom !== 'function' || typeof g.yToAnchorTime !== 'function') {
   console.error('fonctions attendues absentes du global', Object.keys(gObj).filter((k) => k.startsWith('y') || k.includes('ax')));
   process.exit(4);
 }
 
-// Instrument : capture des appels drawTimeTicks (le vrai dessin de l'axe)
+// Instrument : capture des appels drawTimeTicks (le vrai dessin de l'axe).
+// Posé AVANT toute attente : le premier draw (post-fetch, microtasks de
+// refreshAll) doit être capturé, sinon tick 0 n'a pas de vérité terrain.
 const origTicks = g.drawTimeTicks;
 g.drawTimeTicks = function (ctx, w, h, minT, span) {
   state.lastDrawMinT = minT; state.lastDrawSpan = span; state.lastW = w;
@@ -94,9 +115,9 @@ g.drawTimeTicks = function (ctx, w, h, minT, span) {
   return origTicks && origTicks(ctx, w, h, minT, span);
 };
 
-const evs = [];
-for (let i = 0; i < 12; i++) evs.push({ id: i + 1, t0: 1_700_000_000 + i * 3600, freq: 20 + i * 9, lvl_g: 12, lvl_d: 12, dur: 8, cluster: (i % 4) + 1, off_ms: 0 });
-g.lastVisible = evs; // étendue données = 11 h
+await new Promise((r) => setTimeout(r, 50));
+
+// Données déjà chargées via le stub fetch (EVS, étendue 11 h) — voir note sandbox.
 
 const MX = 400, MY = 130; // pile du curseur (px CSS)
 function drawX(m) { return 40 + ((m - state.lastDrawMinT) / state.lastDrawSpan) * (state.lastW - 50); }
@@ -129,7 +150,4 @@ for (let tick = 0; tick < 14; tick++) {
 }
 console.log(ok ? 'ROUND-TRIP OK : le temps sous le curseur est conservé' : 'ECHEC ANCRAGE');
 process.exit(ok ? 0 : 1);
-
-}
-const src0 = ''; 
-run();
+})();
