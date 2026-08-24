@@ -25,6 +25,16 @@ config.toml
 .coverage
 htmlcov/
 
+# Artefacts build / déploiement / audits générés
+deploy.tar
+*.tar
+output/
+tmp/
+
+# Fichiers résidus créés par erreur
+/f
+/~
+
 # Éditeur / OS
 .vscode/
 .idea/
