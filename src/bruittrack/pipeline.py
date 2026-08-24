@@ -93,7 +93,10 @@ class Engine:
         self._last_retention_check = time.time()
         self._retention_interval_s = 86400.0
         if config.storage.retention_days is not None:
-            self.store.apply_retention(config.storage.retention_days)
+            self.store.apply_retention(
+                config.storage.retention_days,
+                exemplars_dir=config.storage.exemplars_dir,
+            )
 
         self._is_running = False
         self._tick_count = 0
@@ -146,7 +149,10 @@ class Engine:
             self.config.storage.retention_days is not None
             and now_wall - self._last_retention_check >= self._retention_interval_s
         ):
-            self.store.apply_retention(self.config.storage.retention_days)
+            self.store.apply_retention(
+                self.config.storage.retention_days,
+                exemplars_dir=self.config.storage.exemplars_dir,
+            )
             self._last_retention_check = now_wall
 
         self.store.maybe_flush()

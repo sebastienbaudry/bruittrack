@@ -418,8 +418,16 @@ class EventStore:
             conn.commit()
             return rowcount > 0
 
-    def apply_retention(self, retention_days: int) -> int:
-        """Delete events older than retention period."""
+    def apply_retention(
+        self,
+        retention_days: int,
+        exemplars_dir: str | Path | None = None,
+    ) -> int:
+        """Delete events older than retention period.
+
+        When ``exemplars_dir`` is given, orphaned exemplar files (clusters
+        no longer present in DB) are pruned after the delete (I52).
+        """
         if retention_days <= 0:
             return 0
 
@@ -427,7 +435,9 @@ class EventStore:
         with self._db() as conn:
             deleted = conn.execute("DELETE FROM events WHERE t0 < ?", (cutoff,)).rowcount
             conn.commit()
-            return deleted
+        if deleted > 0 and exemplars_dir is not None:
+            self.prune_orphaned_exemplars(exemplars_dir)
+        return deleted
 
     def prune_orphaned_exemplars(self, exemplars_dir: str | Path) -> int:
         """Delete `ex_<cluster>.raw` files whose cluster no longer exists in DB.

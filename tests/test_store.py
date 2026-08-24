@@ -372,3 +372,30 @@ def test_get_events_exposes_over_legal_flag() -> None:
         rows = {int(r["flags"]): r for r in store.get_events(limit=10)}
         assert rows[FLAG_OVER_LEGAL]["over_legal"] is True
         assert rows[0]["over_legal"] is False
+
+
+def test_apply_retention_prunes_exemplars(tmp_path: Path) -> None:
+    """I52: apply_retention(exemplars_dir=...) prunes exemplars orphaned by the purge."""
+    ex_dir = tmp_path / "ex"
+    ex_dir.mkdir()
+    store = EventStore(db_path=tmp_path / "r.db", batch_size=3)
+    now = time.time()
+
+    def ev(t0: float, cluster: int) -> SoundEvent:
+        return SoundEvent(
+            t0=t0, dur=1.0, bin_i=5, freq=2.5, lvl_g=8.0, lvl_d=7.0,
+            off_ms=0.0, fp=b"a" * 16, flags=0, cluster=cluster,
+        )
+
+    store.add_event(ev(now - 90 * 86400, 7))   # will be purged (30 d)
+    store.add_event(ev(now - 3600.0, 8))       # kept
+    store.flush()
+    (ex_dir / "ex_7.raw").write_bytes(b"old")
+    (ex_dir / "ex_8.raw").write_bytes(b"new")
+
+    deleted = store.apply_retention(retention_days=30, exemplars_dir=ex_dir)
+
+    assert deleted == 1
+    assert not (ex_dir / "ex_7.raw").exists()   # orphaned by purge -> removed
+    assert (ex_dir / "ex_8.raw").is_file()      # still referenced -> kept
+    store.close()
