@@ -91,3 +91,10 @@ Commit par etape: `git add -A && git commit -m "..."`.
   GET / HTTP 200, 0 lignes error/traceback dans le journal.
 - TODO eventuel : `bruittrack perf` apres quelques heures de stabilite (confirmation CPU post-reboot
   I31 ; baseline I43 : 12.1% CPU / 87.8 Mo OK). Pas de cleanup DB a faire : 0 ligne freq <= 2.0 Hz.
+
+## Re-clustering one-shot (scripts/recluster.py) — dry-run synthetique OK
+- Regle : rejoue les N events persistes par id croissant (ordre live) avec ClusterIndex(max_bin_delta) vierge ;
+  max_bin_delta derive du config target comme au live (tol = 0.5 Hz -> 1 bin)
+- Rewrite events.cluster en 1..N canonique + reattribuexemplaires (flags bit2) + migration fichiers ex_*
+- Dry-run locale base synthetique : A(50),A,B(51),C(class -3) -> {1:A,A,B}+{2:C} ; exemplaires migres proprement
+- A appliquer sur pi-t620 (956 events) apres confirmation operateur
