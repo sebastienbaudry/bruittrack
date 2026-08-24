@@ -347,6 +347,7 @@ let showCh = { l: true, d: true };
 let timelinePoints = []; // {x, y, ev} pour tooltips/clic
 let timeWindow = 86400; // secondes affichées; null = Tout (plage calée sur les données)
 let tlMode = null;     // null = fenêtre boutons; else {minT, span} en s (zoom brushing, I39)
+let freqView = null;    // I54 : null = vue Y complète [0,FREQ_MAX]; sinon {fLo, fHi} en Hz
 let tlScale = null;    // plage active {minT, span} pour conversion px→temps du brushing
 let tlBrushPx = null;  // {x0, x1} rect de sélection pendant glisser (coords canvas)
 let hoverYpx = null;   // I50 : Y du curseur (px logique) → fil horizontal de repère
@@ -437,7 +438,7 @@ function hideEvtTip() {
     const ft = document.getElementById('freqTip');
     const hCSS = TL_CSS_H;
     if (mx >= 40 && mx <= TL_CKWW - 10 && my >= 20 && my <= hCSS - 20) {
-      const fUnder = Math.max(0, Math.min(FREQ_MAX, ((hCSS - 20 - my) / (hCSS - 40)) * FREQ_MAX));
+      const fUnder = yToFreq(my); // I54 : la lecture Hz suit la vue Y zoomée (sinon 0..FREQ_MAX)
       ft.textContent = '≈ ' + fUnder.toFixed(1) + ' Hz';
       ft.style.display = 'inline';
     } else { ft.style.display = 'none'; }
@@ -470,9 +471,19 @@ function hideEvtTip() {
   canvas.addEventListener('mouseleave', hideEvtTip);
 })();
 
-function yOfFreq(f) { // Hz → px logique Y ; l'axe couvre exactement 0..FREQ_MAX
+function freqBounds() { // I54 : limites de la vue Y courante [fLo, fHi]
+  return freqView ? [freqView.fLo, freqView.fHi] : [0, FREQ_MAX];
+}
+function yOfFreq(f) { // Hz → px logique Y ; l'axe couvre [fLo, fHi] de la vue courante
   const h = TL_CKVH;
-  return h - 20 - (f / FREQ_MAX) * (h - 40);
+  const fb = freqBounds();
+  const fc = Math.max(fb[0], Math.min(fb[1], f));
+  return h - 20 - ((fc - fb[0]) / (fb[1] - fb[0])) * (h - 40);
+}
+function yToFreq(y) { // px logique Y → Hz (inverse, borné à la vue courante)
+  const h = TL_CKVH;
+  const fb = freqBounds();
+  return Math.max(fb[0], Math.min(fb[1], fb[1] - ((h - 20 - y) / (h - 40)) * (fb[1] - fb[0])));
 }
 
 // 'Nice step' : ~5-6 divisions lisibles quel que soit FREQ_MAX (1,2,5 × 10^n)
@@ -490,7 +501,47 @@ function sharpLine(ctx, x0, y0, x1, y1) {
   ctx.stroke();
 }
 
+function axZoom(ev) { // I54 : molette = zoom/dézoom sur les 2 axes, ancré au curseur
+  const r = ev.currentTarget.getBoundingClientRect();
+  const mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  if (my < 20 || my > TL_CKVH - 20 || mx < 40) return; // zone utile uniquement
+  const k = ev.deltaY < 0 ? 1 / 1.3 : 1.3;              // facteur fixe par crant ±1.3
+  // ---- Axe Y : ancrage = fréquence sous le curseur ; span ≥ 2 Hz ; [fLo,fHi] ⊂ [0, FREQ_MAX]
+  const fb0 = freqBounds();
+  const anchF = yToFreq(my);
+  let nLo = anchF - (anchF - fb0[0]) * k;
+  let nHi = anchF + (fb0[1] - anchF) * k;
+  if (nHi - nLo < 2) { const c = (nLo + nHi) / 2; nLo = c - 1; nHi = c + 1; }
+  if (nLo < 0) { nHi -= nLo; nLo = 0; }
+  if (nHi > FREQ_MAX) { nLo -= nHi - FREQ_MAX; nHi = FREQ_MAX; }
+  if (nLo < 0) nLo = 0;
+  freqView = (Math.abs(nHi - fb0[1]) > 1e-9 && Math.abs(nLo - fb0[0]) > 1e-9) ? {fLo: nLo, fHi: nHi}
+             : (Math.abs(nHi - FREQ_MAX) < 1e-9 && Math.abs(nLo) < 1e-9 ? null : {fLo: nLo, fHi: nHi});
+  // ---- Axe X : ancrage = temps sous le curseur ; span ∈ [10 s, étendue des données visibles]
+  const anchorT = yToAnchorTime(mx);
+  zoomTimeAt(mx, k);
+  drawTimelineFull();
+}
+function yToAnchorTime(mx) { // temps (s) sous l'abscisse mx de la plage active — pour log/reset
+  return tlScale ? tlScale.minT + ((mx - 40) / (TL_CKWW - 50)) * tlScale.span : null;
+}
+function zoomTimeAt(mx, k) { // zoom temps ancré au curseur ; bornes [10 s, max(90 j, étendue données)]
+  if (!tlScale) return;
+  const aT = yToAnchorTime(mx);
+  let loSpan = 10; // 10 s minimum
+  let hiSpan = 90 * 86400; // 90 jours maximum
+  if (lastVisible.length >= 2) {
+    let tMin = Infinity, tMax = -Infinity;
+    for (const p of lastVisible) { if (p.ev.t0 < tMin) tMin = p.ev.t0; if (p.ev.t0 > tMax) tMax = p.ev.t0; }
+    hiSpan = Math.min(hiSpan, Math.max(tMax - tMin, 3600));
+  }
+  let span = Math.max(loSpan, Math.min(hiSpan, tlScale.span * k));
+  const fx = (aT - tlScale.minT) / tlScale.span; // fraction d'ancrage sous le curseur
+  tlMode = {minT: aT - fx * span, span: span};
+  syncTlButtons();
+}
 function drawTimeline(events) {
+
   const canvas = document.getElementById('timelineCanvas');
   const ctx = canvas.getContext('2d');
   hideEvtTip();
@@ -508,9 +559,10 @@ function drawTimeline(events) {
 
   // Grille d'arrière-plan + échelle Y dynamique bornée à FREQ_MAX
   ctx.lineWidth = 1;
-  const stepHz = niceHzStep(FREQ_MAX / 5);
-  for (let f = 0; f <= FREQ_MAX + 1e-9; f += stepHz) {
-    const y = yOfFreq(Math.min(f, FREQ_MAX));
+  const fv = freqBounds();
+  const stepHz = niceHzStep((fv[1] - fv[0]) / 5);
+  for (let f = fv[0]; f <= fv[1] + 1e-9; f += stepHz) {
+    const y = yOfFreq(Math.max(fv[0], Math.min(f, fv[1]))); // graduations sur la vue Y (I54)
     ctx.strokeStyle = '#1e293b';
     sharpLine(ctx, 40, y, w - 10, y);
     ctx.fillStyle = '#94a3b8';
@@ -561,11 +613,12 @@ function drawTimeline(events) {
     minT = minTAll; timeSpan = Math.max(3600, maxT - minT);
   }
   tlScale = {minT, span: timeSpan}; // conversion px→temps pour le zoom (I39)
+  const fv = freqBounds(); // I54 : vue Y courante [fLo, fHi]
   tlLastEvts = evs;
   drawTimeTicks(ctx, w, h, minT, timeSpan);
 
   evs.forEach(e => {
-    if (e.freq < 0 || e.freq > FREQ_MAX) return; // hors bande du graphique
+    if (e.freq < fv[0] || e.freq > fv[1]) return; // hors bande visible (vue Y zoomée, I54)
     const x = 40 + ((e.t0 - minT) / timeSpan) * (w - 50);
     const y = yOfFreq(e.freq);
 
@@ -659,6 +712,13 @@ function drawTimeline(events) {
   window.addEventListener('keydown', (e) => { // Échap : annule le zoom au pinceau
     if (e.key === 'Escape' && tlMode) { tlMode = null; syncTlButtons(); drawTimelineFull(); }
   });
+})();
+
+// ===== Molette : zoom 2 axes ancré curseur (I54) ; double-clic/Echap réinitialisent =====
+(function () {
+  const canvas = document.getElementById('timelineCanvas');
+  if (!canvas) return;
+  canvas.addEventListener('wheel', axZoom, { passive: true });
 })();
 
 // ===== Hi-DPI : le backing store suit la largeur réelle et devicePixelRatio =====
