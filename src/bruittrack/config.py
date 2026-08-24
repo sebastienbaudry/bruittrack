@@ -46,7 +46,7 @@ class DetectorConfig:
     debounce_ticks: int = 5
     max_duration_s: float = 30.0
     warmup_ticks: int = 300
-    cluster_freq_tolerance_hz: float = 0.5
+    cluster_freq_tolerance_hz: float = 2.0
 
 
 @dataclass
@@ -198,7 +198,7 @@ def load_config(config_path: str | Path | None = None) -> Config:
         debounce_ticks=int(det_dict.get("debounce_ticks", 5)),
         max_duration_s=float(det_dict.get("max_duration_s", 30.0)),
         warmup_ticks=int(det_dict.get("warmup_ticks", 300)),
-        cluster_freq_tolerance_hz=float(det_dict.get("cluster_freq_tolerance_hz", 0.5)),
+        cluster_freq_tolerance_hz=float(det_dict.get("cluster_freq_tolerance_hz", 2.0)),
     )
 
     def resolve_rel(p: Any) -> str:

@@ -399,3 +399,44 @@ def test_apply_retention_prunes_exemplars(tmp_path: Path) -> None:
     assert not (ex_dir / "ex_7.raw").exists()   # orphaned by purge -> removed
     assert (ex_dir / "ex_8.raw").is_file()      # still referenced -> kept
     store.close()
+
+
+def test_apply_retention_prunes_exemplars() -> None:
+    """I52: retention also deletes exemplar files whose cluster is now empty."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        store = EventStore(db_path=tmp / "ret.db", batch_size=3, batch_timeout_s=100.0)
+
+        ex_dir = tmp / "exemplars"
+        ex_dir.mkdir()
+        ex_9 = ex_dir / "ex_9.raw"
+        ex_4 = ex_dir / "ex_4.raw"
+        ex_9.write_bytes(b"\x00" * 512)
+        ex_4.write_bytes(b"\x00" * 512)
+
+        now = time.time()
+        old_ev = SoundEvent(
+            t0=now - 60 * 86400.0, dur=1.0, bin_i=10, freq=4.88,
+            lvl_g=10.0, lvl_d=9.0, off_ms=0.0, fp=b"a" * 16, flags=0, cluster=9,
+        )
+        new_ev = SoundEvent(
+            t0=now - 300.0, dur=1.0, bin_i=12, freq=5.86,
+            lvl_g=11.0, lvl_d=10.0, off_ms=1.5, fp=b"b" * 16, flags=0, cluster=4,
+        )
+        store.add_event(old_ev)   # cluster 9 -> orpheline apres retention
+        store.add_event(new_ev)   # cluster 4 -> exemplaire a garder
+        store.flush()
+
+        deleted = store.apply_retention(retention_days=30, exemplars_dir=ex_dir)
+
+        assert deleted == 1
+        assert not ex_9.exists(), "exemplaire de cluster orpheline doit etre supprime"
+        assert ex_4.exists(), "exemplaire de cluster vivant doit rester"
+
+        # Sans exemplars_dir, aucun effichage (comportement legacy).
+        ex_4b = ex_dir / "ex_4.raw"
+        deleted2 = store.apply_retention(retention_days=30)
+        assert deleted2 == 0
+        assert ex_4b.exists()
+
+        store.close()

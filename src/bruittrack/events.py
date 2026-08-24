@@ -212,7 +212,7 @@ class EventDetector:
         exemplars_dir: str | Path = "exemplars",
         min_event_hz: float = 2.0,
         max_event_hz: float | None = None,
-        cluster_freq_tolerance_hz: float = 0.5,
+        cluster_freq_tolerance_hz: float = 2.0,
     ) -> None:
         self.threshold_db = threshold_db
         self.release_threshold_db = max(0.0, threshold_db - hysteresis_db)
