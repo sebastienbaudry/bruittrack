@@ -1,9 +1,11 @@
 # PROGRESS
 
 ## Current state
-- I35-I51 closed + deployed pi-t620 (wheel bruteinstall, services active, health OK, 1385 rows).
-- I52 IN PROGRESS: apply_retention(retention_days, exemplars_dir=None) wired in store.py + pipeline.py call sites L96/L149; test planned.
-- I53 open: UI timestamp refresh (last-fetch visible in header/badge).
+- I35-I52 done + deploie pi-t620 (health OK, freq_max 150 prod)
+- I54 IN PROGRESS : boucle zoom 2 axes (GOAL.md + tools/zoom_check.sh)
+  - [x] M0 gate verte : doublon test_store.py fusionne (+ asserts legacy), ruff OK, 101 tests
+  - [ ] M1 freqView/axZoom(  M2 fenetrage since  M3 Ctrl+drag/badge/grille  M4 docs  M5 deploy
+- I53 open : bouton "Tout" 90 j + horodatage dernier fetch UI
 
 ## What was tried / failed
 - write tool drops path key under heavy quoting -> use heredoc cat > f <<'EOF' (quote delimiter to avoid expansion) then wc -c + grep marker.
