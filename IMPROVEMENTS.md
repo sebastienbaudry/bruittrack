@@ -132,7 +132,7 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 ## Backlog it. 6 (ajouts I53b+)
 - [x] **I55** Commit du script de regression zoom `tools/zoom_repro.js` (node + stub DOM : invariance du point sous le curseur molette) — OK quand : `git status --porcelain tools/zoom_repro.js` vide et `node tools/zoom_repro.js src/bruittrack/viz.py` renvoie INVA_OK ou sort un diagnostic lisible sans crash.
 - [ ] **I56** Badge MAJ en temps relatif : `updateMaj()` affiche « il y a Xs » si < 60 s sinon hh:mm:ss, rafraichi par interval 1 s existant — OK quand : le HTML contient `relMaj( et le test marqueur correspondance passe.
-- [ ] **I57** README.md : documenter l aboli plafond 200 (boutons Tout/90j + zoom charge via `?since=`, watermark anti-relance) — Fichier : README.md. OK quand : grep 'limit=20000\|fenetrage' README.md > 0 et check.sh verte.
+- [x] **I57** README.md : documenter l aboli plafond 200 (boutons Tout/90j + zoom charge via `?since=`, watermark anti-relance) — Fichier : README.md. OK quand : grep 'limit=20000\|fenetrage' README.md > 0 et check.sh verte. (documenté en section Fenêtrage, it. 26)
 
 ## Backlog it. 4 (additions)
 - [x] **I51 (DEPLOY_OK rc=0)** Script deploy pi-t620 idempotent `scripts/deploy_pi.sh` : build wheel locale PEP427, scp vers /tmp avec nom conforme, `sudo -S pip install --force-reinstall`, restart bruittrack + bruittrack-viz (port 8760), verify curl health + grep markers I48-I50 sur site-packages — accepte si il retourne 0 et affiche DEPLOY_OK.

@@ -104,6 +104,16 @@ curl -s 'http://localhost:8080/api/clusters?limit=20'
 
 > `GET /api/clusters` liste aussi les clusters etiquetes *avant* le 1er event (`event_count=0`, ajout I17).
 
+### Fenêtrage des événements (temporel, pas un plafond fixe)
+Le dashboard ne charge **jamais** un simple `?limit=N` : la requête est temporelle, `
+/api/events?since=<unix>` + `limit` uniquement comme anti-runaway du pare-feu de la grille.
+Zoom/dézoom et sélections d'événements élargissent/rétrécissent le `since`, jamais le plafond.
+La grille affiche au plus 500 marqueurs par fenêtre ; au-delà, le panneau liste reste complet
+(plafond anti-runaway, pas une perte de données — les barres du graphique restent complètes).
+```bash
+curl -s 'http://localhost:8760/api/events?since=1752902400&limit=1000'
+```
+
 ```
 
 ### Purge post-rangement (une seule commande)
