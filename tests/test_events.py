@@ -277,3 +277,46 @@ class TestComputeFlags:
     @staticmethod
     def _mask(det, duration_s):
         return det._compute_flags(duration_s)
+
+
+class TestCumDurationChain:
+    """I58 : épisode continu chaîné → correction de durée cumulée (CSP R1336-7)."""
+
+    def test_chained_segments_get_longer_correction(self, tmp_path):
+        import time as _t
+
+        from bruittrack.events import FLAG_OVER_LEGAL, EventDetector
+        from bruittrack.legal import emergence_limit
+
+        det = EventDetector(
+            threshold_db=10.0,
+            debounce_ticks=2,
+            exemplars_dir=tmp_path,
+        )
+        t0 = 1_750_000_000.0
+        lt = _t.localtime(t0)
+        # Pic entre le correctif « ≤30 s » (+6) et « >5 min » (+4).
+        limite_segment = emergence_limit(lt.tm_hour, lt.tm_min, 30.0)
+        limite_c90 = emergence_limit(lt.tm_hour, lt.tm_min, 90.0)
+        peak = (limite_segment + limite_c90) / 2.0
+
+        audio_buf = np.zeros((512, 2), dtype=np.float32)
+        emer = np.zeros(99, dtype=np.float32)
+        emer[25] = peak
+        events: list = []
+        t = t0
+        for _ in range(1200):  # 120 s de bruit continu
+            events.extend(det.update(emer, emer.copy(), audio_buf, off_ms=0.0, unix_time=t))
+            t += 0.1
+        # Coupure → dernier segment.
+        events.extend(
+            det.update(np.zeros(99), np.zeros(99), audio_buf, off_ms=0.0, unix_time=t)
+        )
+
+        assert len(events) >= 3, "le plafond 30 s doit découper l'épisode en segments"
+        # Les premiers segments (cum ≤ 60 s, +6 dB) sont conformes ; après
+        # ~90 s cumulés le correctif redescend à +5 dB → le pic dépasse.
+        assert events[0].flags & FLAG_OVER_LEGAL == 0
+        assert any(e.flags & FLAG_OVER_LEGAL for e in events[-3:]), (
+            "le segment final doit être évalué sur la durée cumulée de l'épisode"
+        )
