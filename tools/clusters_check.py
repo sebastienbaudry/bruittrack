@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from bruittrack.events import ClusterIndex, decode_fingerprint, encode_fingerprint  # noqa: E402
+from bruittrack.events import ClusterIndex, decode_fingerprint, encode_fingerprint
 
 
 def demo() -> int:
@@ -33,10 +33,10 @@ def demo() -> int:
     spec[80:85] = [3.0, 6.0, 12.0, 6.0, 3.0]
     idx = ClusterIndex(max_bin_delta=4)
     cases = [
-        ("air,    delai +2ms", dict(bin_peak=82, dominant_ch=0, off_ms=2), "(1er cluster, normal)"),
-        ("piezo,  delai +2ms (canal !=)", dict(bin_peak=82, dominant_ch=1, off_ms=2), "(separation legitime)"),
-        ("air,    delai -5ms (delai !=)", dict(bin_peak=82, dominant_ch=0, off_ms=-5), "(separation legitime)"),
-        ("air,    delai +2ms, pic bin 83", dict(bin_peak=83, dominant_ch=0, off_ms=2), "(FRAGMENTATION I59 !)"),
+        ("air,    delai +2ms", {"bin_peak": 82, "dominant_ch": 0, "off_ms": 2}, "(1er cluster, normal)"),
+        ("piezo,  delai +2ms (canal !=)", {"bin_peak": 82, "dominant_ch": 1, "off_ms": 2}, "(separation legitime)"),
+        ("air,    delai -5ms (delai !=)", {"bin_peak": 82, "dominant_ch": 0, "off_ms": -5}, "(separation legitime)"),
+        ("air,    delai +2ms, pic bin 83", {"bin_peak": 83, "dominant_ch": 0, "off_ms": 2}, "(FRAGMENTATION I59 !)"),
     ]
     print("Demo fragmentation (spectre identique, tolerance ±4 bins) :")
     for label, kw, verdict in cases:
