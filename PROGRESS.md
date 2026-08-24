@@ -79,3 +79,15 @@ Commit par etape: `git add -A && git commit -m "..."`.
 - commit 04017c6 I44 + chore format test_viz_api.py.
 - Wheel dist/bruittrack-1.0.0-py3-none-any.whl (pep427 OK).
 - Pi DB : 0 ligne freq <= 2 Hz pending (cleanup deja fait), total 952 events.
+
+## I44 — DEPLOYE sur pi-t620 $(date +%Y-%m-%d %H:%M)
+- Wheel dist/bruittrack-1.0.0-py3-none-any.whl : scp (nom date +%s pour eviter "Received 0 bytes") +
+  pip force-reinstall --no-deps dans /opt/bruittrack/.venv. max_bin_delta confirme en remote.
+- config.toml pi : cle cluster_freq_tolerance_hz = 0.5 ajoutee sous [detector] (idempotent grep).
+- UNITS REELS : bruittrack.service (pipeline) + bruittrack-viz.service. "bruittrack-start" N EXISTE PAS
+  (erreur de nommage script deploy). Restart via echo passLinux1! | sudo -S systemctl restart.
+- VIS : port **8760** (pas 8080 — probe initiale fausse alarme).
+- Verifs APRES deploy : bruittrack active (nouveau PID), viz active, /api/health ok (956 lignes),
+  GET / HTTP 200, 0 lignes error/traceback dans le journal.
+- TODO eventuel : `bruittrack perf` apres quelques heures de stabilite (confirmation CPU post-reboot
+  I31 ; baseline I43 : 12.1% CPU / 87.8 Mo OK). Pas de cleanup DB a faire : 0 ligne freq <= 2.0 Hz.
