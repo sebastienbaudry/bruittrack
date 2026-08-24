@@ -234,10 +234,12 @@ let dataSince = null; // t0 le plus ancien chargé localement (I54)
 let dataUntil = null; // t0 le plus récent chargé localement (I54)
 let fetchingWin = false;
 
-async function fetchWindow() { // I54 : fenêtre ?since= dynamique — le limit fixe ne suffit pas au zoom
-  if (!tlMode || !tlScale || fetchingWin) return;
+let winCursorT = null; // I55 : t0 le plus ancien effectivement chargé via fetchWindow (anti-relance à bornes fixes)
+async function fetchWindow() { // I54/I55 : fenêtre ?since= dynamique — charge TOUS les événements de la vue temps (boutons ET zoom)
+  if (!tlScale || fetchingWin) return;
   const lo = tlScale.minT - 300, hi = tlScale.minT + tlScale.span + 300;
-  if ((dataSince === null || lo >= dataSince) && (dataUntil === null || hi <= dataUntil)) return;
+  if ((dataSince === null || lo >= dataSince || (winCursorT !== null && lo >= winCursorT))
+      && (dataUntil === null || hi <= dataUntil)) return;
   fetchingWin = true;
   try {
     const sinceT = dataSince !== null ? Math.min(dataSince, Math.floor(lo)) : Math.floor(lo);
@@ -248,8 +250,8 @@ async function fetchWindow() { // I54 : fenêtre ?since= dynamique — le limit 
     got.forEach((e) => { if (e.id !== undefined) map.set(e.id, e); }); // merge/dédup par id
     eventsData = Array.from(map.values());
     const t0s = eventsData.map((e) => e.t0);
-    dataSince = t0s.length ? Math.min.apply(null, t0s) : null;
-    dataUntil = t0s.length ? Math.max.apply(null, t0s) : null;
+    if (t0s.length) { dataSince = Math.min(dataSince ?? Infinity, ...t0s); dataUntil = Math.max(dataUntil ?? -Infinity, ...t0s); } // I55 : clamp, jamais de replacement
+    winCursorT = sinceT; // serveur répondu sur tout t0 >= winCursorT → plus de relance tant que la vue est stable
   } finally { fetchingWin = false; }
 }
 
@@ -299,7 +301,7 @@ function resetFviews() { // I54 : double-clic / Échap / badge → vues par déf
 async function refreshAll() {
   const [stats, events, clusters] = await Promise.all([
     fetchJson('/api/stats'),
-    fetchJson('/api/events?limit=200'),
+    fetchJson('/api/events?limit=20000'), // I55: plus de plafond 200 — fenêtre ?since= déleste le éventail complet
     fetchJson('/api/clusters')
   ]);
 
@@ -327,6 +329,8 @@ async function refreshAll() {
     renderClustersTable(clusters);
     fillClusterFilter(clusters); // liste déroulante I41
   }
+  await fetchWindow(); // I55 : tous les événements de la plage sélectionnée (plus de plafond figé)
+  drawTimelineFull();
 }
 
 function chanOf(e) { // canal dominant, cohérent avec les badges du tableau
@@ -780,7 +784,7 @@ function drawTimeline(events) {
     if (dragX0 === null) return;
     dragX0 = null;
     if (tlBrushPx && tlScale) {
-      const toTime = (xp) => tlScale.minT + ((xp - 40) / (canvas.width - 50)) * tlScale.span;
+      const toTime = (xp) => tlScale.minT + ((xp - 40) / (TL_CKWW - 50)) * tlScale.span; // I55 fix: canvas.width = px device (HiDPI), brush en px CSS
       const t0 = toTime(tlBrushPx.x0), t1 = toTime(tlBrushPx.x1);
       if (t1 - t0 >= 60) { tlMode = {minT: t0, span: Math.max(120, (t1 - t0) * 1.1)}; syncTlButtons(); }
     }
