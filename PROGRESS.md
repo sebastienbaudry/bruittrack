@@ -40,3 +40,4 @@
 3. I53: in viz.py HTML add MAJ hh:mm:ss fed by last successful fetch (event timestamp badge near title) and update on each poll; commit; redeploy via scripts/deploy_pi.sh (verify markers incl. new one).
 
 - [2026-08-24] I54 (deploiement) — pi-t620 : freq_max 48.0 -> 150.0 dans /opt/bruittrack/config.toml, restart bruittrack + bruittrack-viz.
+- [x] I58(2)/inf sync table-graphe : lastVisible unique (temps+freqView+canaux) dans drawTimeline ; syncEventsToTable() orchestre le tableau ; 106 tests verts ; commit 92ab8d7
