@@ -244,6 +244,36 @@ class TestComputeFlags:
 
         assert self._mask(det, 2.0) & FLAG_OVER_LEGAL
 
+    def test_cum_duration_used_for_chained_segments(self):
+        """I58 : la limite est évaluée sur la durée cumulée de l'épisode.
+
+        Un bruit continu découpé en segments de 30 s ne doit pas rester
+        bloqué au correctif +6 dB : chaque segment intègre la durée des
+        segments précédents (CSP R1336-7, duree_cumulee).
+        """
+        import time as _t
+
+        from bruittrack.legal import emergence_limit
+
+        ts = 1_750_000_000.0
+        lt = _t.localtime(ts)
+        limite_segment = emergence_limit(lt.tm_hour, lt.tm_min, 2.0)  # +6 dB
+        dur_total = 7320.0  # ~2 h 02 : correctif +2 dB
+        limite_episode = emergence_limit(lt.tm_hour, lt.tm_min, dur_total)
+        assert limite_episode < limite_segment
+        peak = (limite_segment + limite_episode) / 2.0
+        det = self._det(peak, 0.0, ts)
+
+        # Sans chaînage : le pic est sous le seuil segment (+6 dB).
+        det.cum_duration_s = 0.0
+        assert self._mask(det, 30.0) == 0
+
+        # Avec chaînage : le seuil redescend → dépassement flagué.
+        from bruittrack.events import FLAG_OVER_LEGAL
+
+        det.cum_duration_s = dur_total - 30.0
+        assert self._mask(det, 30.0) & FLAG_OVER_LEGAL
+
     @staticmethod
     def _mask(det, duration_s):
         return det._compute_flags(duration_s)

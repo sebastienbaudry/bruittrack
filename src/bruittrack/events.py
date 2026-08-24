@@ -234,6 +234,9 @@ class EventDetector:
         self.is_active = False
         self.candidate_ticks = 0
         self.active_ticks = 0
+        # I58 : durée cumulée des segments chaînés (nuissance continue découpée
+        # au plafond max_duration_s) — entrée duree_cumulee de CSP R1336-7.
+        self.cum_duration_s = 0.0
 
         # Event metrics during active detection
         self.t0_unix: float = 0.0
@@ -287,6 +290,9 @@ class EventDetector:
             # Check if threshold is exceeded
             if current_max_em >= self.threshold_db:
                 if self.candidate_ticks == 0:
+                    # Nouvel épisode (après un intervalle calme) : la durée
+                    # cumulée repart à zéro.
+                    self.cum_duration_s = 0.0
                     self.t0_unix = now
                     self.peak_bin = current_peak_bin
                     self.peak_lvl_g = current_em1
@@ -337,6 +343,9 @@ class EventDetector:
                 events_emitted.append(event)
                 # If closed due to max duration and still above threshold, start next segment immediately
                 if duration_s >= self.max_duration_s and current_max_em >= self.threshold_db:
+                    # Chaîne : on cumule la durée du segment émis pour le
+                    # correctif CSP des segments suivants de l'épisode.
+                    self.cum_duration_s += duration_s
                     self.is_active = True
                     self.candidate_ticks = self.debounce_ticks
                     self.active_ticks = 1
@@ -366,7 +375,10 @@ class EventDetector:
         # legal limit uses local civil time (intentionally tz-naive)
         t = datetime.fromtimestamp(self.t0_unix)  # noqa: DTZ006
         peak_db = max(self.peak_lvl_g, self.peak_lvl_d)
-        limite = emergence_limit(t.hour, t.minute, duration_s)
+        # I58 : la durée du segment seul saturerait le correctif à +6 dB ;
+        # on évalue avec la durée cumulée de l'épisode (segments chaînés).
+        duree_cumulee = self.cum_duration_s + duration_s
+        limite = emergence_limit(t.hour, t.minute, duree_cumulee)
         # Le bit exemplar est ajouté ensuite si cluster neuf.
         return FLAG_OVER_LEGAL if peak_db > limite else 0
 
