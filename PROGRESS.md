@@ -7,6 +7,7 @@
 - I35-I52 done + deploie pi-t620 (health OK, freq_max 150 prod)
 
 - I54 IN PROGRESS : boucle zoom 2 axes (GOAL.md + tools/zoom_check.sh)
+  - [x] I58 sync tableau/graphe (92ab8d7) + I58c ancrage zoom exact (9f75210 : tgt tlMode||tlScale ; tlMode prioritaire vs branche vide ; repro 20 ticks |delta|<10 ms ; ruff propre, 106 tests, zoom_check 8/8)
 
   - [x] M0 gate verte : doublon test_store.py fusionne (+ asserts legacy), ruff OK, 101 tests
 

@@ -304,3 +304,25 @@ def test_i58_no_divergent_renders() -> None:
     i = HTML_DASHBOARD.find("function applyFilters() {")
     block = HTML_DASHBOARD[i: i + 200]
     assert "drawTimelineFull(); // I58" in block
+
+
+def test_lastvisible_renderloop_markers():
+    """I58(2) — the dashboard keeps the table pinned to lastVisible + syncEventsToTable."""
+    from bruittrack.viz import HTML_DASHBOARD
+
+    html = HTML_DASHBOARD.replace("__FREQ_MAX__", "150").replace("__MIN_EVENT_HZ__", "2")
+    for marker in ("let lastVisible = []", "function syncEventsToTable(", "renderEventsTable(rows)"):
+        assert marker in html, f"marker manquant : {marker}"
+
+    assert "syncEventsToTable" in html
+    assert "renderEventsTable(rows)" in html
+
+
+def test_no_extracalls_to_renderEventsTable():
+    """Only syncEventsToTable() should invoke renderEventsTable — one renderer."""
+    from bruittrack.viz import HTML_DASHBOARD
+
+    html = HTML_DASHBOARD.replace("__FREQ_MAX__", "150").replace("__MIN_EVENT_HZ__", "2")
+    count = html.count("renderEventsTable(")
+    # 1 function definition + 1 call site inside syncEventsToTable
+    assert count == 2, f"renderEventsTable( occurrences={count}"
