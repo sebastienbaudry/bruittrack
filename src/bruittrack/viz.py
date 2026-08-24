@@ -147,6 +147,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <span style="opacity:.4; font-size:12px; font-family:monospace">glisser = zoom temps · double-clic / Échap = réinit</span>
     <span id="evtTip" style="font-family:monospace; font-size:12px; color:#e2e8f0; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
     <span id="freqTip" title="I49 : fréquence sous le curseur" style="font-family:monospace; font-size:12px; color:#93c5fd; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
+    <span id="zoomBadge" onclick="resetFviews()" title="I54 : reset zoom X+Y (double-clic ou Échap)" style="display:none; cursor:pointer; color:#94a3b8; font-size:12px;"></span>
   </div>
   <canvas id="timelineCanvas" width="1000" height="260"></canvas>
 </div>
@@ -228,6 +229,73 @@ function getClusterColor(clusterId) {
   return `hsl(${hue}, 80%, 60%)`;
 }
 
+// ===== I54 : fenêtrage de données, pan fréquence, badge, reset des 2 axes =====
+let dataSince = null; // t0 le plus ancien chargé localement (I54)
+let dataUntil = null; // t0 le plus récent chargé localement (I54)
+let fetchingWin = false;
+
+async function fetchWindow() { // I54 : fenêtre ?since= dynamique — le limit fixe ne suffit pas au zoom
+  if (!tlMode || !tlScale || fetchingWin) return;
+  const lo = tlScale.minT - 300, hi = tlScale.minT + tlScale.span + 300;
+  if ((dataSince === null || lo >= dataSince) && (dataUntil === null || hi <= dataUntil)) return;
+  fetchingWin = true;
+  try {
+    const sinceT = dataSince !== null ? Math.min(dataSince, Math.floor(lo)) : Math.floor(lo);
+    const got = await fetchJson(`/api/events?since=${sinceT}&limit=20000`);
+    if (!got || !Array.isArray(got)) return;
+    const map = new Map();
+    (eventsData || []).forEach((e) => { if (e.id !== undefined) map.set(e.id, e); });
+    got.forEach((e) => { if (e.id !== undefined) map.set(e.id, e); }); // merge/dédup par id
+    eventsData = Array.from(map.values());
+    const t0s = eventsData.map((e) => e.t0);
+    dataSince = t0s.length ? Math.min.apply(null, t0s) : null;
+    dataUntil = t0s.length ? Math.max.apply(null, t0s) : null;
+  } finally { fetchingWin = false; }
+}
+
+function refreshWindowed() { // I54 : vue zoomée → fetch de la fenêtre puis dessin
+  if (tlMode) return Promise.resolve().then(fetchWindow).then(() => drawTimelineFull());
+  drawTimelineFull();
+}
+
+function panFreqBy(dyPx, curLo, curHi) { // I54 : décale l'axe fréquence (ΔHz issu de Δpx)
+  const dhz = -(dyPx / (TL_CKVH - 40)) * (curHi - curLo);
+  let nLo = curLo + dhz, nHi = curHi + dhz;
+  if (nLo < 0) { nHi -= nLo; nLo = 0; }
+  if (nHi > FREQ_MAX) { nLo -= nHi - FREQ_MAX; nHi = FREQ_MAX; }
+  freqView = (nLo > 1e-9 || nHi < FREQ_MAX - 1e-9) ? {fLo: nLo, fHi: nHi} : null;
+}
+
+function updateZoomBadge() { // I54 : badge si des vues libres ; clic dessus = reset
+  const b = document.getElementById('zoomBadge');
+  if (!b) return;
+  if (!tlMode && !freqView) { b.style.display = 'none'; return; }
+  const ts = tlScale ? new Date(tlScale.minT * 1000).toISOString().slice(5, 16).replace('T', ' ') : '';
+  const dh = tlScale ? (tlScale.span / 3600).toFixed(1) : '0.0';
+  const f = freqView ? freqView.fLo.toFixed(1) + '-' + freqView.fHi.toFixed(1) : '0-' + FREQ_MAX;
+  b.textContent = '⌕ zoom · f ' + f + ' Hz · t ' + ts + ' → +' + dh + ' h — clic pour réinitialiser';
+  b.style.display = 'inline';
+}
+
+function resetFviews() { // I54 : double-clic / Échap / badge → vues par défaut (X + Y)
+  if (!tlMode && !freqView) return;
+  tlMode = null; freqView = null;
+  syncTlButtons(); updateZoomBadge(); drawTimelineFull();
+}
+
+(function () { // I54 : Ctrl+glisser vertical = translate axe fréquence uniquement
+  const cv = document.getElementById('timelineCanvas');
+  if (!cv) return;
+  let startY = null, startFB = null;
+  cv.addEventListener('mousedown', (e) => { if (!e.ctrlKey || e.button !== 0) return; startY = e.clientY; startFB = freqBounds(); });
+  document.addEventListener('mousemove', (e) => {
+    if (startY === null || !startFB) return;
+    panFreqBy(e.clientY - startY, startFB[0], startFB[1]);
+    drawTimelineFull();
+  });
+  document.addEventListener('mouseup', () => { if (startY !== null) { startY = null; startFB = null; updateZoomBadge(); } });
+})();
+
 async function refreshAll() {
   const [stats, events, clusters] = await Promise.all([
     fetchJson('/api/stats'),
@@ -244,6 +312,11 @@ async function refreshAll() {
 
   if (events) {
     eventsData = events;
+    { // I54 : bornes des données chargées, déclenche fetchWindow() si besoin
+      const t0s = events.map((e) => e.t0);
+      dataSince = t0s.length ? Math.min.apply(null, t0s) : null;
+      dataUntil = t0s.length ? Math.max.apply(null, t0s) : null;
+    }
     const visible = filterEvents(events); // filtres rapides I41 + légal
     renderEventsTable(visible);
     drawTimeline(visible);
@@ -292,7 +365,15 @@ function renderEventsTable(events) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8;">Aucun événement enregistré.</td></tr>';
     return;
   }
-  tbody.innerHTML = events.map(e => {
+  const MAX_ROWS = 500; // I54 : plafond de lignes affichées dans le tableau
+  let html = events.slice(0, MAX_ROWS).map((e) => renderTableRow(e)).join('');
+  if (events.length > MAX_ROWS) {
+    html += `<tr><td colspan="6" style="text-align:center; color:#94a3b8;">… + ${events.length - MAX_ROWS} événement(s) — filtrez ou zoomez pour restreindre</td></tr>`;
+  }
+  tbody.innerHTML = html;
+}
+
+function renderTableRow(e) { // I54 : une ligne d'événement (plafond 500 lignes affichées)
     let chBadge = '<span class="badge badge-ch-l">IN1 (Air)</span>';
     if (e.lvl_d > e.lvl_g + 2) chBadge = '<span class="badge badge-ch-r">IN2 (Struct)</span>';
     else if (Math.abs(e.lvl_g - e.lvl_d) <= 2) chBadge = '<span class="badge badge-ch-b">Les 2</span>';
@@ -306,7 +387,6 @@ function renderEventsTable(events) {
       <td>${e.dur.toFixed(1)} s</td>
       <td><span class="badge badge-cluster" style="background:${getClusterColor(e.cluster)}22; color:${getClusterColor(e.cluster)}">#${e.cluster || '-'}</span></td>
     </tr>`;
-  }).join('');
 }
 
 function renderClustersTable(clusters) {
@@ -520,7 +600,7 @@ function axZoom(ev) { // I54 : molette = zoom/dézoom sur les 2 axes, ancré au 
   // ---- Axe X : ancrage = temps sous le curseur ; span ∈ [10 s, étendue des données visibles]
   const anchorT = yToAnchorTime(mx);
   zoomTimeAt(mx, k);
-  drawTimelineFull();
+  refreshWindowed(); // I54 : fenêtre ?since= si la vue s'étend avant les données chargées
 }
 function yToAnchorTime(mx) { // temps (s) sous l'abscisse mx de la plage active — pour log/reset
   return tlScale ? tlScale.minT + ((mx - 40) / (TL_CKWW - 50)) * tlScale.span : null;
@@ -541,6 +621,7 @@ function zoomTimeAt(mx, k) { // zoom temps ancré au curseur ; bornes [10 s, max
   syncTlButtons();
 }
 function drawTimeline(events) {
+  updateZoomBadge(); // I54 : badge toujours en phase avec les vues courantes
 
   const canvas = document.getElementById('timelineCanvas');
   const ctx = canvas.getContext('2d');
@@ -704,13 +785,11 @@ function drawTimeline(events) {
       if (t1 - t0 >= 60) { tlMode = {minT: t0, span: Math.max(120, (t1 - t0) * 1.1)}; syncTlButtons(); }
     }
     tlBrushPx = null;
-    drawTimelineFull();
+    refreshWindowed(); // I54 : fenêtre dynamique si le zoom brushing est actif
   });
-  canvas.addEventListener('dblclick', () => { // double-clic : retour à la fenêtre de boutons
-    if (tlMode) { tlMode = null; syncTlButtons(); drawTimelineFull(); }
-  });
-  window.addEventListener('keydown', (e) => { // Échap : annule le zoom au pinceau
-    if (e.key === 'Escape' && tlMode) { tlMode = null; syncTlButtons(); drawTimelineFull(); }
+  canvas.addEventListener('dblclick', resetFviews); // I54 : double-clic réinitialise X + Y
+  window.addEventListener('keydown', (e) => { // Échap : réinitialise les vues I54
+    if (e.key === 'Escape') resetFviews();
   });
 })();
 

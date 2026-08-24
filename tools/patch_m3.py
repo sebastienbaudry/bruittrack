@@ -106,12 +106,12 @@ rep("""    tlBrushPx = null;
     """    tlBrushPx = null;
     refreshWindowed(); // I54 : fenêtre dynamique si le zoom brushing est actif""")
 
-rep("""  canvas.addEventListener('dblclick', () => { // double-clic : retour à la fenêtre boutons
+rep("""  canvas.addEventListener('dblclick', () => { // double-clic : retour à la fenêtre de boutons
     if (tlMode) { tlMode = null; syncTlButtons(); drawTimelineFull(); }
   });""",
     """  canvas.addEventListener('dblclick', resetFviews); // I54 : double-clic réinitialise X + Y""")
 
-rep("""  window.addEventListener('keydown', (e) => { // Échap : annule le zoom brushing
+rep("""  window.addEventListener('keydown', (e) => { // Échap : annule le zoom au pinceau
     if (e.key === 'Escape' && tlMode) { tlMode = null; syncTlButtons(); drawTimelineFull(); }
   });""",
     """  window.addEventListener('keydown', (e) => { // Échap : réinitialise les vues I54
@@ -166,9 +166,9 @@ new_table_tail = r"""    return `<tr data-ev-id="${e.id}"${e.id === selectedEvId
 new_table = new_table + new_table_tail
 rep(old_tbl, new_table)
 
-rep("""        <span class="evt-tip" id="freqTip">Fréq. : ≈ XX.X Hz</span>""",
-    """        <span class="evt-tip" id="freqTip">Fréq. : ≈ XX.X Hz</span>
-        <span id="zoomBadge" onclick="resetFviews()" style="display:none; cursor:pointer; color:#94a3b8; font-size:12px;"></span>""")
+rep("""    <span id=\"freqTip\" title=\"I49 : fréquence sous le curseur\" style=\"font-family:monospace; font-size:12px; color:#93c5fd; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>""",
+    """    <span id=\"freqTip\" title=\"I49 : fréquence sous le curseur\" style=\"font-family:monospace; font-size:12px; color:#93c5fd; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
+    <span id=\"zoomBadge\" onclick=\"resetFviews()\" title=\"I54 : reset zoom X+Y (double-clic ou Échap)\" style=\"display:none; cursor:pointer; color:#94a3b8; font-size:12px;"></span>""")
 
 open(p, 'w', encoding='utf-8', newline='\r\n').write(s)
 print('all M3 edits applied')
