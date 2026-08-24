@@ -105,3 +105,12 @@ Commit par etape: `git add -A && git commit -m "..."`.
 - Coherence : 539 flags exemplaire =\u003c=> 539 fichiers ex_*.raw ; sans file orpheline / tmp residue
 - Services redemarres (bruittrack.service PID recent, viz port 8760) ; /api/health ok ; API /events correct
 - Note : events continues d'entrer en live avec les nouveaux numéros de cluster (id ~1897+)
+
+## OBJECTIF SUIVANT : tolerance 0.5 Hz -> 2 Hz + deploiement + re-clustering bis
+- A faire : defaut config.py, events.py (param detecteur), config.toml.example -> 2.0 Hz ; tests -> vert ; ruff
+- Build wheel + deploy pi-t620 (pip -U, config.toml = 2.0), restart des services
+- Re-execution scripts/recluster.py sur le parc (attendu : regroupement, moins de clusters que 623)
+- Entry decision-log (I45) : defaut passe a 2.0 Hz -> max_bin_delta = 4 bins
+
+## Loop graph-readability (I46)
+- [x] Axe Y dynamique: __FREQ_MAX__/__MIN_EVENT_HZ__ injectes dans do_GET depuis config.dsp ; echelle/graduations/netteté HiDPI (dpr backing store, half-pixel, font 12px) ; 2 nouveaux tests injection (15 defaut / 200 custom)
