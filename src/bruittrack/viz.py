@@ -319,10 +319,7 @@ async function refreshAll() {
       dataSince = t0s.length ? Math.min.apply(null, t0s) : null;
       dataUntil = t0s.length ? Math.max.apply(null, t0s) : null;
     }
-    const visible = filterEvents(events); // filtres rapides I41 + légal
-    renderEventsTable(visible);
-    drawTimeline(visible);
-  }
+  } // I58 : rendu unifie plus bas — drawTimelineFull() synchronise graphe ET tableau
 
   if (clusters) {
     clustersData = clusters;
@@ -350,9 +347,7 @@ function filterEvents(list) {
 }
 
 function applyFilters() {
-  const visible = filterEvents(eventsData);
-  renderEventsTable(visible);
-  drawTimeline(visible);
+  drawTimelineFull(); // I58 : filtres → graphe + tableau synchronisés
 }
 
 function fillClusterFilter(clusters) {
@@ -450,7 +445,15 @@ function selectEv(id) {
   drawTimelineFull(); // retrace le scatter + anneau de sélection
 }
 
-function drawTimelineFull() { return drawTimeline(lastVisible.length ? lastVisible : eventsData); }
+// I58 : SYNCHRONISATION graphe <-> tableau — lastVisible (dernier rendu du graphe) devient la source unique
+function syncEventsToTable() {
+  const rows = Array.prototype.slice.call(lastVisible).sort((a, b) => b.t0 - a.t0);
+  renderEventsTable(rows);
+}
+function drawTimelineFull() {
+  drawTimeline(filterEvents(lastVisible.length ? lastVisible : eventsData));
+  syncEventsToTable();
+}
 
 function setTimeWin(seconds) {
   timeWindow = seconds;
@@ -497,7 +500,7 @@ function toggleChannel(idx) {
   if (idx === 0) showCh.l = !showCh.l; else showCh.d = !showCh.d;
   document.getElementById('toggleChG').style.opacity = showCh.l ? '1' : '.4';
   document.getElementById('toggleChD').style.opacity = showCh.d ? '1' : '.4';
-  drawTimeline(eventsData);
+  drawTimelineFull(); // I58 : toggle de canal → graphe + tableau synchronisés
 }
 
 function hideEvtTip() {
@@ -616,7 +619,7 @@ function zoomTimeAt(mx, k) { // zoom temps ancré au curseur ; bornes [10 s, max
   let hiSpan = 90 * 86400; // 90 jours maximum
   if (lastVisible.length >= 2) {
     let tMin = Infinity, tMax = -Infinity;
-    for (const p of lastVisible) { if (p.ev.t0 < tMin) tMin = p.ev.t0; if (p.ev.t0 > tMax) tMax = p.ev.t0; }
+    for (const p of lastVisible) { if (p.t0 < tMin) tMin = p.t0; if (p.t0 > tMax) tMax = p.t0; } // lastVisible = événements bruts (cf. drawTimeline L634)
     hiSpan = Math.min(hiSpan, Math.max(tMax - tMin, 3600));
   }
   let span = Math.max(loSpan, Math.min(hiSpan, tlScale.span * k));
@@ -698,12 +701,21 @@ function drawTimeline(events) {
     minT = minTAll; timeSpan = Math.max(3600, maxT - minT);
   }
   tlScale = {minT, span: timeSpan}; // conversion px→temps pour le zoom (I39)
-  const fvw = freqBounds(); // I54 : vue Y courante [fLo, fHi] (renomme — const dup dans drawTimeline)
+  const fvw = freqBounds(); // I54 : vue Y courante [fLo, fHi]
   tlLastEvts = evs;
+  // I58 SELECTION UNIQUE : le graphe et le tableau affichent strictement le meme ensemble (temps ∩ freqView ∩ canaux)
+  const chOk = (e) => {
+    const onL = !(e.lvl_d > e.lvl_g + 2), onD = !(e.lvl_g > e.lvl_d + 2);
+    return (showCh.l && onL) || (showCh.d && onD);
+  };
+  lastVisible = evs.filter(e =>
+    e.t0 >= minT - 1e-9 && e.t0 <= minT + timeSpan + 1e-9 &&
+    e.freq >= fvw[0] && e.freq <= fvw[1] && chOk(e));
+  const visId = new Set(lastVisible.map(e => e.id));
   drawTimeTicks(ctx, w, h, minT, timeSpan);
 
   evs.forEach(e => {
-    if (e.freq < fvw[0] || e.freq > fvw[1]) return; // hors bande visible (vue Y zoomée, I54)
+    if (!visId.has(e.id)) return; // I58 : seul le set synchronise avec le tableau est dessine
     const x = 40 + ((e.t0 - minT) / timeSpan) * (w - 50);
     const y = yOfFreq(e.freq);
 
