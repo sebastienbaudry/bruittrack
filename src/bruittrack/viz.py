@@ -146,6 +146,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <button id="winBtnTout" class="btn btn-sm" onclick="setTimeWin(null,this)">Tout</button>
     <span style="opacity:.4; font-size:12px; font-family:monospace">glisser = zoom temps · double-clic / Échap = réinit</span>
     <span id="evtTip" style="font-family:monospace; font-size:12px; color:#e2e8f0; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
+    <span id="freqTip" title="I49 : fréquence sous le curseur" style="font-family:monospace; font-size:12px; color:#93c5fd; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
   </div>
   <canvas id="timelineCanvas" width="1000" height="260"></canvas>
 </div>
@@ -412,7 +413,10 @@ function toggleChannel(idx) {
   drawTimeline(eventsData);
 }
 
-function hideEvtTip() { document.getElementById('evtTip').style.display = 'none'; }
+function hideEvtTip() {
+  document.getElementById('evtTip').style.display = 'none';
+  const ft = document.getElementById('freqTip'); if (ft) ft.style.display = 'none';
+}
 
 // Click/hover sur marker → tooltip bin_i + freq + lvl_g/d (acceptance IMPROVEMENTS)
 (function attachTips() {
@@ -424,6 +428,16 @@ function hideEvtTip() { document.getElementById('evtTip').style.display = 'none'
     // via setTransform dans drawTimeline), donc mapping direct client→logique.
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
+
+    // I49 : repère de fréquence exact sous le curseur (lecture directe de l'échelle, sans zoom)
+    const ft = document.getElementById('freqTip');
+    const hCSS = TL_CSS_H;
+    if (mx >= 40 && mx <= TL_CKWW - 10 && my >= 20 && my <= hCSS - 20) {
+      const fUnder = Math.max(0, Math.min(FREQ_MAX, ((hCSS - 20 - my) / (hCSS - 40)) * FREQ_MAX));
+      ft.textContent = '≈ ' + fUnder.toFixed(1) + ' Hz';
+      ft.style.display = 'inline';
+    } else { ft.style.display = 'none'; }
+
     let best = null, bd = 10 * 10; // rayon 10 px
     for (const p of timelinePoints) {
       const dx = p.x - mx, dy = p.y - my;

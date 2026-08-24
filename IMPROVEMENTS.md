@@ -124,6 +124,6 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I48** Aides visuelles du chronogramme : grille verticale temps (lignes claires aux graduations) + message vide "Aucun événement" centré quand aucun point.
       Fichier : src/bruittrack/viz.py (drawTimeline/drawTimeTicks).
       OK quand : HTML servi contient les 2 ajouts (grep verticalGrid / noEventsHint dans viz.py) et `bash tools/check.sh` verte.
-- [ ] **I49** Tooltip des graduations Y : le survol de l'axe fréquent montre la fréquence exacte sous le curseur (net + orientable sans zoom).
+- [x] **I49** Tooltip des graduations Y : le survol de l'axe fréquent montre la fréquence exacte sous le curseur (net + orientable sans zoom).
       Fichier : src/bruittrack/viz.py (mousemove existant : ajouter ligne freq sous curseur).
       OK quand : le handler mousemove expose `freqUnder` sur le tooltip et check.sh verte.
