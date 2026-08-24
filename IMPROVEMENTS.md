@@ -121,7 +121,7 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 - [x] **I47** Échelle temps net : font 10→12px et graduations half-pixel alignées (rendering HiDPI cohérent avec le reste du graphe).
       Fichier : src/bruittrack/viz.py (drawTimeTicks).
       OK quand : drawTimeTicks en font 12px et tick X alignées à Math.round(x)+0.5 ; check.sh verte.
-- [ ] **I48** Aides visuelles du chronogramme : grille verticale temps (lignes claires aux graduations) + message vide "Aucun événement" centré quand aucun point.
+- [x] **I48** Aides visuelles du chronogramme : grille verticale temps (lignes claires aux graduations) + message vide "Aucun événement" centré quand aucun point.
       Fichier : src/bruittrack/viz.py (drawTimeline/drawTimeTicks).
       OK quand : HTML servi contient les 2 ajouts (grep verticalGrid / noEventsHint dans viz.py) et `bash tools/check.sh` verte.
 - [ ] **I49** Tooltip des graduations Y : le survol de l'axe fréquent montre la fréquence exacte sous le curseur (net + orientable sans zoom).

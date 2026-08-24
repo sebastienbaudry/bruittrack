@@ -395,6 +395,9 @@ function drawTimeTicks(ctx, w, h, minT, span) {
     const x = x0 + ((t - minT) / span) * (x1 - x0);
     if (x > x1) break;
     const xt = Math.round(x) + 0.5;   // graduation alignée half-pixel : net en HiDPI comme en QVGA
+    ctx.strokeStyle = '#1e293b';      // I48 : grille verticale temps (alignée, subtile)
+    sharpLine(ctx, xt, 20, xt, h - 20);
+    ctx.strokeStyle = '#334155';
     ctx.beginPath(); ctx.moveTo(xt, h); ctx.lineTo(xt, h - 5); ctx.stroke();
     const d = new Date(t * 1000);
     ctx.fillText(d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }), x, h - 9);
@@ -509,16 +512,20 @@ function drawTimeline(events) {
     ctx.textAlign = 'left';
   }
 
-  if (!events || events.length === 0) return;
+  if (!events || events.length === 0) { lastVisible = []; } // état vide affiché au centre (I48)
+
+  const evs = Array.isArray(events) ? events : [];
 
   const now = Date.now() / 1000;
   let timeSpan, minT;
-  if (tlMode) { // zoom par brushing : plage fixe choisie par l'utilisateur (I39)
+  if (evs.length === 0) { // I48 : graphe vide → horizon 6 h + message centré (évite Math.min sur liste vide)
+    timeSpan = 21600; minT = now - timeSpan;
+  } else if (tlMode) { // zoom par brushing : plage fixe choisie par l'utilisateur (I39)
     timeSpan = tlMode.span; minT = tlMode.minT;
   } else if (timeWindow) { // fenêtre glissante 1h/6h/24h
     timeSpan = timeWindow; minT = now - timeWindow;
   } else { // Tout : plage recouvrant tous les événements + horizon présent
-    const ts = events.map(e => e.t0);
+    const ts = evs.map(e => e.t0);
     const maxT = Math.max(now, ...ts);
     const minTAll = Math.min(...ts);
     minT = minTAll; timeSpan = Math.max(3600, maxT - minT);
@@ -526,7 +533,7 @@ function drawTimeline(events) {
   tlScale = {minT, span: timeSpan}; // conversion px→temps pour le zoom (I39)
   drawTimeTicks(ctx, w, h, minT, timeSpan);
 
-  events.forEach(e => {
+  evs.forEach(e => {
     if (e.freq < 0 || e.freq > FREQ_MAX) return; // hors bande du graphique
     const x = 40 + ((e.t0 - minT) / timeSpan) * (w - 50);
     const y = yOfFreq(e.freq);
@@ -574,6 +581,13 @@ function drawTimeline(events) {
       ctx.lineWidth = 1;
       ctx.strokeRect(Math.round(bx0) + 0.5, 20.5, Math.round(bx1 - bx0), h - 41);
     }
+  }
+  if (timelinePoints.length === 0) { // I48 : état vide lisible au centre du graphe
+    ctx.fillStyle = '#64748b';
+    ctx.font = '13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Aucun événement visible sur la plage affichée', w / 2, h / 2 - 10);
+    ctx.textAlign = 'left';
   }
 }
 
