@@ -832,6 +832,13 @@ function specColor(t) { // noir -> bleu -> cyan -> jaune
   const k = t * 3 - 2; return 'rgb(' + Math.round(78 + k * 177) + ',' + Math.round(182 + k * 73) + ',' + Math.round(248 - k * 184) + ')';
 }
 
+// Cache du rendu heatmap : le redraw de survol de la timeline (rAF par mousemove)
+// appelle drawSpecPanel à chaque frame — décoder des milliers de blobs + retracer
+// ~500k rects par frame rendait le tooltip d'événement inutilisable (I63e).
+// Cellules peintes UNE fois hors-écran, blittées en 1 drawImage tant que
+// (vue, données, canaux, dpr) ne changent pas ; seuls labels/dash redessinent.
+let specCache = { key: null, cv: null };
+
 function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale (même axe X)
   const cv = document.getElementById('specCanvas');
   if (!cv || !SPEC.enabled || !tlScale) return;
@@ -845,19 +852,29 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
   const ctx = cv.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, wCss, hCss);
-  ctx.fillStyle = '#080c12'; ctx.fillRect(0, 0, wCss, hCss);
 
   const minT = tlScale.minT, span = tlScale.span;
-  const x0 = 40, x1 = wCss - 10;
-  const logLo = Math.log(MIN_EVENT_HZ), logHi = Math.log(FREQ_MAX);
-  const yOfHz = (f) => 4 + (logHi - Math.log(Math.max(f, MIN_EVENT_HZ))) / (logHi - logLo) * (hCss - 8);
+  const lastT = specRows.length ? specRows[specRows.length - 1].t0 : 0;
+  const key = [minT, span, wCss, hCss, dpr, specRows.length, lastT, showCh.l, showCh.d].join('|');
 
-  if (!specRows.length) { // état vide
-    ctx.fillStyle = '#64748b'; ctx.font = '12px monospace'; ctx.textAlign = 'center';
-    ctx.fillText("Pas encore d'historique spectre", wCss / 2, hCss / 2);
-    ctx.textAlign = 'left';
-  }
+  if (specCache.key !== key) { // recompute complet UNIQUEMENT sur changement réel
+    if (!specCache.cv) specCache.cv = document.createElement('canvas');
+    const off = specCache.cv;
+    if (off.width !== bw || off.height !== bh) { off.width = bw; off.height = bh; }
+    const octx = off.getContext('2d');
+    octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    octx.clearRect(0, 0, wCss, hCss);
+    octx.fillStyle = '#080c12'; octx.fillRect(0, 0, wCss, hCss);
+
+    const x0 = 40, x1 = wCss - 10;
+    const logLo = Math.log(MIN_EVENT_HZ), logHi = Math.log(FREQ_MAX);
+    const yOfHz = (f) => 4 + (logHi - Math.log(Math.max(f, MIN_EVENT_HZ))) / (logHi - logLo) * (hCss - 8);
+
+    if (!specRows.length) { // état vide
+      octx.fillStyle = '#64748b'; octx.font = '12px monospace'; octx.textAlign = 'center';
+      octx.fillText("Pas encore d'historique spectre", wCss / 2, hCss / 2);
+      octx.textAlign = 'left';
+    }
 
   const qOf = (raw, b) => { // max des canaux visibles pour la bande b
     if (showCh.l && showCh.d) return Math.max(raw.charCodeAt(b * 4 + 1), raw.charCodeAt(b * 4 + 3));
@@ -873,7 +890,7 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   for (const r of specRows) {
     const tEnd = r.t0 + r.dur;
     if (tEnd < minT || r.t0 > minT + span) continue;
-    r._raw = atob(r.data);
+    if (!r._raw) r._raw = atob(r.data); // décodage mémoïsé par ligne
     vis.push(r);
     for (let b = 0; b < r.n_bands; b++) { const q = qOf(r._raw, b); if (q > 0) qsPerBand[b].push(q); }
   }
@@ -886,6 +903,10 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
     return [lo, hi];
   });
 
+  // Bords Y précalculés (indépendants des données)
+  const yEdges = [];
+  for (let b = 0; b <= SPEC.bands; b++) yEdges.push(Math.round(yOfHz(specBandEdge(b))));
+
   for (const r of vis) {
     const tEnd = r.t0 + r.dur;
     let xa = Math.max(x0, x0 + ((r.t0 - minT) / span) * (x1 - x0));
@@ -894,21 +915,26 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
     const colW = Math.max(1, xb - xa);
     for (let b = 0; b < r.n_bands; b++) {
       const q = qOf(r._raw, b);
-      // Axe Y log inversé : y(edge_b) > y(edge_{b+1}) → rect de min(y) à max(y).
-      // (I63d : max(1, yB−yT) avec yB<yT peignait 1 px au bord bas de la bande,
-      //  le reste restant noir — d'où les « 23 lignes » fines.)
-      const yA = Math.round(yOfHz(specBandEdge(b))), yC = Math.round(yOfHz(specBandEdge(b + 1)));
-      const yT = Math.min(yA, yC), hh = Math.max(1, Math.abs(yC - yA));
+      const yT = Math.min(yEdges[b], yEdges[b + 1]), hh = Math.max(1, Math.abs(yEdges[b + 1] - yEdges[b]));
       const rng = bandRange[b];
       // Bande sans donnée ou plate : teinte neutre discrète (pas de faux signal)
       const t = !rng ? 0 : Math.max(0, Math.min(1, (q - rng[0]) / (rng[1] - rng[0])));
-      ctx.fillStyle = specColor(t);
-      ctx.fillRect(xa, yT, colW, hh);
+      octx.fillStyle = specColor(t);
+      octx.fillRect(xa, yT, colW, hh);
     }
   }
+  specCache.key = key;
+  }
+
+  // Blit 1:1 du cache + habillage léger (labels, dash) à chaque frame
+  ctx.clearRect(0, 0, wCss, hCss);
+  ctx.drawImage(specCache.cv, 0, 0, wCss, hCss);
+
+  const logLo2 = Math.log(MIN_EVENT_HZ), logHi2 = Math.log(FREQ_MAX);
+  const yOfHz2 = (f) => 4 + (logHi2 - Math.log(Math.max(f, MIN_EVENT_HZ))) / (logHi2 - logLo2) * (hCss - 8);
 
   // Limite f_min (même repère pointillé que la timeline) — au-dessus des cellules
-  const yMin = Math.round(yOfHz(MIN_EVENT_HZ));
+  const yMin = Math.round(yOfHz2(MIN_EVENT_HZ));
   ctx.strokeStyle = 'rgba(245,158,11,.5)';
   ctx.setLineDash([4, 4]);
   ctx.beginPath(); ctx.moveTo(40, yMin + 0.5); ctx.lineTo(wCss - 10, yMin + 0.5); ctx.stroke();
@@ -917,7 +943,7 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   // Étiquettes Hz (échelle log) — y borné au canvas (le label 2 Hz tombait hors cadre)
   ctx.fillStyle = '#94a3b8'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
   for (const f of [FREQ_MAX, 50, 20, 10, MIN_EVENT_HZ]) {
-    if (f >= MIN_EVENT_HZ && f <= FREQ_MAX) ctx.fillText(f + ' Hz', 36, Math.min(hCss - 2, yOfHz(f) + 4));
+    if (f >= MIN_EVENT_HZ && f <= FREQ_MAX) ctx.fillText(f + ' Hz', 36, Math.min(hCss - 2, yOfHz2(f) + 4));
   }
   ctx.textAlign = 'left';
 }
