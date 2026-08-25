@@ -360,3 +360,16 @@ def test_player_html_gated_by_config(tmp_path, record_exemplars, want_player):
     assert ("EXEMPLARS_ENABLED = " + ("true" if want_player else "false")) in body
     assert "EXEMPLARS_ENABLED ?" in body  # gating runtime du player/cellule
     assert 'id="audioTh"' in body  # colonne Audio retirée côté client si désactivée
+
+
+def test_i64c_spectrogram_linear_scale_in_dashboard() -> None:
+    """I64c : le spectre et l'axe Y du temps réel sont en échelle linéaire."""
+    from bruittrack.viz import HTML_DASHBOARD
+
+    # Bandes linéaires côté client (formule identique au serveur)
+    assert "MIN_EVENT_HZ + (FREQ_MAX - MIN_EVENT_HZ) * (i / SPEC.bands)" in HTML_DASHBOARD
+    # Pas de résidu d'espacement log (bordes) ni d'axe log (yOfHz/yOfHz2)
+    assert "Math.pow(FREQ_MAX / MIN_EVENT_HZ" not in HTML_DASHBOARD
+    assert "logLo" not in HTML_DASHBOARD and "logHi" not in HTML_DASHBOARD
+    # Ticks Hz sur pas « nice » (remplace les étiquettes log fixes)
+    assert "niceHzStep((FREQ_MAX - MIN_EVENT_HZ) / 4)" in HTML_DASHBOARD
