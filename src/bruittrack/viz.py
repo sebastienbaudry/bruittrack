@@ -217,10 +217,10 @@ async function fetchJson(url) {
   }
 }
 
-function formatDate(unixSec) {
+function formatDate(unixSec) { // I62 : horodatage Paris 24 h explicite (l'heure machine cliente peut être en 12 h / autre fuseau)
   if (!unixSec) return "--";
   const d = new Date(unixSec * 1000);
-  return d.toLocaleTimeString() + " " + d.toLocaleDateString();
+  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: TZ_VIZ }) + " " + d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: TZ_VIZ });
 }
 
 function getClusterColor(clusterId) {
@@ -275,7 +275,7 @@ function updateZoomBadge() { // I54 : badge si des vues libres ; clic dessus = r
   const b = document.getElementById('zoomBadge');
   if (!b) return;
   if (!tlMode && !freqView) { b.style.display = 'none'; return; }
-  const ts = tlScale ? new Date(tlScale.minT * 1000).toISOString().slice(5, 16).replace('T', ' ') : '';
+  const ts = tlScale ? new Date(tlScale.minT * 1000).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: TZ_VIZ }) : '';
   const dh = tlScale ? (tlScale.span / 3600).toFixed(1) : '0.0';
   const f = freqView ? freqView.fLo.toFixed(1) + '-' + freqView.fHi.toFixed(1) : '0-' + FREQ_MAX;
   b.textContent = '⌕ zoom · f ' + f + ' Hz · t ' + ts + ' → +' + dh + ' h — clic pour réinitialiser';
@@ -474,18 +474,36 @@ function syncTlButtons() {
   document.getElementById(active).classList.add('btn-active');
 }
 
+const TZ_VIZ = 'Europe/Paris'; // I62 : fuseau horaire d'affichage (échelle X + badge), indépendant de la machine cliente
+
+function parisMidnightBefore(tSec) { // UTC (s) du dernier minuit de Paris ≤ tSec (sans dépendance)
+  const p = new Date(tSec * 1000).toLocaleString('sv-SE', { timeZone: TZ_VIZ }); // "AAAA-MM-JJ HH:MM:SS"
+  const secs = Number(p.slice(11, 13)) * 3600 + Number(p.slice(14, 16)) * 60 + Number(p.slice(17, 19));
+  return Math.round(tSec) - secs; // I62b : instant UTC du minuit local = t - temps de mur écoulé depuis ce minuit
+}
+
 function drawTimeTicks(ctx, w, h, minT, span) {
   // graduation axe X horodatée ; pas adaptatif pour ~90 px entre marqueurs
-  const steps = [900, 1800, 3600, 7200, 21600, 144000];
+  let lastTickDay = null; // I62 : jour courant pour l'étiquette date
+  const steps = [900, 1800, 3600, 7200, 21600, 86400]; // I62 : 144000 (40 h !) -> 86400 (24 h)
   let step = span / Math.max(3, Math.floor((w - 50) / 90));
   for (const s of steps) { if (step <= s) { step = s; break; } }
-  if (step > span) step = Math.min(144000, Math.max(900, span / 4));
+  if (step > span) step = Math.min(86400, Math.max(900, span / 4));
   const x0 = 40, x1 = w - 10;
   ctx.strokeStyle = '#334155';
   ctx.fillStyle = '#64748b';
   ctx.font = '12px monospace';
   ctx.textAlign = 'center';
-  for (let t = Math.ceil(minT / step) * step; t <= minT + span; t += step) {
+  // I62 : pas ≥ 6 h ancré sur minuit PARIS (sinon multiples UTC -> changement de jour à 02:00 à l'écran)
+  let t;
+  if (step >= 21600) {
+    const m0 = parisMidnightBefore(minT);
+    t = m0 + Math.ceil((minT - m0) / step) * step;
+    if (t === m0 && minT > m0) t = m0 + step; // crant strictement dans la fenêtre
+  } else {
+    t = Math.ceil(minT / step) * step;
+  }
+  for (; t <= minT + span; t += step) {
     const x = x0 + ((t - minT) / span) * (x1 - x0);
     if (x > x1) break;
     const xt = Math.round(x) + 0.5;   // graduation alignée half-pixel : net en HiDPI comme en QVGA
@@ -494,7 +512,18 @@ function drawTimeTicks(ctx, w, h, minT, span) {
     ctx.strokeStyle = '#334155';
     ctx.beginPath(); ctx.moveTo(xt, h); ctx.lineTo(xt, h - 5); ctx.stroke();
     const d = new Date(t * 1000);
-    ctx.fillText(d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }), x, h - 9);
+    // I62 : heure de PARIS (l'ancien timeZone:'UTC' décalait l'échelle) + jour affiché
+    // dès que le jour calendaire du crant change (étiquette 2 lignes : date au-dessus)
+    const day = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', timeZone: TZ_VIZ });
+    if (day !== lastTickDay) {
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px monospace';
+      ctx.fillText(day, x, h - 21);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '12px monospace';
+      lastTickDay = day;
+    }
+    ctx.fillText(d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: TZ_VIZ }), x, h - 9);
   }
   ctx.textAlign = 'left';
 }
