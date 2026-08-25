@@ -349,7 +349,10 @@ class SpectrumAggregator:
         np.maximum(acc_max, vals, out=acc_max, where=valid)
 
     def _quantize(self, arr: np.ndarray) -> np.ndarray:
-        q = np.round((arr - self.db_min) / self.db_range * 255.0)
+        # Bandes sans bin (±inf) -> q=0 : jamais d'artefact de saturation
+        q = np.full(arr.shape, 0.0)
+        finite = np.isfinite(arr)
+        q[finite] = np.round((arr[finite] - self.db_min) / self.db_range * 255.0)
         return np.clip(q, 0, 255).astype(np.uint8)
 
     def update(

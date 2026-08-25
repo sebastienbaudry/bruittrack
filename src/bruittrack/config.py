@@ -65,8 +65,8 @@ class SpectrumConfig:
     enabled: bool = True
     interval_s: float = 60.0
     n_bands: int = 24
-    db_min: float = -140.0
-    db_range: float = 160.0
+    db_min: float = -60.0
+    db_range: float = 120.0
     retention_days: int | None = None
 
 
@@ -248,8 +248,8 @@ def load_config(config_path: str | Path | None = None) -> Config:
         enabled=bool(spec_dict.get("enabled", True)),
         interval_s=float(spec_dict.get("interval_s", 60.0)),
         n_bands=int(spec_dict.get("n_bands", 24)),
-        db_min=float(spec_dict.get("db_min", -140.0)),
-        db_range=float(spec_dict.get("db_range", 160.0)),
+        db_min=float(spec_dict.get("db_min", -60.0)),
+        db_range=float(spec_dict.get("db_range", 120.0)),
     )
     # retention_days: dataclass default None applies unless explicitly set
     if "retention_days" in spec_dict:

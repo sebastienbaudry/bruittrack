@@ -97,8 +97,8 @@ n_bands = 24
 
 # Fenêtre de quantification uint8 des niveaux PSD en dB :
 # q = clip(round((db - db_min) / db_range * 255), 0, 255)
-db_min = -140.0
-db_range = 160.0
+db_min = -60.0
+db_range = 120.0
 
 # Rétention dédiée de la table spectrum en jours (0 = infinie ; la table suit
 # sinon sa propre durée de conservation, indépendante des événements)

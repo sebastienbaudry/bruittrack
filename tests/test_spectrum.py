@@ -87,6 +87,21 @@ class TestSpectrumAggregator:
         ratios = e[1:] / e[:-1]
         assert np.allclose(ratios, ratios[0])  # progression géométrique constante
 
+    def test_empty_band_no_saturation_artifact(self):
+        """Bande sans bin (ex. sous la résolution FFT) → min=max=q=0, jamais 255."""
+        agg = SpectrumAggregator(_freqs(), n_bands=24, min_hz=2.0, max_hz=150.0)
+        psd = _flat_psd(-80.0)
+        t0 = 1_700_000_000.0
+        agg.update(t0, psd, psd)
+        _, _, blob = agg.update(t0 + 60.5, psd, psd)
+        arr = np.frombuffer(blob, dtype=np.uint8).reshape(agg.n_bands, 4)
+        edges = agg.band_edges()
+        fq = _freqs()
+        for b in range(agg.n_bands):
+            has_bin = ((fq >= edges[b]) & (fq <= edges[b + 1])).any()
+            if not has_bin:
+                assert arr[b, 0] == 0 and arr[b, 1] == 0, f"bande vide {b}: {arr[b]}"
+
     @pytest.mark.parametrize(
         "kwargs",
         [
