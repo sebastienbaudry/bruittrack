@@ -56,6 +56,7 @@ class StorageConfig:
     batch_size: int = 50
     batch_timeout_s: float = 30.0
     retention_days: int | None = 365
+    record_exemplars: bool = True
 
 
 @dataclass
@@ -236,6 +237,7 @@ def load_config(config_path: str | Path | None = None) -> Config:
         exemplars_dir=resolve_rel(store_dict.get("exemplars_dir", "exemplars")),
         batch_size=int(store_dict.get("batch_size", 50)),
         batch_timeout_s=float(store_dict.get("batch_timeout_s", 30.0)),
+        record_exemplars=bool(store_dict.get("record_exemplars", True)),
     )
     # retention_days: dataclass default 365 applies unless explicitly set
     if "retention_days" in store_dict:

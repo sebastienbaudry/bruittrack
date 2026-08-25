@@ -3,6 +3,7 @@
 import tempfile
 
 import numpy as np
+import pytest
 
 from bruittrack.events import (
     ClusterIndex,
@@ -172,6 +173,35 @@ def test_event_detector_debounce_and_emission() -> None:
         assert not det.is_active
 
 
+@pytest.mark.parametrize("record_exemplars", [True, False])
+def test_record_exemplars_toggle(tmp_path, record_exemplars: bool) -> None:
+    """record_exemplars=False : aucun fichier audio brut écrit, bit FLAG_EXEMPLAR absent."""
+    from bruittrack.events import FLAG_EXEMPLAR
+
+    det = EventDetector(
+        threshold_db=10.0,
+        hysteresis_db=3.0,
+        debounce_ticks=3,
+        max_duration_s=30.0,
+        exemplars_dir=tmp_path,
+        record_exemplars=record_exemplars,
+    )
+    audio_buf = np.zeros((512, 2), dtype=np.float32)
+    quiet = np.zeros(99, dtype=np.float32)
+    loud = np.zeros(99, dtype=np.float32)
+    loud[25] = 18.0
+    for _ in range(3):
+        det.update(loud, loud, audio_buf, off_ms=0.0, unix_time=1000.0)
+    ev = det.update(quiet, quiet, audio_buf, off_ms=0.0, unix_time=1000.3)[0]
+    ex_file = tmp_path / "ex_1.raw"
+    if record_exemplars:
+        assert ex_file.is_file()
+        assert bool(ev.flags & FLAG_EXEMPLAR)
+    else:
+        assert not ex_file.is_file(), "aucun fichier audio ne doit être écrit"
+        assert not bool(ev.flags & FLAG_EXEMPLAR)
+
+
 def test_event_detector_ignores_dc_bin() -> None:
     """A DC (bin 0, 0 Hz) spike must never create an event."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -309,9 +339,7 @@ class TestCumDurationChain:
             events.extend(det.update(emer, emer.copy(), audio_buf, off_ms=0.0, unix_time=t))
             t += 0.1
         # Coupure → dernier segment.
-        events.extend(
-            det.update(np.zeros(99), np.zeros(99), audio_buf, off_ms=0.0, unix_time=t)
-        )
+        events.extend(det.update(np.zeros(99), np.zeros(99), audio_buf, off_ms=0.0, unix_time=t))
 
         assert len(events) >= 3, "le plafond 30 s doit découper l'épisode en segments"
         # Les premiers segments (cum ≤ 60 s, +6 dB) sont conformes ; après

@@ -302,7 +302,7 @@ def test_i58_no_divergent_renders() -> None:
     assert frag not in HTML_DASHBOARD
     # applyFilters minimal : uniquement drawTimelineFull()
     i = HTML_DASHBOARD.find("function applyFilters() {")
-    block = HTML_DASHBOARD[i: i + 200]
+    block = HTML_DASHBOARD[i : i + 200]
     assert "drawTimelineFull(); // I58" in block
 
 
@@ -311,7 +311,11 @@ def test_lastvisible_renderloop_markers():
     from bruittrack.viz import HTML_DASHBOARD
 
     html = HTML_DASHBOARD.replace("__FREQ_MAX__", "150").replace("__MIN_EVENT_HZ__", "2")
-    for marker in ("let lastVisible = []", "function syncEventsToTable(", "renderEventsTable(rows)"):
+    for marker in (
+        "let lastVisible = []",
+        "function syncEventsToTable(",
+        "renderEventsTable(rows)",
+    ):
         assert marker in html, f"marker manquant : {marker}"
 
     assert "syncEventsToTable" in html
@@ -326,3 +330,32 @@ def test_no_extracalls_to_renderEventsTable():
     count = html.count("renderEventsTable(")
     # 1 function definition + 1 call site inside syncEventsToTable
     assert count == 2, f"renderEventsTable( occurrences={count}"
+
+
+def _spawn_server(store, config):
+    handler = type("HandlerT", (BruitTrackHandler,), {"store": store, "config": config})
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    port = server.server_address[1]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server, f"http://127.0.0.1:{port}"
+
+
+@pytest.mark.parametrize(
+    "record_exemplars,want_player",
+    [(True, True), (False, False)],
+)
+def test_player_html_gated_by_config(tmp_path, record_exemplars, want_player):
+    """Le <audio> player et l'état __EXEMPLARS_ENABLED__ suivent record_exemplars (I64)."""
+    store = EventStore(db_path=str(tmp_path / "d.db"))
+    config = Config(storage=StorageConfig(record_exemplars=record_exemplars))
+    server, base = _spawn_server(store, config)
+    try:
+        body = urllib.request.urlopen(base + "/", timeout=5).read().decode("utf-8")
+    finally:
+        server.shutdown()
+        server.server_close()
+    # Le lecteur est conditionné par EXEMPLARS_ENABLED (logique JS) ET l'état est
+    # injecté côté serveur — on vérifie le wiring source (le rendu réel est borné
+    # par EXEMPLARS_ENABLED ? '<audio ...>' dans renderClustersTable).
+    assert ("EXEMPLARS_ENABLED = " + ("true" if want_player else "false")) in body
+    assert "EXEMPLARS_ENABLED ?" in body  # gating runtime du player

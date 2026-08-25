@@ -71,6 +71,7 @@ class Engine:
             bin_resolution_hz=self.dsp.bin_resolution,
             tick_interval_s=config.audio.block_size / config.audio.sample_rate,
             exemplars_dir=config.storage.exemplars_dir,
+            record_exemplars=config.storage.record_exemplars,
             min_event_hz=config.dsp.min_event_hz,
             max_event_hz=config.dsp.freq_max,
             cluster_freq_tolerance_hz=config.detector.cluster_freq_tolerance_hz,

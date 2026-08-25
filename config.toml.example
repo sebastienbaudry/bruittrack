@@ -77,6 +77,10 @@ batch_size = 50
 # Délai maximal (secondes) avant vidage forcé du lot d'événements vers SQLite
 batch_timeout_s = 30.0
 
+# Activer l'enregistrement des extraits audio exemplaires (256 ms, ex_nnn.raw).
+# false = aucun fichier audio n'est écrit, et le lecteur disparaît de la viz.
+record_exemplars = true
+
 # Rétention des données en jours (0 ou null = conservation infinie)
 retention_days = 365
 

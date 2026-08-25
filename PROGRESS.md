@@ -65,3 +65,7 @@
 - I63c retour terrain viz : lignes noires = skip q=0 + jointures sous-pixel → bords arrondis partagés, plus de skip ; nuances invisibles (fenêtre absolue vs ambiant ±5 dB) → contraste auto p5-p95 + légende plage dB ; h 150px. Format blob inchangé. Déployé DEPLOY_OK.
 - I63e : tooltips cassés au survol — drawSpecPanel rappelé à chaque frame (rAF mousemove) → cache offscreen + clé (vue|données|canaux|dpr), décodage atob mémoïsé. Déployé DEPLOY_OK.
 - I63f : tooltips de survol — bug PRÉEXISTANT démontré headless (identique sur HTML pré-I63) : hideEvtTip() dans drawTimeline masquait le tip ~16 ms après chaque mousemove. Fix : masquage porté par mouseleave/showTip(!best). Vérifié Playwright : tip stable + sticky clic. Déployé DEPLOY_OK.
+## I64 (2026-02) — Exemplaires audio désactivables par config + player retiré de la viz
+- Enregistrement des exemplaires piloté par record_exemplars sous [storage] (défaut true), passé au EventDetector ; si false : aucun ex_*.raw écrit et bit 2 FLAG_EXEMPLAR non posé.
+- Viz : const EXEMPLARS_ENABLED injectée côté serveur dans le dashboard HTML ; la cellule player passe à un tiret quand désactivé. config.toml.example complété.
+- Gate OK : 141 tests verts (137 avant), ruff check propres, viz.py formaté.

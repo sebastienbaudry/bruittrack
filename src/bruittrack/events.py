@@ -213,6 +213,7 @@ class EventDetector:
         min_event_hz: float = 2.0,
         max_event_hz: float | None = None,
         cluster_freq_tolerance_hz: float = 2.0,
+        record_exemplars: bool = True,
     ) -> None:
         self.threshold_db = threshold_db
         self.release_threshold_db = max(0.0, threshold_db - hysteresis_db)
@@ -221,6 +222,7 @@ class EventDetector:
         self.bin_resolution_hz = bin_resolution_hz
         self.tick_interval_s = tick_interval_s
         self.exemplars_dir = Path(exemplars_dir)
+        self.record_exemplars = record_exemplars
         # Detection bounds in Hz (I35): hardware is not reliable below min_event_hz.
         self.min_event_hz = min_event_hz
         self.max_event_hz = max_event_hz
@@ -415,8 +417,8 @@ class EventDetector:
         cluster_id, is_new_cluster = self.cluster_index.match_or_create(fp)
         flags = self._compute_flags(duration_s)
 
-        # If first exemplar of a cluster, write raw audio exemplar
-        if is_new_cluster and self.audio_sample_at_peak is not None:
+        # If first exemplar of a cluster and recording enabled, write raw audio exemplar
+        if is_new_cluster and self.record_exemplars and self.audio_sample_at_peak is not None:
             flags |= FLAG_EXEMPLAR
             self._save_exemplar(cluster_id, self.audio_sample_at_peak)
 

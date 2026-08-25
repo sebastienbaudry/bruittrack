@@ -407,7 +407,7 @@ function renderClustersTable(clusters) {
     <td><strong>${c.event_count}</strong> ×</td>
     <td>${c.avg_freq} Hz</td>
     <td>
-      <audio controls src="/api/exemplar/${c.cluster_id}" preload="none"></audio>
+      ${EXEMPLARS_ENABLED ? '<audio controls src="/api/exemplar/' + c.cluster_id + '"></audio>' : '<span style="color:#64748b">—</span>'}
     </td>
     <td>
       <button class="btn btn-sm btn-danger" onclick="triageCluster(${c.cluster_id}, 2)">Ignorer</button>
@@ -806,6 +806,7 @@ function drawTimeline(events) {
 // ===== I63 : historique spectre — heatmap bandes log sous la timeline =====
 // Config injectée côté serveur (placeholders remplacés par BruitTrackHandler).
 const SPEC = { enabled: __SPEC_ENABLED__, bands: __SPEC_BANDS__, dbMin: __SPEC_DB_MIN__, dbRange: __SPEC_DB_RANGE__ };
+const EXEMPLARS_ENABLED = __EXEMPLARS_ENABLED__;
 let specRows = [];
 let specShow = true;
 let specEdges = null;
@@ -1055,6 +1056,10 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
                 .replace("__SPEC_BANDS__", str(self.config.spectrum.n_bands))
                 .replace("__SPEC_DB_MIN__", f"{self.config.spectrum.db_min:g}")
                 .replace("__SPEC_DB_RANGE__", f"{self.config.spectrum.db_range:g}")
+                .replace(
+                    "__EXEMPLARS_ENABLED__",
+                    "true" if self.config.storage.record_exemplars else "false",
+                )
             ).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
