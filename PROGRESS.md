@@ -47,3 +47,4 @@
 - [2026-08-27] I61 (commis 1056014) : molette = zoom axe Y SEUL centré curseur ; zoomTimeAt/yToAnchorTime supprimés, repro I61 réécrit (span X constant + Δf curseur<0.1 Hz), 113 tests, zoom_check 8/8, DEPLOY_OK pi-t620.
 - [2026-08-27] I61b (fix) : dérive ancre molette au plancher 2 Hz — clamp réparti autour du curseur ; repro I61b ajouté (échoue avant fix), 113 tests, zoom_check 8/8, DEPLOY_OK.
 - [2026-08-27] I61c (fix) : yToFreq était le miroir vertical de yOfFreq — ancre molette inversée (curseur haut => zone basse étirée). Inverse exact corrigé + repro recalculé via inverse de yOfFreq ; échoue sur ancien code. 113 tests, zoom_check 8/8, DEPLOY_OK.
+- [2026-08-27] I62 : échelle X heure de Paris (ex-UTC) + jour affiché au changement + 24h explicite ; pas max 40h->24h ancré minuit Paris ; badge+formatDate alignés. Sandbox ok, 113 tests, DEPLOY_OK.
