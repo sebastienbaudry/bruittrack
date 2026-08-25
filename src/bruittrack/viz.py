@@ -512,18 +512,18 @@ function drawTimeTicks(ctx, w, h, minT, span) {
     ctx.strokeStyle = '#334155';
     ctx.beginPath(); ctx.moveTo(xt, h); ctx.lineTo(xt, h - 5); ctx.stroke();
     const d = new Date(t * 1000);
-    // I62 : heure de PARIS (l'ancien timeZone:'UTC' décalait l'échelle) + jour affiché
-    // dès que le jour calendaire du crant change (étiquette 2 lignes : date au-dessus)
+    // I62b : heure de PARIS 24 h ; le jour est INLINÉ sur la ligne des heures
+    // (l'ancienne rangée date à h-21 empiétait sur le tracé et était masquée par les points)
+    const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: TZ_VIZ });
     const day = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', timeZone: TZ_VIZ });
     if (day !== lastTickDay) {
       ctx.fillStyle = '#94a3b8';
-      ctx.font = '10px monospace';
-      ctx.fillText(day, x, h - 21);
+      ctx.fillText(day + ' ' + time, x, h - 9);
       ctx.fillStyle = '#64748b';
-      ctx.font = '12px monospace';
       lastTickDay = day;
+    } else {
+      ctx.fillText(time, x, h - 9);
     }
-    ctx.fillText(d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: TZ_VIZ }), x, h - 9);
   }
   ctx.textAlign = 'left';
 }
