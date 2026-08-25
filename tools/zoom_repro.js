@@ -132,9 +132,9 @@ let prevDrawMinT = null, prevDrawSpan = null;
 //       dérive attendue = temps mur écoulé, tolérée ci-dessous) ;
 //   (b) la fréquence sous le curseur Y est conservée (zoom centré curseur).
 const H = 260; // TL_CKVH du sandbox (getBoundingClientRect height)
-function fUnderCursor() { // fréquence sous MY selon la vue Y courante (cf. yToFreq)
+function fUnderCursor() { // fréquence sous MY = inverse EXACT de yOfFreq (I61c : ne pas dupliquer une formule fausse)
   const fb = g.freqBounds();
-  return fb[1] - ((H - 20 - MY) / (H - 40)) * (fb[1] - fb[0]);
+  return fb[0] + ((H - 20 - MY) / (H - 40)) * (fb[1] - fb[0]);
 }
 for (let tick = 0; tick < 6; tick++) {
   const tBefore = [state.lastDrawMinT, state.lastDrawSpan];
@@ -175,14 +175,14 @@ if (!(g.freqBounds()[0] === 0 && g.freqBounds()[1] === 150)) {
   vm.runInContext('freqView = null;', gObj, { filename: 'i61b-reset.js' });
   const MYB = 230;
   const fbFull = g.freqBounds();
-  const fStar = fbFull[1] - ((H - 20 - MYB) / (H - 40)) * (fbFull[1] - fbFull[0]); // fréquence visée, figée
+  const fStar = fbFull[0] + ((H - 20 - MYB) / (H - 40)) * (fbFull[1] - fbFull[0]); // fréquence visée, figée (inverse exact de yOfFreq)
   let okB = true;
   for (let tick = 0; tick < 10; tick++) {
     const ev = { clientX: MX, clientY: MYB, deltaY: -1, preventDefault() {}, currentTarget: els['timelineCanvas'] };
     g.axZoom(ev);
     await new Promise((r) => setTimeout(r, 20));
     const fb = g.freqBounds();
-    const fCur = fb[1] - ((H - 20 - MYB) / (H - 40)) * (fb[1] - fb[0]);
+    const fCur = fb[0] + ((H - 20 - MYB) / (H - 40)) * (fb[1] - fb[0]);
     if (!(Math.abs(fCur - fStar) < 0.15)) { okB = false; console.log(`I61b tick ${tick} !! f curseur ${fCur.toFixed(2)} ≠ ancre ${fStar.toFixed(2)} (vue [${fb.map((x) => x.toFixed(1))}])`); }
   }
   if (!okB) { ok = false; console.log('!! I61b : clamp span min non ancré curseur'); }

@@ -570,10 +570,10 @@ function yOfFreq(f) { // Hz → px logique Y ; l'axe couvre [fLo, fHi] de la vue
   const fc = Math.max(fb[0], Math.min(fb[1], f));
   return h - 20 - ((fc - fb[0]) / (fb[1] - fb[0])) * (h - 40);
 }
-function yToFreq(y) { // px logique Y → Hz (inverse, borné à la vue courante)
+function yToFreq(y) { // px logique Y → Hz (inverse exact de yOfFreq, borné à la vue courante) — I61c : l'ancienne formule était le miroir vertical (ancre molette inversée)
   const h = TL_CKVH;
   const fb = freqBounds();
-  return Math.max(fb[0], Math.min(fb[1], fb[1] - ((h - 20 - y) / (h - 40)) * (fb[1] - fb[0])));
+  return Math.max(fb[0], Math.min(fb[1], fb[0] + ((h - 20 - y) / (h - 40)) * (fb[1] - fb[0])));
 }
 
 // 'Nice step' : ~5-6 divisions lisibles quel que soit FREQ_MAX (1,2,5 × 10^n)

@@ -162,3 +162,8 @@
 - Contexte : retour terrain « la molette zoom toujours vers le haut, zoom non centré sur le curseur ». Repro sandbox MY=200/230 : à chaque crant de zoom-in une fois le span minimal atteint, le clamp `nLo=c-1; nHi=c+1` recentrait sur le centre GÉOMÉTRIQUE de la fenêtre au lieu de l'ancre → dérive cumulative de la vue vers le centre (donc vers le haut quand le curseur est bas).
 - Decision : clamp span min réparti autour de l'ancre — frac = position relative du curseur dans la vue courante, nLo = anchF − 2·frac, nHi = anchF + 2·(1−frac). L'ancre reste exacte à tous les crants ; seuls les bords [0, FREQ_MAX] peuvent encore décaler (nécessaire).
 - Justification : un seul point de calcul, zéro dépendance. Vérifié : repro sandbox ancres exactes sur MY∈{40,60,130,200,230} ×10 crants ; tools/zoom_repro.js section I61b (ancre 143,2 Hz conservée au plancher) qui échoue sur le code précédent.
+
+## [2026-08-27] I61c — yToFreq était le miroir vertical de yOfFreq
+- Contexte : retour terrain « curseur en haut → la zone basse s'étire, curseur en bas → la zone haute s'étire ». Diagnostic : l'inverse px→Hz de yOfFreq est f = fb[0] + ((h−20−y)/(h−40))·span ; le code calculait fb[1] − (...)·span → ancre molette systématiquement réfléchie verticalement (curseur haut = ancre basse). Le repro I61b dupliquait la même formule fausse et validait donc l'erreur.
+- Decision : yToFreq corrigé en inverse exact de yOfFreq ; zoom_repro.js recalculé via l'inverse exact (fUnderCursor/fStar/fCur) au lieu de dupliquer la formule du code.
+- Justification : lecture Hz du survol (I54) et ancre molette partagent la fonction corrigée. Vérifié : zoom_repro.js passe sur le fix et ÉCHOUE (11 violations) sur le code précédent ; ruff, 113 tests, zoom_check core verts.
