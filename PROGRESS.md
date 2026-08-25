@@ -44,3 +44,4 @@
 - [x] I58(2)/inf sync table-graphe : lastVisible unique (temps+freqView+canaux) dans drawTimeline ; syncEventsToTable() orchestre le tableau ; 106 tests verts ; commit 92ab8d7
 - [2026-08-25] I59 FIX ZOOM (en cours) — B1 drawTimelineFull repart toujours de eventsData (lastVisible = sortie) ; B2 hiSpan sur eventsData ; B3 get_events(order=asc) + fetchWindow &order=asc ; B4 brush exclut Ctrl/bouton≠0 ; B5 wheel passive:false+preventDefault ; hover/pan/brush-draw sans rebuild table (drawTimelineFull(false)) ; EPSF 0,01. Tests : zoom_repro I59 + test_viz_zoom order.
 - [2026-08-25] I59 FIX ZOOM (commis 208fc7e) — B1..B5 + perf table corrigés ; repro I59 (échoue sur HEAD^), zoom_check 7/8 core, check.sh 113 tests vertes. Reste : B2 déployer sur pi-t620.
+- [2026-08-27] I61 (commis 1056014) : molette = zoom axe Y SEUL centré curseur ; zoomTimeAt/yToAnchorTime supprimés, repro I61 réécrit (span X constant + Δf curseur<0.1 Hz), 113 tests, zoom_check 8/8, DEPLOY_OK pi-t620.
