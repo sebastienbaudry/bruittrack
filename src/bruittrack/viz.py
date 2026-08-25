@@ -862,21 +862,26 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
     return raw.charCodeAt(b * 4 + 3);
   };
 
-  // Contraste AUTO : étirement p5..p95 des q visibles — l'ambiant occupe ±qqs dB,
-  // une fenêtre absolue écraserait tout dans 15 % du dégradé (retour terrain I63c).
+  // Contraste AUTO PAR BANDE : chaque bande est étirée sur sa propre plage
+  // p5..p95 visibles. Une normalisation globale écrase les bandes calmes au noir
+  // (pente spectrale naturelle ~20 dB entre bandes — retour terrain I63d).
   const vis = [];
-  const qs = [];
+  const qsPerBand = Array.from({ length: SPEC.bands }, () => []);
   for (const r of specRows) {
     const tEnd = r.t0 + r.dur;
     if (tEnd < minT || r.t0 > minT + span) continue;
     r._raw = atob(r.data);
     vis.push(r);
-    for (let b = 0; b < r.n_bands; b++) { const q = qOf(r._raw, b); if (q > 0) qs.push(q); }
+    for (let b = 0; b < r.n_bands; b++) { const q = qOf(r._raw, b); if (q > 0) qsPerBand[b].push(q); }
   }
-  qs.sort(function (a, b) { return a - b; });
-  const pk = function (k) { return qs.length ? qs[Math.min(qs.length - 1, Math.floor(k * qs.length))] : 128; };
-  let qLo = Math.max(1, pk(0.05)), qHi = pk(0.95);
-  if (qHi <= qLo + 2) { qLo = Math.max(0, qHi - 8); } // plage quasi plate : garde minimale
+  const bandRange = qsPerBand.map(function (qs) {
+    if (!qs.length) return null;
+    qs.sort(function (a, b) { return a - b; });
+    const pk = function (k) { return qs[Math.min(qs.length - 1, Math.floor(k * qs.length))]; };
+    let lo = Math.max(1, pk(0.05)), hi = pk(0.95);
+    if (hi <= lo + 2) { lo = Math.max(0, hi - 8); } // bande plate : garde minimale
+    return [lo, hi];
+  });
 
   for (const r of vis) {
     const tEnd = r.t0 + r.dur;
@@ -888,7 +893,9 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
       const q = qOf(r._raw, b);
       // Bords arrondis partagent le même pixel entre bandes voisines → zéro jointure noire.
       const yT = Math.round(yOfHz(specBandEdge(b))), yB = Math.round(yOfHz(specBandEdge(b + 1)));
-      const t = Math.max(0, Math.min(1, (q - qLo) / (qHi - qLo)));
+      const rng = bandRange[b];
+      // Bande sans donnée ou plate : teinte neutre discrète (pas de faux signal)
+      const t = !rng ? 0 : Math.max(0, Math.min(1, (q - rng[0]) / (rng[1] - rng[0])));
       ctx.fillStyle = specColor(t);
       ctx.fillRect(xa, yT, colW, Math.max(1, yB - yT));
     }
@@ -900,9 +907,8 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
     if (f >= MIN_EVENT_HZ && f <= FREQ_MAX) ctx.fillText(f + ' Hz', 36, yOfHz(f) + 4);
   }
   if (vis.length) {
-    const dbOf = (q) => SPEC.dbMin + q / 255 * SPEC.dbRange;
     ctx.fillStyle = '#64748b'; ctx.textAlign = 'right';
-    ctx.fillText('contraste auto ' + dbOf(qLo).toFixed(0) + ' … ' + dbOf(qHi).toFixed(0) + ' dB', wCss - 14, hCss - 6);
+    ctx.fillText('contraste auto par bande (p5-p95)', wCss - 14, hCss - 6);
   }
   ctx.textAlign = 'left';
 }
