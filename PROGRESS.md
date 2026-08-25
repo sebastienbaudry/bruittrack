@@ -63,3 +63,4 @@
 - I63b retour terrain : bande log vide → artefact min=255 corrigé (_quantize non-fini→0) ; défauts db_min/db_range recalés −60/120 d'après niveaux réels mesurés (ambiant ≈ −35..−15 dB/bande) ; config distante mise à jour (sed) ; 5 vieilles lignes à l'ancienne échelle purgées.
 - État prod : table spectrum alimentée (1 ligne/60 s, blob 96 o), heatmap dispo via bouton « Spectre ». Reste : contrôle visuel du rendu dans le navigateur ; ajuster db_min/db_range si contraste mauvais.
 - I63c retour terrain viz : lignes noires = skip q=0 + jointures sous-pixel → bords arrondis partagés, plus de skip ; nuances invisibles (fenêtre absolue vs ambiant ±5 dB) → contraste auto p5-p95 + légende plage dB ; h 150px. Format blob inchangé. Déployé DEPLOY_OK.
+- I63e : tooltips cassés au survol — drawSpecPanel rappelé à chaque frame (rAF mousemove) → cache offscreen + clé (vue|données|canaux|dpr), décodage atob mémoïsé. Déployé DEPLOY_OK.
