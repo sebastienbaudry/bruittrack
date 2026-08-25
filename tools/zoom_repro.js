@@ -168,6 +168,27 @@ for (let tick = 0; tick < 14; tick++) {
 if (!(g.freqBounds()[0] === 0 && g.freqBounds()[1] === 150)) {
   ok = false; console.log(`!! dézoom ne retombe pas sur la vue pleine : [${g.freqBounds()}]`);
 } else { console.log('DÉZOOM COMPLET OK : retour vue pleine [0, 150]'); }
+// — I61b ANCRAGE BAS : curseur près du bas (MY=230) → une fois le plancher 2 Hz atteint,
+//   le clamp doit rester RÉPARTI autour du curseur (l'ancien recentrage sur le centre
+//   géométrique faisait dériver la vue vers le haut d'un crant à l'autre) —
+{
+  vm.runInContext('freqView = null;', gObj, { filename: 'i61b-reset.js' });
+  const MYB = 230;
+  const fbFull = g.freqBounds();
+  const fStar = fbFull[1] - ((H - 20 - MYB) / (H - 40)) * (fbFull[1] - fbFull[0]); // fréquence visée, figée
+  let okB = true;
+  for (let tick = 0; tick < 10; tick++) {
+    const ev = { clientX: MX, clientY: MYB, deltaY: -1, preventDefault() {}, currentTarget: els['timelineCanvas'] };
+    g.axZoom(ev);
+    await new Promise((r) => setTimeout(r, 20));
+    const fb = g.freqBounds();
+    const fCur = fb[1] - ((H - 20 - MYB) / (H - 40)) * (fb[1] - fb[0]);
+    if (!(Math.abs(fCur - fStar) < 0.15)) { okB = false; console.log(`I61b tick ${tick} !! f curseur ${fCur.toFixed(2)} ≠ ancre ${fStar.toFixed(2)} (vue [${fb.map((x) => x.toFixed(1))}])`); }
+  }
+  if (!okB) { ok = false; console.log('!! I61b : clamp span min non ancré curseur'); }
+  else { console.log(`I61b OK : plancher 2 Hz atteint sans dérive (ancre ${fStar.toFixed(1)} Hz conservée)`); }
+  vm.runInContext('freqView = null;', gObj, { filename: 'i61b-reset2.js' }); // état propre pour les checks suivants
+}
 // — I60 NON-VIDE : fenêtre couvrant les 12 EVS → le tableau doit afficher EXACTEMENT ces ids —
 {
   vm.runInContext('try { tlMode = null; if (typeof timeWindow !== "undefined") timeWindow = null; } catch (e) {}', gObj, { filename: 'i60-reset-window.js' });

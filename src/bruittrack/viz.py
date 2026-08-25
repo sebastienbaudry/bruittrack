@@ -602,7 +602,13 @@ function axZoom(ev) { // I61 : molette = zoom/dézoom sur l'axe Y SEUL, centré 
   const anchF = yToFreq(my);
   let nLo = anchF - (anchF - fb0[0]) * k;
   let nHi = anchF + (fb0[1] - anchF) * k;
-  if (nHi - nLo < 2) { const c = (nLo + nHi) / 2; nLo = c - 1; nHi = c + 1; }
+  // I61b : clamp span min RÉPARTI autour de l'ancre (l'ancien recentrage sur le centre
+  // géométrique faisait dériver la vue d'un crant à chaque fois une fois le plancher atteint)
+  if (nHi - nLo < 2) {
+    const frac = fb0[1] > fb0[0] ? Math.min(1, Math.max(0, (anchF - fb0[0]) / (fb0[1] - fb0[0]))) : 0.5;
+    nLo = anchF - 2 * frac;
+    nHi = anchF + 2 * (1 - frac);
+  }
   if (nLo < 0) { nHi -= nLo; nLo = 0; }
   if (nHi > FREQ_MAX) { nLo -= nHi - FREQ_MAX; nHi = FREQ_MAX; }
   if (nLo < 0) nLo = 0;
