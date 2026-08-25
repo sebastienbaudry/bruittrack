@@ -79,7 +79,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   .card-title { font-size: 15px; font-weight: bold; margin-bottom: 12px; color: var(--text); display: flex; justify-content: space-between; }
 
   #timelineCanvas { width: 100%; height: 260px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); cursor: crosshair; }
-  #specCanvas { width: 100%; height: 120px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); margin-top: 6px; display: none; }
+  #specCanvas { width: 100%; height: 150px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); margin-top: 6px; display: none; }
 
   table { width: 100%; border-collapse: collapse; text-align: left; }
   tr[data-ev-id] { cursor: pointer; }
@@ -837,7 +837,7 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   cv.style.display = specShow ? 'block' : 'none';
   if (!specShow) return;
   const dpr = window.devicePixelRatio || 1;
-  const wCss = TL_CKWW, hCss = 120;
+  const wCss = TL_CKWW, hCss = 150;
   const bw = Math.round(wCss * dpr), bh = Math.round(hCss * dpr);
   if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
   const ctx = cv.getContext('2d');
@@ -856,30 +856,53 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
     ctx.textAlign = 'left';
   }
 
+  const qOf = (raw, b) => { // max des canaux visibles pour la bande b
+    if (showCh.l && showCh.d) return Math.max(raw.charCodeAt(b * 4 + 1), raw.charCodeAt(b * 4 + 3));
+    if (showCh.l) return raw.charCodeAt(b * 4 + 1);
+    return raw.charCodeAt(b * 4 + 3);
+  };
+
+  // Contraste AUTO : étirement p5..p95 des q visibles — l'ambiant occupe ±qqs dB,
+  // une fenêtre absolue écraserait tout dans 15 % du dégradé (retour terrain I63c).
+  const vis = [];
+  const qs = [];
   for (const r of specRows) {
     const tEnd = r.t0 + r.dur;
     if (tEnd < minT || r.t0 > minT + span) continue;
+    r._raw = atob(r.data);
+    vis.push(r);
+    for (let b = 0; b < r.n_bands; b++) { const q = qOf(r._raw, b); if (q > 0) qs.push(q); }
+  }
+  qs.sort(function (a, b) { return a - b; });
+  const pk = function (k) { return qs.length ? qs[Math.min(qs.length - 1, Math.floor(k * qs.length))] : 128; };
+  let qLo = Math.max(1, pk(0.05)), qHi = pk(0.95);
+  if (qHi <= qLo + 2) { qLo = Math.max(0, qHi - 8); } // plage quasi plate : garde minimale
+
+  for (const r of vis) {
+    const tEnd = r.t0 + r.dur;
     let xa = Math.max(x0, x0 + ((r.t0 - minT) / span) * (x1 - x0));
     const xb = Math.min(x1, x0 + ((tEnd - minT) / span) * (x1 - x0));
     if (xb <= xa) continue;
-    const raw = atob(r.data);
     const colW = Math.max(1, xb - xa);
     for (let b = 0; b < r.n_bands; b++) {
-      let q;
-      if (showCh.l && showCh.d) q = Math.max(raw.charCodeAt(b * 4 + 1), raw.charCodeAt(b * 4 + 3));
-      else if (showCh.l) q = raw.charCodeAt(b * 4 + 1);
-      else q = raw.charCodeAt(b * 4 + 3);
-      if (q === 0) continue; // bande sans bin ou niveau au plancher de quantification
-      const yT = yOfHz(specBandEdge(b)), yB = yOfHz(specBandEdge(b + 1));
-      ctx.fillStyle = specColor(q / 255);
+      const q = qOf(r._raw, b);
+      // Bords arrondis partagent le même pixel entre bandes voisines → zéro jointure noire.
+      const yT = Math.round(yOfHz(specBandEdge(b))), yB = Math.round(yOfHz(specBandEdge(b + 1)));
+      const t = Math.max(0, Math.min(1, (q - qLo) / (qHi - qLo)));
+      ctx.fillStyle = specColor(t);
       ctx.fillRect(xa, yT, colW, Math.max(1, yB - yT));
     }
   }
 
-  // Étiquettes Hz (échelle log) alignées sur la marge gauche de la timeline
+  // Étiquettes Hz (échelle log) + légende de contraste auto (plage dB réellement affichée)
   ctx.fillStyle = '#94a3b8'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
   for (const f of [FREQ_MAX, 50, 20, 10, MIN_EVENT_HZ]) {
     if (f >= MIN_EVENT_HZ && f <= FREQ_MAX) ctx.fillText(f + ' Hz', 36, yOfHz(f) + 4);
+  }
+  if (vis.length) {
+    const dbOf = (q) => SPEC.dbMin + q / 255 * SPEC.dbRange;
+    ctx.fillStyle = '#64748b'; ctx.textAlign = 'right';
+    ctx.fillText('contraste auto ' + dbOf(qLo).toFixed(0) + ' … ' + dbOf(qHi).toFixed(0) + ' dB', wCss - 14, hCss - 6);
   }
   ctx.textAlign = 'left';
 }
