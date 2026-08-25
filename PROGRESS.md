@@ -52,7 +52,8 @@
 
 ## I63 (2026-02) — Historique spectre (option 2) : table `spectrum` + heatmap viz
 - But : visualiser un signal infra quasi permanent (absorbé par le floor → jamais d'événement).
-- Plan : [x] config [spectrum] (enabled/interval_s=60/n_bands=24/db_min/db_range/retention_days)
+- Plan : terminé (commit 0f5ecea) — config [spectrum], dsp.SpectrumAggregator (bug reset-avant-blob corrigé), store table+flush lot, pipeline wiring+rétention, viz /api/spectrum + heatmap canvas, 23 tests (136 verts), ruff propre, decision-log I63.
+- Reste (déploiement) : git push + pull sur pi-t620, redémarrer bruittrack.service, vérifier /api/spectrum et le rendu « Spectre » ; ajuster db_min/db_range si la heatmap est saturée/noire selon le gain réel.
   [ ] dsp.SpectrumAggregator (bandes log min_event_hz..freq_max, min/max uint8, blob n_bands×4 o)
   [ ] store: table spectrum + add/get + rétention [ ] pipeline wiring + rétention quotidienne
   [ ] viz /api/spectrum + canvas heatmap sous timeline [ ] config.toml.example [ ] tests [ ] decision-log
