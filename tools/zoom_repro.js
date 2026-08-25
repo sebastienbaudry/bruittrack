@@ -128,7 +128,7 @@ let prevDrawMinT = null, prevDrawSpan = null;
 for (let tick = 0; tick < 6; tick++) {
   // avant la molette : temps sous LE curseur selon le dessin précédent (vérité terrain)
   const before = tAt({ m: state.lastDrawMinT, s: state.lastDrawSpan, w: state.lastW }, MX);
-  const ev = { clientX: MX, clientY: MY, deltaY: -1, currentTarget: els['timelineCanvas'] };
+  const ev = { clientX: MX, clientY: MY, deltaY: -1, preventDefault() {}, currentTarget: els['timelineCanvas'] };
   g.axZoom(ev);
   await new Promise((r) => setTimeout(r, 30)); // laisse le then(drawTimelineFull)
   await new Promise((r) => setTimeout(r, 30));
@@ -141,12 +141,65 @@ for (let tick = 0; tick < 6; tick++) {
 // test dézoom complet
 for (let tick = 0; tick < 14; tick++) {
   const before = tAt({ m: state.lastDrawMinT, s: state.lastDrawSpan, w: state.lastW }, MX);
-  const ev = { clientX: MX, clientY: MY, deltaY: 1, currentTarget: els['timelineCanvas'] };
+  const ev = { clientX: MX, clientY: MY, deltaY: 1, preventDefault() {}, currentTarget: els['timelineCanvas'] };
   g.axZoom(ev);
   await new Promise((r) => setTimeout(r, 30));
   const after = tAt({ m: state.lastDrawMinT, s: state.lastDrawSpan, w: state.lastW }, MX);
   const delta = Math.abs(after - before);
   if (!(delta < 0.01)) { ok = false; console.log(`dézoom tick ${tick} !! |Δ|=${delta.toFixed(4)}s avant=${before} après=${after} minT=${state.lastDrawMinT}`); }
+}
+// — I60 NON-VIDE : fenêtre couvrant les 12 EVS → le tableau doit afficher EXACTEMENT ces ids —
+{
+  vm.runInContext('try { tlMode = null; if (typeof timeWindow !== "undefined") timeWindow = null; } catch (e) {}', gObj, { filename: 'i60-reset-window.js' });
+  g.drawTimeline(EVS); g.syncEventsToTable();
+  const shown2 = ((els['eventsTableBody'].innerHTML || '').match(/data-ev-id="(\d+)"/g) || [])
+    .map((x) => Number(x.replace(/\D/g, '')));
+  if (shown2.length !== EVS.length || !EVS.every((e) => shown2.includes(e.id))) {
+    ok = false; console.log(`!! SYNC NON-VIDE : ${shown2.length} lignes (attendu ${EVS.length})`);
+  } else { console.log(`SYNC NON-VIDE OK : ${shown2.length} lignes == 12 EVS`); }
+}
+// — I60 CHECK SYNC : le tableau affiche STRICTEMENT le set rendu dans la fenêtre [minT, minT+span] —
+{
+  const winMin = state.lastDrawMinT, winSpan = state.lastDrawSpan;
+  const expect = EVS.filter((e) => e.t0 >= winMin - 1e-9 && e.t0 <= winMin + winSpan + 1e-9)
+    .map((e) => e.id).sort((a, b) => b - a);
+  const html = els['eventsTableBody'].innerHTML || '';
+  const shown = (html.match(/data-ev-id="(\d+)"/g) || []).map((x) => Number(x.replace(/\D/g, '')));
+  if (JSON.stringify(shown) !== JSON.stringify(expect)) {
+    ok = false; console.log(`!! SYNCHRO TABLEAU: affiché [${shown}] attendu [${expect}]`);
+  } else { console.log(`SYNC TABLEAU OK : ${shown.length} ligne(s) == set de la fenêtre visible`); }
+  const big = Array.from({ length: 3000 }, (_, i) => ({ id: 9000 + i, t0: winMin + i, freq: 10, lvl_g: 5, lvl_d: 5, dur: 1, cluster: null }));
+  g.renderEventsTable(big);
+  const capHtml = els['eventsTableBody'].innerHTML;
+  const capRows = (capHtml.match(/data-ev-id="/g) || []).length;
+  if (capRows !== 500 || capHtml.indexOf('… + 2500') < 0) {
+    ok = false; console.log(`!! PLAFOND 500: ${capRows} lignes, compteur trouvé=${capHtml.includes('… + 2500')}`);
+  } else { console.log('PLAFOND 500 OK : 500 lignes + compteur'); }
+}
+// — FIN I60 —
+// — I59 B1 SOURCE BRUTE : après une vue restreinte, drawTimelineFull repart de eventsData —
+//   l'ancien code réinjectait lastVisible (vue filtrée) en entrée : le dézoom laissait
+//   définitivement les points hors de la vue précédente hors du graphe ET du tableau.
+{
+  // filtres DOM du sandbox : valeurs neutres (sinon filterEvents vide tout artificiellement)
+  for (const [id, v] of [['chanFilter', ''], ['clusterFilter', ''], ['minLvlFilter', '0']]) {
+    const el2 = els[id] || makeEl(id); els[id] = el2; el2.value = v;
+  }
+  vm.runInContext('tlMode = null;', gObj, { filename: 'i59-prep.js' }); // état propre
+  g.drawTimelineFull();
+  vm.runInContext(`tlMode = {minT: ${EVS[3].t0 - 10}, span: 30};`, gObj, { filename: 'i59-narrow.js' }); // fenêtre ~1 evt
+  g.drawTimelineFull();
+  const shrunkRows = ((els['eventsTableBody'].innerHTML || '').match(/data-ev-id="(\d+)"/g) || []).length;
+  vm.runInContext('tlMode = null; timeWindow = null;', gObj, { filename: 'i59-reset.js' });
+  g.drawTimelineFull(); // retour "Tout" : les 12 EVS doivent REAPPARAITRE
+  const back = ((els['eventsTableBody'].innerHTML || '').match(/data-ev-id="(\d+)"/g) || [])
+    .map((x) => Number(x.replace(/\D/g, '')));
+  if (back.length !== EVS.length || !EVS.every((e) => back.includes(e.id))) {
+    ok = false;
+    console.log(`!! I59 AMPUTATION : vue restreinte=${shrunkRows} ligne(s), dézoom restaure ${back.length}/${EVS.length} — lastVisible réutilisé comme source ?`);
+  } else {
+    console.log(`I59 SOURCE BRUTE OK : dézoom restaure les ${EVS.length} événements (vue restreinte avait ${shrunkRows} ligne(s))`);
+  }
 }
 console.log(ok ? 'ROUND-TRIP OK : le temps sous le curseur est conservé' : 'ECHEC ANCRAGE');
 process.exit(ok ? 0 : 1);

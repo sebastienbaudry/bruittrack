@@ -3,6 +3,7 @@
 import http.server
 import json
 import threading
+import urllib.error
 import urllib.request
 
 import pytest
@@ -86,3 +87,27 @@ def test_viz_zoom_full_range_request(zoom_server):
     """?since= très ancien = tout l'historique (limit levé)."""
     got = json.loads(_get(f"{zoom_server}/api/events?since=0&limit=20000"))
     assert len(got) == 10
+
+
+def test_viz_zoom_order_asc(zoom_server):
+    """I59 : ?order=asc renvoie les plus ANCIENS d'abord (chargement continu depuis since)."""
+    got = json.loads(_get(f"{zoom_server}/api/events?limit=100&order=asc"))
+    t0s = [e["t0"] for e in got]
+    assert len(got) == 10
+    assert t0s == sorted(t0s)
+    cut = t0s[4]
+    sub = json.loads(_get(f"{zoom_server}/api/events?since={cut}&limit=3&order=asc"))
+    # ASC : les 3 plus anciens >= cut, pas les 3 plus récents (comportement DESC)
+    assert [e["t0"] for e in sub] == sorted(e for e in t0s if e >= cut)[:3]
+
+
+def test_viz_zoom_order_invalid(zoom_server):
+    """I59 : order invalide → 400 explicite."""
+    with urllib.request.urlopen(f"{zoom_server}/") as r:  # sanity: serveur vivant
+        assert r.status == 200
+    try:
+        urllib.request.urlopen(f"{zoom_server}/api/events?order=sideways")
+        raised = False
+    except urllib.error.HTTPError as exc:
+        raised = exc.code == 400
+    assert raised, "order invalide doit renvoyer 400"

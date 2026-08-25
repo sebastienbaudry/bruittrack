@@ -407,3 +407,31 @@ def test_apply_retention_prunes_exemplars(tmp_path: Path) -> None:
     store.close()
 
 
+
+
+def test_get_events_order_asc_and_validation(tmp_path):
+    """I59 : order='asc' inverse le tri ; order invalide lève ValueError."""
+    store = EventStore(db_path=str(tmp_path / "order.db"))
+    try:
+        for i in range(5):
+            store.add_event(
+                SoundEvent(
+                    t0=1_700_000_000.0 + i * 60.0,
+                    dur=1.0,
+                    bin_i=10,
+                    freq=5.0,
+                    lvl_g=10.0,
+                    lvl_d=10.0,
+                    off_ms=0.0,
+                    fp=b"\x03" * 16,
+                )
+            )
+        store.flush()
+        desc = [e["t0"] for e in store.get_events(limit=10)]
+        asc = [e["t0"] for e in store.get_events(limit=10, order="asc")]
+        assert desc == sorted(desc, reverse=True)
+        assert asc == sorted(asc)
+        with pytest.raises(ValueError):
+            store.get_events(order="sideways")
+    finally:
+        store.close()

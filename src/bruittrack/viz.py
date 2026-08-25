@@ -243,7 +243,10 @@ async function fetchWindow() { // I54/I55 : fenêtre ?since= dynamique — charg
   fetchingWin = true;
   try {
     const sinceT = dataSince !== null ? Math.min(dataSince, Math.floor(lo)) : Math.floor(lo);
-    const got = await fetchJson(`/api/events?since=${sinceT}&limit=20000`);
+    // I59 : order=asc → serveur renvoie les PLUS ANCIENS ≥ sinceT d'abord : chargement continu
+    // depuis sinceT (pas de trou si > 20000 événements plus récents existent, cas du tri DESC).
+    // winCursorT reste ainsi un plancher fiable de « données garanties chargées ».
+    const got = await fetchJson(`/api/events?since=${sinceT}&limit=20000&order=asc`);
     if (!got || !Array.isArray(got)) return;
     const map = new Map();
     (eventsData || []).forEach((e) => { if (e.id !== undefined) map.set(e.id, e); });
@@ -293,9 +296,9 @@ function resetFviews() { // I54 : double-clic / Échap / badge → vues par déf
   document.addEventListener('mousemove', (e) => {
     if (startY === null || !startFB) return;
     panFreqBy(e.clientY - startY, startFB[0], startFB[1]);
-    drawTimelineFull();
+    drawTimelineFull(false); // I59 : pendant le pan, pas de rebuild tableau (jank) — synchronisé au relâchement
   });
-  document.addEventListener('mouseup', () => { if (startY !== null) { startY = null; startFB = null; updateZoomBadge(); } });
+  document.addEventListener('mouseup', () => { if (startY !== null) { startY = null; startFB = null; updateZoomBadge(); refreshWindowed(); } }); // I59 : sync finale graphe+tableau
 })();
 
 async function refreshAll() {
@@ -450,9 +453,9 @@ function syncEventsToTable() {
   const rows = Array.prototype.slice.call(lastVisible).sort((a, b) => b.t0 - a.t0);
   renderEventsTable(rows);
 }
-function drawTimelineFull() {
-  drawTimeline(filterEvents(lastVisible.length ? lastVisible : eventsData));
-  syncEventsToTable();
+function drawTimelineFull(shouldSyncTable = true) { // I59 : la source est TOUJOURS eventsData (brut) — lastVisible n'est qu'une SORTIE de vue ;
+  drawTimeline(filterEvents(eventsData)); // le réutiliser en entrée amputait définitivement les points hors de la vue précédente (zoom → dézoom vide)
+  if (shouldSyncTable) syncEventsToTable(); // false pour redraws cosmetiques (survol, pan, brush en cours) sans rebuild du tableau
 }
 
 function setTimeWin(seconds) {
@@ -507,7 +510,7 @@ function hideEvtTip() {
   document.getElementById('evtTip').style.display = 'none';
   const ft = document.getElementById('freqTip'); if (ft) ft.style.display = 'none';
   // I50 : nettoyage du fil de repère sans boucle (redraw seulement si le fil était actif)
-  if (hoverYpx !== null && tlLastEvts !== null) { hoverYpx = null; drawTimelineFull(); }
+  if (hoverYpx !== null && tlLastEvts !== null) { hoverYpx = null; drawTimelineFull(false); } // I59 : idem, cosmétique uniquement
 }
 
 // Click/hover sur marker → tooltip bin_i + freq + lvl_g/d (acceptance IMPROVEMENTS)
@@ -532,7 +535,7 @@ function hideEvtTip() {
 
     // I50 : fil horizontal à la hauteur du curseur (redraw throttle rAF, saut si inchangé)
     const ly = my >= 20 && my <= TL_CSS_H - 20 ? Math.round(my) : null;
-    if (ly !== hoverYpx) { hoverYpx = ly; if (!hoverRaf) hoverRaf = requestAnimationFrame(() => { hoverRaf = 0; drawTimelineFull(); }); }
+    if (ly !== hoverYpx) { hoverYpx = ly; if (!hoverRaf) hoverRaf = requestAnimationFrame(() => { hoverRaf = 0; drawTimelineFull(false); }); } // I59 : survol = pas de rebuild tableau
 
     let best = null, bd = 10 * 10; // rayon 10 px
     for (const p of timelinePoints) {
@@ -592,6 +595,7 @@ function axZoom(ev) { // I54 : molette = zoom/dézoom sur les 2 axes, ancré au 
   const r = ev.currentTarget.getBoundingClientRect();
   const mx = ev.clientX - r.left, my = ev.clientY - r.top;
   if (my < 20 || my > TL_CKVH - 20 || mx < 40) return; // zone utile uniquement
+  ev.preventDefault(); // I59 : la molette zoome, elle ne doit ni scroller la page ni zoomer le navigateur (listener non-passif)
   const k = ev.deltaY < 0 ? 1 / 1.3 : 1.3;              // facteur fixe par crant ±1.3
   // ---- Axe Y : ancrage = fréquence sous le curseur ; span ≥ 2 Hz ; [fLo,fHi] ⊂ [0, FREQ_MAX]
   const fb0 = freqBounds();
@@ -602,8 +606,9 @@ function axZoom(ev) { // I54 : molette = zoom/dézoom sur les 2 axes, ancré au 
   if (nLo < 0) { nHi -= nLo; nLo = 0; }
   if (nHi > FREQ_MAX) { nLo -= nHi - FREQ_MAX; nHi = FREQ_MAX; }
   if (nLo < 0) nLo = 0;
-  freqView = (Math.abs(nHi - fb0[1]) > 1e-9 && Math.abs(nLo - fb0[0]) > 1e-9) ? {fLo: nLo, fHi: nHi}
-             : (Math.abs(nHi - FREQ_MAX) < 1e-9 && Math.abs(nLo) < 1e-9 ? null : {fLo: nLo, fHi: nHi});
+  const EPSF = 0.01; // I59 : tolérance float large (0,01 Hz, invisible à l'écran) — sinon drift accumulé ≠ reset de la vue pleine
+  freqView = (Math.abs(nHi - fb0[1]) > EPSF && Math.abs(nLo - fb0[0]) > EPSF) ? {fLo: nLo, fHi: nHi}
+             : (Math.abs(nHi - FREQ_MAX) < EPSF && Math.abs(nLo) < EPSF ? null : {fLo: nLo, fHi: nHi});
   // ---- Axe X : ancrage = temps sous le curseur ; span ∈ [10 s, étendue des données visibles]
   const anchorT = yToAnchorTime(mx);
   zoomTimeAt(mx, k);
@@ -619,9 +624,9 @@ function zoomTimeAt(mx, k) { // zoom temps ancré au curseur ; bornes [10 s, max
   const aT = tgt.minT + ((mx - 40) / (TL_CKWW - 50)) * tgt.span;
   let loSpan = 10; // 10 s minimum
   let hiSpan = 90 * 86400; // 90 jours maximum
-  if (lastVisible.length >= 2) {
-    let tMin = Infinity, tMax = -Infinity;
-    for (const p of lastVisible) { if (p.t0 < tMin) tMin = p.t0; if (p.t0 > tMax) tMax = p.t0; } // lastVisible = événements bruts (cf. drawTimeline L634)
+  if (eventsData && eventsData.length >= 2) { // I59 : étendue des données BRUTES (eventsData) — lastVisible est déjà filtré par la vue courante,
+    let tMin = Infinity, tMax = -Infinity;    // ce qui bloquait/saccadait le dézoom (plafond retombant sur 3600 s autour d'un groupe dense)
+    for (const p of eventsData) { if (p.t0 < tMin) tMin = p.t0; if (p.t0 > tMax) tMax = p.t0; }
     hiSpan = Math.min(hiSpan, Math.max(tMax - tMin, 3600));
   }
   let span = Math.max(loSpan, Math.min(hiSpan, tgt.span * k));
@@ -782,12 +787,15 @@ function drawTimeline(events) {
   if (!canvas) return;
   let dragX0 = null;
   let raf = 0;
-  const drawSoon = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => drawTimelineFull()); };
+  const drawSoon = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => drawTimelineFull(false)); }; // I59 : brush en cours = dessin seul ; sync au mouseup (refreshWindowed)
   const toCanvasX = (e) => { // espace logique = px CSS (setTransform hi-DPI actif)
     const r = canvas.getBoundingClientRect();
     return e.clientX - r.left;
   };
-  canvas.addEventListener('mousedown', (e) => { dragX0 = toCanvasX(e); tlBrushPx = null; });
+  canvas.addEventListener('mousedown', (e) => { // I59 : Ctrl+glisser = pan fréquence, boutons droit/milieu = rien — jamais un brush temps parasite
+    if (e.ctrlKey || e.button !== 0) return;
+    dragX0 = toCanvasX(e); tlBrushPx = null;
+  });
   canvas.addEventListener('mousemove', (e) => {
     if (dragX0 === null) return;
     const x1 = toCanvasX(e);
@@ -817,7 +825,7 @@ function drawTimeline(events) {
 (function () {
   const canvas = document.getElementById('timelineCanvas');
   if (!canvas) return;
-  canvas.addEventListener('wheel', axZoom, { passive: true });
+  canvas.addEventListener('wheel', axZoom, { passive: false }); // I59 : preventDefault possible dans axZoom (pas de scroll/zoom page concurrent)
 })();
 
 // ===== Hi-DPI : le backing store suit la largeur réelle et devicePixelRatio =====
@@ -900,13 +908,17 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
                 offset = int(qs.get("offset", [0])[0])
                 since = float(qs["since"][0]) if "since" in qs else None
                 cluster = int(qs["cluster"][0]) if "cluster" in qs else None
+                order = qs.get("order", ["desc"])[0]
             except (ValueError, IndexError):
                 self.send_error(400, "Paramètre de requête invalide")
                 return
             if limit <= 0 or offset < 0:
                 self.send_error(400, "limit doit > 0 et offset >= 0")
                 return
-            events = self.store.get_events(limit=limit, offset=offset, since=since, cluster=cluster)
+            if order not in ("asc", "desc"):
+                self.send_error(400, "order doit valoir 'asc' ou 'desc'")
+                return
+            events = self.store.get_events(limit=limit, offset=offset, since=since, cluster=cluster, order=order)
             self._send_json(events)
             return
 

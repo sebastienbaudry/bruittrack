@@ -290,8 +290,17 @@ class EventStore:
         offset: int = 0,
         since: float | None = None,
         cluster: int | None = None,
+        order: str = "desc",
     ) -> list[dict[str, Any]]:
-        """Fetch events with optional filters (thread-safe read)."""
+        """Fetch events with optional filters (thread-safe read).
+
+        order: "desc" (plus récents d'abord, défaut historique) ou "asc"
+        (plus anciens ≥ since d'abord) — le fenêtrage UI utilise "asc" pour
+        garantir un chargement continu depuis ``since`` même si plus de
+        ``limit`` événements plus récents existent (I59).
+        """
+        if order not in ("asc", "desc"):
+            raise ValueError("order doit valoir 'asc' ou 'desc'")
         self.flush()
         query = "SELECT * FROM events WHERE 1=1"
         params: list[Any] = []
@@ -304,7 +313,7 @@ class EventStore:
             query += " AND cluster = ?"
             params.append(cluster)
 
-        query += " ORDER BY t0 DESC LIMIT ? OFFSET ?"
+        query += f" ORDER BY t0 {'ASC' if order == 'asc' else 'DESC'} LIMIT ? OFFSET ?"
         params.extend([limit, offset])
 
         with self._db(readonly=True) as conn:
