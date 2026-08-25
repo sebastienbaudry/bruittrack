@@ -77,4 +77,4 @@
 - [x] dsp.py band_edges linéaires ; pipeline docstring/commenté.
 - [x] viz.py JS : specBandEdge/yOfHz/yOfHz2 linéaires clampés, ticks niceHzStep.
 - [x] Test renommé (diffs constants) ; gate 141 + ruff ok.
-- [ ] Déploy pi-t620 (scripts/deploy_i64.sh, service viz seul touché côté client).
+- [x] Déployé pi-t620 : DEPLOY_OK_I64, health ok, JS linéaire servi vérifié.
