@@ -824,8 +824,8 @@ async function fetchSpectrum() {
   if (got && Array.isArray(got.rows)) specRows = got.rows;
 }
 
-function specBandEdge(i) { // bords log identiques au serveur (SpectrumAggregator.band_edges)
-  return MIN_EVENT_HZ * Math.pow(FREQ_MAX / MIN_EVENT_HZ, i / SPEC.bands);
+function specBandEdge(i) { // bords linéaires identiques au serveur (SpectrumAggregator.band_edges)
+  return MIN_EVENT_HZ + (FREQ_MAX - MIN_EVENT_HZ) * (i / SPEC.bands);
 }
 
 function specColor(t) { // noir -> bleu -> cyan -> jaune
@@ -869,8 +869,8 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
     octx.fillStyle = '#080c12'; octx.fillRect(0, 0, wCss, hCss);
 
     const x0 = 40, x1 = wCss - 10;
-    const logLo = Math.log(MIN_EVENT_HZ), logHi = Math.log(FREQ_MAX);
-    const yOfHz = (f) => 4 + (logHi - Math.log(Math.max(f, MIN_EVENT_HZ))) / (logHi - logLo) * (hCss - 8);
+    // I64c : axe Y linéaire, même échelle que la timeline
+    const yOfHz = (f) => 4 + (FREQ_MAX - Math.min(Math.max(f, MIN_EVENT_HZ), FREQ_MAX)) / (FREQ_MAX - MIN_EVENT_HZ) * (hCss - 8);
 
     if (!specRows.length) { // état vide
       octx.fillStyle = '#64748b'; octx.font = '12px monospace'; octx.textAlign = 'center';
@@ -932,8 +932,8 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   ctx.clearRect(0, 0, wCss, hCss);
   ctx.drawImage(specCache.cv, 0, 0, wCss, hCss);
 
-  const logLo2 = Math.log(MIN_EVENT_HZ), logHi2 = Math.log(FREQ_MAX);
-  const yOfHz2 = (f) => 4 + (logHi2 - Math.log(Math.max(f, MIN_EVENT_HZ))) / (logHi2 - logLo2) * (hCss - 8);
+  // I64c : idem yOfHz mais hors du bloc cache (portée différente)
+  const yOfHz2 = (f) => 4 + (FREQ_MAX - Math.min(Math.max(f, MIN_EVENT_HZ), FREQ_MAX)) / (FREQ_MAX - MIN_EVENT_HZ) * (hCss - 8);
 
   // Limite f_min (même repère pointillé que la timeline) — au-dessus des cellules
   const yMin = Math.round(yOfHz2(MIN_EVENT_HZ));
@@ -942,11 +942,11 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   ctx.beginPath(); ctx.moveTo(40, yMin + 0.5); ctx.lineTo(wCss - 10, yMin + 0.5); ctx.stroke();
   ctx.setLineDash([]);
 
-  // Étiquettes Hz (échelle log) — y borné au canvas (le label 2 Hz tombait hors cadre)
+  // Étiquettes Hz sur pas « nice » (échelle linéaire I64c) — y borné au canvas
   ctx.fillStyle = '#94a3b8'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
-  for (const f of [FREQ_MAX, 50, 20, 10, MIN_EVENT_HZ]) {
-    if (f >= MIN_EVENT_HZ && f <= FREQ_MAX) ctx.fillText(f + ' Hz', 36, Math.min(hCss - 2, yOfHz2(f) + 4));
-  }
+  const hzStep = niceHzStep((FREQ_MAX - MIN_EVENT_HZ) / 4);
+  for (let f = Math.ceil(MIN_EVENT_HZ / hzStep) * hzStep; f <= FREQ_MAX + 1e-6; f += hzStep)
+    ctx.fillText(f + ' Hz', 36, Math.min(hCss - 2, yOfHz2(f) + 4));
   ctx.textAlign = 'left';
 }
 

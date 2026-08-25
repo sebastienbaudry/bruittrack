@@ -80,12 +80,12 @@ class TestSpectrumAggregator:
         assert arr.max() <= 255 and arr.min() >= 0
         assert (arr.reshape(-1, 4)[:, 1] == 255).any()  # max canal G saturé haut
 
-    def test_band_edges_log_spaced(self):
+    def test_band_edges_linear_spaced(self):
         agg = SpectrumAggregator(_freqs(), n_bands=24, min_hz=2.0, max_hz=150.0)
         e = agg.band_edges()
         assert e[0] == pytest.approx(2.0) and e[-1] == pytest.approx(150.0)
-        ratios = e[1:] / e[:-1]
-        assert np.allclose(ratios, ratios[0])  # progression géométrique constante
+        diffs = np.diff(e)
+        assert np.allclose(diffs, diffs[0])  # progression arithmétique constante (I64c)
 
     def test_empty_band_no_saturation_artifact(self):
         """Bande sans bin (ex. sous la résolution FFT) → min=max=q=0, jamais 255."""

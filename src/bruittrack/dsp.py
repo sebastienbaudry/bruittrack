@@ -245,17 +245,16 @@ class DspPipeline:
 
 
 class SpectrumAggregator:
-    """Agrège le PSD lissé par bandes log-spacées pour l'historique « spectrum ».
+    """Agrège le PSD lissé par bandes linéaires pour l'historique « spectrum ».
 
     Un signal quasi permanent est absorbé par le plancher (médiane glissante)
     et ne génère donc jamais d'événement ; cet agrégateur capture le PSD brut
     lissé pour visualisation (heatmap), indépendamment de la détection.
 
-    Bandes : ``n_bands`` intervalles log-spacés sur [min_hz, max_hz] (bords
-    e_i = min_hz * (max_hz/min_hz)^(i/n_bands)). Chaque bin FFT est affecté à
-    une seule bande (affectation par bords) ; les bandes sans bin (possibles
-    en bas de bande quand la largeur log < résolution bin) restent au niveau
-    de quantification 0.
+    Bandes : ``n_bands`` intervalles linéaires sur [min_hz, max_hz] (bords
+    e_i = min_hz + i·(max_hz-min_hz)/n_bands). Chaque bin FFT est affecté à
+    une seule bande (affectation par bords) ; les bandes sans bin restent
+    au niveau de quantification 0.
 
     Niveau par bande : énergie agrégée 10·log10(Σ 10^(dB/10)) sur les bins de
     la bande. Accumulation min/max par bande et par canal sur toute la
@@ -320,9 +319,9 @@ class SpectrumAggregator:
         self._started = False
 
     def band_edges(self) -> np.ndarray:
-        """Bords des n_bands+1 bandes log-spacées [min_hz .. max_hz]."""
-        ratio = self.max_hz / self.min_hz
-        return self.min_hz * ratio ** (np.arange(self.n_bands + 1) / self.n_bands)
+        """Bords des n_bands+1 bandes linéaires [min_hz .. max_hz]."""
+        step = (self.max_hz - self.min_hz) / self.n_bands
+        return self.min_hz + step * np.arange(self.n_bands + 1)
 
     def _reset_window(self, t0: float) -> None:
         self._win_t0 = t0

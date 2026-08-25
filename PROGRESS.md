@@ -72,3 +72,9 @@
 
 ## I64b (2026-02) — Colonne Audio masquee entierement quand record_exemplars=false
 - th id=audioTh retiree au boot (JS, 1 ligne) + cellule player supprimee du template de ligne ; etat vide en colspan dynamique. Test viz etendu (verification audioTh). Re-deploye pi-t620.
+
+## I64c — spectre : axe Y et bandes linéaires (fait)
+- [x] dsp.py band_edges linéaires ; pipeline docstring/commenté.
+- [x] viz.py JS : specBandEdge/yOfHz/yOfHz2 linéaires clampés, ticks niceHzStep.
+- [x] Test renommé (diffs constants) ; gate 141 + ruff ok.
+- [ ] Déploy pi-t620 (scripts/deploy_i64.sh, service viz seul touché côté client).

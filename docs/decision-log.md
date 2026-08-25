@@ -187,3 +187,20 @@
 - Viz : placeholder __EXEMPLARS_ENABLED__ remplacé côté serveur dans HTML_DASHBOARD (const EXEMPLARS_ENABLED = true/false) ; la colonne Audio affiche un tiret quand désactivé. L'endpoint /api/exemplar/ est conservé (404 si fichier absent) : réactiver le flag restaure le player sans code. Alternative rejetée : suppression inconditionnelle du player (perte de la reversibilité par config).
 - Tests : test_record_exemplars_toggle (fichier + bit FLAG_EXEMPLAR selon flag, 2 cas) et test_player_html_gated_by_config (const injectée true/false + gating runtime present, 2 cas) ; suite complète 141 verte.
 - I64b (supplement) : quand record_exemplars=false, pas seulement la cellule mais toute la colonne Audio est masquee : th id=audioTh est retire par le JS demarrage (aucune variable serveur supplementaire), la cellule td player est supprimee du template de ligne et l'etat vide du tableau bascule sur un colspan dynamique. Raison : une colonne entierement a tirets n'apportait rien visuellement dans l'etat desactive.
+## I64c : spectre / heatmap — axe Y et bandes en échelle linéaire
+
+**Contexte.** Le panneau temps réel utilisait des bandes log-spacées côté serveur
+(`SpectrumAggregator.band_edges`, progression géométrique) et un axe Y log en JS
+(`yOfHz`/`yOfHz2`/`specBandEdge`) : les basses fréquences dominaient visuellement
+tandis que la timeline voisine (I57f) est linéaire.
+Décision : uniformité en linéaire des deux côtés du serveur.
+
+**Impact.**
+- `dsp.py` : `band_edges` retourne `min_hz + i*(max_hz-min_hz)/n_bands` ; docstring actualisées.
+  L'affectation bin→bande par `searchsorted` est inchangée.
+- JS dashboard : `specBandEdge(i)`, `yOfHz`, `yOfHz2` en linéaire avec clamp
+  à [min_event_hz, freq_max] (formule identique au serveur) ; étiquettes Hz par
+  pas « nice » (`niceHzStep((freq_max-min)/4)` → ticks 50/100/150 par défaut).
+- À défaut, ~12,7 bins par bande sur [2 ; 150] Hz — pas de bande vide.
+- `tests/test_spectrum.py` : `test_band_edges_log_spaced` → `test_band_edges_linear_spaced`
+  (diffs constants). Gate : 141 pass, ruff net.

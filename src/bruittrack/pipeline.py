@@ -87,7 +87,7 @@ class Engine:
                 batch_timeout_s=config.storage.batch_timeout_s,
             )
 
-        # Spectrum history (bandes log, cf. docs/decision-log.md I63)
+        # Spectrum history (bandes linéaires, cf. docs/decision-log.md I63/I64c)
         self.spectrum_agg: SpectrumAggregator | None = None
         if config.spectrum.enabled:
             self.spectrum_agg = SpectrumAggregator(
