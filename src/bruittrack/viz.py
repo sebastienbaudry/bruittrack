@@ -591,13 +591,13 @@ function sharpLine(ctx, x0, y0, x1, y1) {
   ctx.stroke();
 }
 
-function axZoom(ev) { // I54 : molette = zoom/dézoom sur les 2 axes, ancré au curseur
+function axZoom(ev) { // I61 : molette = zoom/dézoom sur l'axe Y SEUL, centré sur la fréquence sous le curseur
   const r = ev.currentTarget.getBoundingClientRect();
   const mx = ev.clientX - r.left, my = ev.clientY - r.top;
   if (my < 20 || my > TL_CKVH - 20 || mx < 40) return; // zone utile uniquement
   ev.preventDefault(); // I59 : la molette zoome, elle ne doit ni scroller la page ni zoomer le navigateur (listener non-passif)
   const k = ev.deltaY < 0 ? 1 / 1.3 : 1.3;              // facteur fixe par crant ±1.3
-  // ---- Axe Y : ancrage = fréquence sous le curseur ; span ≥ 2 Hz ; [fLo,fHi] ⊂ [0, FREQ_MAX]
+  // ---- Axe Y seul : ancrage = fréquence sous le curseur ; span ≥ 2 Hz ; [fLo,fHi] ⊂ [0, FREQ_MAX]
   const fb0 = freqBounds();
   const anchF = yToFreq(my);
   let nLo = anchF - (anchF - fb0[0]) * k;
@@ -609,30 +609,7 @@ function axZoom(ev) { // I54 : molette = zoom/dézoom sur les 2 axes, ancré au 
   const EPSF = 0.01; // I59 : tolérance float large (0,01 Hz, invisible à l'écran) — sinon drift accumulé ≠ reset de la vue pleine
   freqView = (Math.abs(nHi - fb0[1]) > EPSF && Math.abs(nLo - fb0[0]) > EPSF) ? {fLo: nLo, fHi: nHi}
              : (Math.abs(nHi - FREQ_MAX) < EPSF && Math.abs(nLo) < EPSF ? null : {fLo: nLo, fHi: nHi});
-  // ---- Axe X : ancrage = temps sous le curseur ; span ∈ [10 s, étendue des données visibles]
-  const anchorT = yToAnchorTime(mx);
-  zoomTimeAt(mx, k);
-  refreshWindowed(); // I54 : fenêtre ?since= si la vue s'étend avant les données chargées
-}
-function yToAnchorTime(mx) { // temps (s) sous l'abscisse mx de la plage active — pour log/reset
-  return tlScale ? tlScale.minT + ((mx - 40) / (TL_CKWW - 50)) * tlScale.span : null;
-}
-function zoomTimeAt(mx, k) { // zoom temps ancré au curseur ; bornes [10 s, max(90 j, étendue données)]
-  // I58b : ancrage sur l'etat cible (tlMode || tlScale rendu) — molettes rapides avant RAF
-  const tgt = tlMode || tlScale;
-  if (!tgt) return;
-  const aT = tgt.minT + ((mx - 40) / (TL_CKWW - 50)) * tgt.span;
-  let loSpan = 10; // 10 s minimum
-  let hiSpan = 90 * 86400; // 90 jours maximum
-  if (eventsData && eventsData.length >= 2) { // I59 : étendue des données BRUTES (eventsData) — lastVisible est déjà filtré par la vue courante,
-    let tMin = Infinity, tMax = -Infinity;    // ce qui bloquait/saccadait le dézoom (plafond retombant sur 3600 s autour d'un groupe dense)
-    for (const p of eventsData) { if (p.t0 < tMin) tMin = p.t0; if (p.t0 > tMax) tMax = p.t0; }
-    hiSpan = Math.min(hiSpan, Math.max(tMax - tMin, 3600));
-  }
-  let span = Math.max(loSpan, Math.min(hiSpan, tgt.span * k));
-  const fx = (aT - tgt.minT) / tgt.span; // fraction d'ancrage sous le curseur
-  tlMode = {minT: aT - fx * span, span: span};
-  syncTlButtons();
+  drawTimelineFull(false); // I61 : redraw cosmétique (survol/pan Y) sans rebuild tableau ; sync au prochain cycle complet
 }
 function drawTimeline(events) {
   updateZoomBadge(); // I54 : badge toujours en phase avec les vues courantes
@@ -821,7 +798,7 @@ function drawTimeline(events) {
   });
 })();
 
-// ===== Molette : zoom 2 axes ancré curseur (I54) ; double-clic/Echap réinitialisent =====
+// ===== Molette : zoom axe Y ancré curseur (I61) ; double-clic/Echap réinitialisent =====
 (function () {
   const canvas = document.getElementById('timelineCanvas');
   if (!canvas) return;

@@ -19,7 +19,7 @@ if [ -z "$html" ]; then
 fi
 has() { case "$html" in *"$1"*) return 0 ;; *) return 1 ;; esac; }
 
-# Z1 — état vue fréquence + zoom molette dual-axis
+# Z1 — état vue fréquence + zoom molette axe Y
 if has 'let freqView' && has 'axZoom('; then
   score=$((score+1)); report '+' 'Z1 tokens vue/zoom (let freqView, axZoom('
 else

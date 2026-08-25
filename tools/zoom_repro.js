@@ -1,6 +1,7 @@
 const fs = require('fs');
 // Reproduit la page servie (script de viz.py) dans node avec DOM stub,
-// puis simule la molette sur l'axe temps : invariance du point sous le curseur.
+// puis simule la molette (I61 : axe Y SEUL) : invariance de la fréquence sous
+// le curseur ET de l'axe temps (la molette ne touche plus X).
 const vm = require('vm');
 
 const src = fs.readFileSync(process.argv[2] || 'src/bruittrack/viz.py', 'utf8');
@@ -100,8 +101,8 @@ try {
 while (rafQueue.length) { const q = rafQueue; rafQueue = []; q.forEach((f) => f()); }
 (async () => {
 const g = gObj;
-if (typeof g.axZoom !== 'function' || typeof g.yToAnchorTime !== 'function') {
-  console.error('fonctions attendues absentes du global', Object.keys(gObj).filter((k) => k.startsWith('y') || k.includes('ax')));
+if (typeof g.axZoom !== 'function' || typeof g.freqBounds !== 'function' || typeof g.yToFreq !== 'function') {
+  console.error('fonctions attendues absentes du global', Object.keys(gObj).filter((k) => k.startsWith('y') || k.includes('ax') || k.includes('req')));
   process.exit(4);
 }
 
@@ -125,29 +126,48 @@ function tAt(drawObj, px) { return drawObj.minTmin ? 0 : drawObj.m + ((px - 40) 
 
 let ok = true;
 let prevDrawMinT = null, prevDrawSpan = null;
+// I61 : la molette zoome l'axe Y SEUL — deux invariants :
+//   (a) l'axe temps n'est PAS touché par la molette : span strictement constant ;
+//       (en vue pleine tlMode=null, minT suit l'horloge courante à chaque redraw —
+//       dérive attendue = temps mur écoulé, tolérée ci-dessous) ;
+//   (b) la fréquence sous le curseur Y est conservée (zoom centré curseur).
+const H = 260; // TL_CKVH du sandbox (getBoundingClientRect height)
+function fUnderCursor() { // fréquence sous MY selon la vue Y courante (cf. yToFreq)
+  const fb = g.freqBounds();
+  return fb[1] - ((H - 20 - MY) / (H - 40)) * (fb[1] - fb[0]);
+}
 for (let tick = 0; tick < 6; tick++) {
-  // avant la molette : temps sous LE curseur selon le dessin précédent (vérité terrain)
-  const before = tAt({ m: state.lastDrawMinT, s: state.lastDrawSpan, w: state.lastW }, MX);
+  const tBefore = [state.lastDrawMinT, state.lastDrawSpan];
+  const fBefore = fUnderCursor();
+  const wall0 = Date.now();
   const ev = { clientX: MX, clientY: MY, deltaY: -1, preventDefault() {}, currentTarget: els['timelineCanvas'] };
   g.axZoom(ev);
-  await new Promise((r) => setTimeout(r, 30)); // laisse le then(drawTimelineFull)
+  await new Promise((r) => setTimeout(r, 30)); // laisse le rAF drawTimelineFull(false)
   await new Promise((r) => setTimeout(r, 30));
-  const after = tAt({ m: state.lastDrawMinT, s: state.lastDrawSpan, w: state.lastW }, MX);
-  const delta = Math.abs(after - before);
-  console.log(`tick ${tick}: avant=${before.toFixed(3)} après=${after.toFixed(3)} |Δ|=${delta.toFixed(4)} s; ` +
-    `dessin [minT,span]=[${state.lastDrawMinT? state.lastDrawMinT.toFixed(1):null}, ${state.lastDrawSpan}]`);
-  if (!(delta < 0.01)) { ok = false; console.log('  !! ANCRAGE TEMPS NON CONSERVÉ'); }
+  const dSpan = Math.abs(state.lastDrawSpan - tBefore[1]);
+  const dMinT = Math.abs(state.lastDrawMinT - tBefore[0]);
+  const allowed = (Date.now() - wall0) / 1000 + 0.05; // dérive horloge tolérée uniquement
+  const df = Math.abs(fUnderCursor() - fBefore);
+  console.log(`zoom tick ${tick}: Δspan=${dSpan} ΔminT=${dMinT.toFixed(3)}s (tol ${allowed.toFixed(3)}); f Curseur ${fBefore.toFixed(2)}→${fUnderCursor().toFixed(2)} Hz (|Δ|=${df.toFixed(3)})`);
+  if (!(dSpan < 1e-9)) { ok = false; console.log('  !! SPAN TEMPS MODIFIÉ PAR LA MOLETTE (I61 violé)'); }
+  if (!(dMinT < allowed)) { ok = false; console.log('  !! MINT DÉCALÉ AU-DELÀ DE LA DÉRIVE HORLOGE (I61 violé)'); }
+  if (!(df < 0.1)) { ok = false; console.log('  !! ANCRAGE FRÉQUENCE NON CONSERVÉ'); }
 }
-// test dézoom complet
+// test dézoom complet (retour vue pleine [0, FREQ_MAX] inclus)
 for (let tick = 0; tick < 14; tick++) {
-  const before = tAt({ m: state.lastDrawMinT, s: state.lastDrawSpan, w: state.lastW }, MX);
+  const tBefore = [state.lastDrawMinT, state.lastDrawSpan];
+  const fBefore = fUnderCursor();
   const ev = { clientX: MX, clientY: MY, deltaY: 1, preventDefault() {}, currentTarget: els['timelineCanvas'] };
   g.axZoom(ev);
   await new Promise((r) => setTimeout(r, 30));
-  const after = tAt({ m: state.lastDrawMinT, s: state.lastDrawSpan, w: state.lastW }, MX);
-  const delta = Math.abs(after - before);
-  if (!(delta < 0.01)) { ok = false; console.log(`dézoom tick ${tick} !! |Δ|=${delta.toFixed(4)}s avant=${before} après=${after} minT=${state.lastDrawMinT}`); }
+  const dSpan = Math.abs(state.lastDrawSpan - tBefore[1]);
+  const df = Math.abs(fUnderCursor() - fBefore);
+  if (!(dSpan < 1e-9)) { ok = false; console.log(`dézoom tick ${tick} !! span temps modifié (Δ=${dSpan})`); }
+  if (!(df < 0.1)) { ok = false; console.log(`dézoom tick ${tick} !! |Δf|=${df.toFixed(3)} Hz avant=${fBefore} après=${fUnderCursor()}`); }
 }
+if (!(g.freqBounds()[0] === 0 && g.freqBounds()[1] === 150)) {
+  ok = false; console.log(`!! dézoom ne retombe pas sur la vue pleine : [${g.freqBounds()}]`);
+} else { console.log('DÉZOOM COMPLET OK : retour vue pleine [0, 150]'); }
 // — I60 NON-VIDE : fenêtre couvrant les 12 EVS → le tableau doit afficher EXACTEMENT ces ids —
 {
   vm.runInContext('try { tlMode = null; if (typeof timeWindow !== "undefined") timeWindow = null; } catch (e) {}', gObj, { filename: 'i60-reset-window.js' });
@@ -201,6 +221,6 @@ for (let tick = 0; tick < 14; tick++) {
     console.log(`I59 SOURCE BRUTE OK : dézoom restaure les ${EVS.length} événements (vue restreinte avait ${shrunkRows} ligne(s))`);
   }
 }
-console.log(ok ? 'ROUND-TRIP OK : le temps sous le curseur est conservé' : 'ECHEC ANCRAGE');
+console.log(ok ? 'ROUND-TRIP OK : axe X intact + fréquence sous le curseur conservée' : 'ECHEC ANCRAGE I61');
 process.exit(ok ? 0 : 1);
 })();
