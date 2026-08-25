@@ -195,7 +195,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             <th>ID</th>
             <th>Occurrences</th>
             <th>Fréq moy</th>
-            <th>Audio</th>
+            <th id="audioTh">Audio</th>
             <th>Action</th>
           </tr>
         </thead>
@@ -399,16 +399,14 @@ function renderTableRow(e) { // I54 : une ligne d'événement (plafond 500 ligne
 function renderClustersTable(clusters) {
   const tbody = document.getElementById('clustersTableBody');
   if (!clusters || clusters.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#94a3b8;">Aucun cluster.</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="${EXEMPLARS_ENABLED ? 5 : 4}" style="text-align:center; color:#94a3b8;">Aucun cluster.</td></tr>`;
     return;
   }
   tbody.innerHTML = clusters.map(c => `<tr>
     <td><strong style="color:${getClusterColor(c.cluster_id)}">#${c.cluster_id}</strong></td>
     <td><strong>${c.event_count}</strong> ×</td>
     <td>${c.avg_freq} Hz</td>
-    <td>
-      ${EXEMPLARS_ENABLED ? '<audio controls src="/api/exemplar/' + c.cluster_id + '"></audio>' : '<span style="color:#64748b">—</span>'}
-    </td>
+    ${EXEMPLARS_ENABLED ? `<td><audio controls src="/api/exemplar/${c.cluster_id}"></audio></td>` : ''}
     <td>
       <button class="btn btn-sm btn-danger" onclick="triageCluster(${c.cluster_id}, 2)">Ignorer</button>
     </td>
@@ -1019,6 +1017,8 @@ function fitCanvas() {
 window.addEventListener('resize', () => requestAnimationFrame(fitCanvas));
 
 // Initial : fit hi-DPI puis fetch + poll every 10s
+// Exemplaires désactivés : on retire aussi la colonne Audio du tableau
+if (!EXEMPLARS_ENABLED) { const th = document.getElementById('audioTh'); if (th) th.remove(); }
 requestAnimationFrame(() => { fitCanvas(); refreshAll(); });
 setInterval(refreshAll, 10000);
 </script>

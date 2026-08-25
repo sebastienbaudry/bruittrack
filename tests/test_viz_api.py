@@ -358,4 +358,5 @@ def test_player_html_gated_by_config(tmp_path, record_exemplars, want_player):
     # injecté côté serveur — on vérifie le wiring source (le rendu réel est borné
     # par EXEMPLARS_ENABLED ? '<audio ...>' dans renderClustersTable).
     assert ("EXEMPLARS_ENABLED = " + ("true" if want_player else "false")) in body
-    assert "EXEMPLARS_ENABLED ?" in body  # gating runtime du player
+    assert "EXEMPLARS_ENABLED ?" in body  # gating runtime du player/cellule
+    assert 'id="audioTh"' in body  # colonne Audio retirée côté client si désactivée

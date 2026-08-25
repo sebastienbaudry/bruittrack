@@ -69,3 +69,6 @@
 - Enregistrement des exemplaires piloté par record_exemplars sous [storage] (défaut true), passé au EventDetector ; si false : aucun ex_*.raw écrit et bit 2 FLAG_EXEMPLAR non posé.
 - Viz : const EXEMPLARS_ENABLED injectée côté serveur dans le dashboard HTML ; la cellule player passe à un tiret quand désactivé. config.toml.example complété.
 - Gate OK : 141 tests verts (137 avant), ruff check propres, viz.py formaté.
+
+## I64b (2026-02) — Colonne Audio masquee entierement quand record_exemplars=false
+- th id=audioTh retiree au boot (JS, 1 ligne) + cellule player supprimee du template de ligne ; etat vide en colspan dynamique. Test viz etendu (verification audioTh). Re-deploye pi-t620.
