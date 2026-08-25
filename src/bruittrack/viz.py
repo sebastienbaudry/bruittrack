@@ -891,13 +891,16 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
     const colW = Math.max(1, xb - xa);
     for (let b = 0; b < r.n_bands; b++) {
       const q = qOf(r._raw, b);
-      // Bords arrondis partagent le même pixel entre bandes voisines → zéro jointure noire.
-      const yT = Math.round(yOfHz(specBandEdge(b))), yB = Math.round(yOfHz(specBandEdge(b + 1)));
+      // Axe Y log inversé : y(edge_b) > y(edge_{b+1}) → rect de min(y) à max(y).
+      // (I63d : max(1, yB−yT) avec yB<yT peignait 1 px au bord bas de la bande,
+      //  le reste restant noir — d'où les « 23 lignes » fines.)
+      const yA = Math.round(yOfHz(specBandEdge(b))), yC = Math.round(yOfHz(specBandEdge(b + 1)));
+      const yT = Math.min(yA, yC), hh = Math.max(1, Math.abs(yC - yA));
       const rng = bandRange[b];
       // Bande sans donnée ou plate : teinte neutre discrète (pas de faux signal)
       const t = !rng ? 0 : Math.max(0, Math.min(1, (q - rng[0]) / (rng[1] - rng[0])));
       ctx.fillStyle = specColor(t);
-      ctx.fillRect(xa, yT, colW, Math.max(1, yB - yT));
+      ctx.fillRect(xa, yT, colW, hh);
     }
   }
 
