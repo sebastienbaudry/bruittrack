@@ -656,7 +656,10 @@ function drawTimeline(events) {
 
   const canvas = document.getElementById('timelineCanvas');
   const ctx = canvas.getContext('2d');
-  hideEvtTip();
+  // I63f : PAS de hideEvtTip() ici — appelé à chaque redraw de survol (rAF du fil
+  // de repère), il masquait le tooltip ~16 ms après chaque mousemove (bug préexistant,
+  // démontré identique sur le HTML pré-I63 en headless). Le masquage est géré par
+  // mouseleave et par showTip(!best) quand le curseur quitte les points.
   timelinePoints.length = 0;
   lastVisible = Array.isArray(events) ? events : [];
 
