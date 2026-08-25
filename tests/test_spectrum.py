@@ -240,6 +240,14 @@ class TestVizApiSpectrum:
                 payload = _json.loads(resp.read())
             assert payload["rows"][0]["t0"] == 1700000000.0
             assert base64.b64decode(payload["rows"][0]["data"]) == b"\x09" * 8
+            # I64c : bords linéaires servis, identiques au serveur (I64c)
+            edges = payload["edges"]
+            cfg = config.dsp
+            assert len(edges) == config.spectrum.n_bands + 1
+            diffs = [edges[i + 1] - edges[i] for i in range(len(edges) - 1)]
+            assert all(d > 0 for d in diffs)
+            assert max(abs(d - diffs[0]) for d in diffs) < 0.01 if len(diffs) > 1 else True
+            assert edges[0] == cfg.min_event_hz and edges[-1] == cfg.freq_max
         finally:
             server.shutdown()
             server.server_close()

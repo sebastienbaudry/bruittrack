@@ -78,3 +78,4 @@
 - [x] viz.py JS : specBandEdge/yOfHz/yOfHz2 linéaires clampés, ticks niceHzStep.
 - [x] Test renommé (diffs constants) ; gate 141 + ruff ok.
 - [x] Déployé pi-t620 : DEPLOY_OK_I64, health ok, JS linéaire servi vérifié.
+- [x] I64d : /api/spectrum expose edges lineaires (test payload).

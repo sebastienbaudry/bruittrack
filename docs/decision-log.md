@@ -203,4 +203,5 @@ Décision : uniformité en linéaire des deux côtés du serveur.
   pas « nice » (`niceHzStep((freq_max-min)/4)` → ticks 50/100/150 par défaut).
 - À défaut, ~12,7 bins par bande sur [2 ; 150] Hz — pas de bande vide.
 - `tests/test_spectrum.py` : `test_band_edges_log_spaced` → `test_band_edges_linear_spaced`
-  (diffs constants). Gate : 141 pass, ruff net.
+  (diffs constants). Gate : 141 pass, ruff net.
+ I64d — `/api/spectrum` sert `edges` : les n_bands+1 bords lineaires (min_event_hz + i*step, arrondis 1 mHz), meme formule que SpectrumAggregator.band_edges ; le client peut consommer l'echelle serveur sans recalcul. Test API : diffs constantes > 0 + bornes exactes.

@@ -1119,11 +1119,18 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
             if limit_spec <= 0:
                 self.send_error(400, "limit doit > 0")
                 return
+            # Bords linéaires identiques à SpectrumAggregator.band_edges (I64c)
+            min_hz_f = self.config.dsp.min_event_hz
+            max_hz_f = self.config.dsp.freq_max
+            n_bands = self.config.spectrum.n_bands
+            step_hz = (max_hz_f - min_hz_f) / n_bands
+            edges = [round(min_hz_f + i * step_hz, 3) for i in range(n_bands + 1)]
             self._send_json(
                 {
                     "rows": self.store.get_spectrum(
                         since=since_spec, until=until_spec, limit=limit_spec
-                    )
+                    ),
+                    "edges": edges,
                 }
             )
             return
