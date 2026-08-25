@@ -64,3 +64,4 @@
 - État prod : table spectrum alimentée (1 ligne/60 s, blob 96 o), heatmap dispo via bouton « Spectre ». Reste : contrôle visuel du rendu dans le navigateur ; ajuster db_min/db_range si contraste mauvais.
 - I63c retour terrain viz : lignes noires = skip q=0 + jointures sous-pixel → bords arrondis partagés, plus de skip ; nuances invisibles (fenêtre absolue vs ambiant ±5 dB) → contraste auto p5-p95 + légende plage dB ; h 150px. Format blob inchangé. Déployé DEPLOY_OK.
 - I63e : tooltips cassés au survol — drawSpecPanel rappelé à chaque frame (rAF mousemove) → cache offscreen + clé (vue|données|canaux|dpr), décodage atob mémoïsé. Déployé DEPLOY_OK.
+- I63f : tooltips de survol — bug PRÉEXISTANT démontré headless (identique sur HTML pré-I63) : hideEvtTip() dans drawTimeline masquait le tip ~16 ms après chaque mousemove. Fix : masquage porté par mouseleave/showTip(!best). Vérifié Playwright : tip stable + sticky clic. Déployé DEPLOY_OK.
