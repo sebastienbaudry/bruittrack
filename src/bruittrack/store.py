@@ -10,6 +10,7 @@ Features:
 
 from __future__ import annotations
 
+import base64
 import re
 import sqlite3
 import threading
@@ -87,6 +88,7 @@ class EventStore:
         self.batch_timeout_s = batch_timeout_s
 
         self._buffer: list[SoundEvent] = []
+        self._spec_buffer: list[tuple[float, float, int, bytes]] = []
         self._last_flush_time = time.monotonic()
         # RLock : _db() is re-entered by flush()/add_event() which already
         # hold the lock; a plain Lock would self-deadlock (:memory: path).
@@ -158,6 +160,16 @@ class EventStore:
                     flags INTEGER NOT NULL DEFAULT 0,
                     created_at REAL NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS spectrum (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    t0 REAL NOT NULL,
+                    dur REAL NOT NULL,
+                    n_bands INTEGER NOT NULL,
+                    data BLOB NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_spectrum_t0 ON spectrum(t0);
                 """
             )
             conn.commit()
@@ -166,20 +178,32 @@ class EventStore:
         """Add an event to the in-memory batch buffer."""
         with self._lock:
             self._buffer.append(event)
-            if len(self._buffer) >= self.batch_size:
-                self._do_flush()
+            self._maybe_do_flush()
+
+    def add_spectrum(self, t0: float, dur: float, n_bands: int, data: bytes) -> None:
+        """Add a spectrum history row (blob uint8 n_bands×[min_g,max_g,min_d,max_d])."""
+        with self._lock:
+            self._spec_buffer.append((t0, dur, n_bands, data))
+            self._maybe_do_flush()
+
+    def _maybe_do_flush(self) -> None:
+        """Déclenche le flush si l'un des deux buffers atteint la taille du lot."""
+        if len(self._buffer) >= self.batch_size or len(self._spec_buffer) >= self.batch_size:
+            self._do_flush()
 
     def maybe_flush(self) -> int:
         """Flush buffer if batch size or timeout condition is met."""
         now = time.monotonic()
         with self._lock:
-            if self._buffer and now - self._last_flush_time >= self.batch_timeout_s:
+            if (
+                self._buffer or self._spec_buffer
+            ) and now - self._last_flush_time >= self.batch_timeout_s:
                 return self._do_flush()
             return 0
 
     def _do_flush(self) -> int:
-        """Write buffered events to SQLite (caller must hold self._lock)."""
-        if not self._buffer:
+        """Write buffered events + spectrum rows to SQLite (caller holds self._lock)."""
+        if not self._buffer and not self._spec_buffer:
             self._last_flush_time = time.monotonic()
             return 0
 
@@ -199,34 +223,46 @@ class EventStore:
             )
             for e in events_to_write
         ]
+        spec_rows = list(self._spec_buffer)
 
         try:
             with self._db() as conn:
                 cursor_obj = conn.cursor()
-                cursor_obj.executemany(
-                    """
-                    INSERT INTO events (t0, dur, bin_i, freq, lvl_g, lvl_d, off_ms, fp, flags, cluster)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-                    """,
-                    rows,
-                )
-
-                # Ensure cluster entries exist in clusters table
-                clusters_seen = {e.cluster for e in events_to_write if e.cluster is not None}
-                for c_id in clusters_seen:
-                    cursor_obj.execute(
+                if rows:
+                    cursor_obj.executemany(
                         """
-                        INSERT OR IGNORE INTO clusters (id, label, flags, created_at)
-                        VALUES (?, '', 0, ?);
+                        INSERT INTO events (t0, dur, bin_i, freq, lvl_g, lvl_d, off_ms, fp, flags, cluster)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                         """,
-                        (c_id, time.time()),
+                        rows,
+                    )
+
+                    # Ensure cluster entries exist in clusters table
+                    clusters_seen = {e.cluster for e in events_to_write if e.cluster is not None}
+                    for c_id in clusters_seen:
+                        cursor_obj.execute(
+                            """
+                            INSERT OR IGNORE INTO clusters (id, label, flags, created_at)
+                            VALUES (?, '', 0, ?);
+                            """,
+                            (c_id, time.time()),
+                        )
+                if spec_rows:
+                    cursor_obj.executemany(
+                        """
+                        INSERT INTO spectrum (t0, dur, n_bands, data)
+                        VALUES (?, ?, ?, ?);
+                        """,
+                        spec_rows,
                     )
                 conn.commit()
 
-            # Only clear buffer after successful write
+            # Only clear buffers after successful write
+            n_written = len(rows) + len(spec_rows)
             self._buffer.clear()
+            self._spec_buffer.clear()
             self._last_flush_time = time.monotonic()
-            return len(events_to_write)
+            return n_written
         except Exception:
             import logging
 
@@ -326,6 +362,39 @@ class EventStore:
                     del d["fp"]
                 results.append(d)
             return results
+
+    def get_spectrum(
+        self,
+        since: float | None = None,
+        until: float | None = None,
+        limit: int = 20000,
+    ) -> list[dict[str, Any]]:
+        """Fetch spectrum history rows (thread-safe read), oldest first.
+
+        Chaque ligne : {t0, dur, n_bands, data} avec data en base64 (blob uint8
+        n_bands×[min_g, max_g, min_d, max_d]).
+        """
+        self.flush()
+        query = "SELECT t0, dur, n_bands, data FROM spectrum WHERE 1=1"
+        params: list[Any] = []
+        if since is not None:
+            query += " AND t0 >= ?"
+            params.append(since)
+        if until is not None:
+            query += " AND t0 <= ?"
+            params.append(until)
+        query += " ORDER BY t0 ASC LIMIT ?"
+        params.append(limit)
+        with self._db(readonly=True) as conn:
+            return [
+                {
+                    "t0": row["t0"],
+                    "dur": row["dur"],
+                    "n_bands": row["n_bands"],
+                    "data": base64.b64encode(bytes(row["data"])).decode("ascii"),
+                }
+                for row in conn.execute(query, params).fetchall()
+            ]
 
     def get_stats(self) -> dict[str, Any]:
         """Get aggregate statistics (thread-safe read)."""
@@ -431,11 +500,14 @@ class EventStore:
         self,
         retention_days: int,
         exemplars_dir: str | Path | None = None,
+        spectrum_days: int | None = None,
     ) -> int:
         """Delete events older than retention period.
 
         When ``exemplars_dir`` is given, orphaned exemplar files (clusters
         no longer present in DB) are pruned after the delete (I52).
+        ``spectrum_days`` : rétention dédiée de la table spectrum (indépendante
+        de celle des événements ; None = pas de purge spectre).
         """
         if retention_days <= 0:
             return 0
@@ -443,6 +515,9 @@ class EventStore:
         cutoff = time.time() - (retention_days * 86400.0)
         with self._db() as conn:
             deleted = conn.execute("DELETE FROM events WHERE t0 < ?", (cutoff,)).rowcount
+            if spectrum_days is not None and spectrum_days > 0:
+                cutoff_spec = time.time() - (spectrum_days * 86400.0)
+                conn.execute("DELETE FROM spectrum WHERE t0 < ?", (cutoff_spec,))
             conn.commit()
         if deleted > 0 and exemplars_dir is not None:
             self.prune_orphaned_exemplars(exemplars_dir)

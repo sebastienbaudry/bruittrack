@@ -244,6 +244,142 @@ class DspPipeline:
         return self.psd_smooth1.copy(), self.psd_smooth2.copy()
 
 
+class SpectrumAggregator:
+    """Agrège le PSD lissé par bandes log-spacées pour l'historique « spectrum ».
+
+    Un signal quasi permanent est absorbé par le plancher (médiane glissante)
+    et ne génère donc jamais d'événement ; cet agrégateur capture le PSD brut
+    lissé pour visualisation (heatmap), indépendamment de la détection.
+
+    Bandes : ``n_bands`` intervalles log-spacés sur [min_hz, max_hz] (bords
+    e_i = min_hz * (max_hz/min_hz)^(i/n_bands)). Chaque bin FFT est affecté à
+    une seule bande (affectation par bords) ; les bandes sans bin (possibles
+    en bas de bande quand la largeur log < résolution bin) restent au niveau
+    de quantification 0.
+
+    Niveau par bande : énergie agrégée 10·log10(Σ 10^(dB/10)) sur les bins de
+    la bande. Accumulation min/max par bande et par canal sur toute la
+    fenêtre ``interval_s``, puis quantification uint8 :
+    q = clip(round((db - db_min)/db_range * 255), 0, 255).
+
+    Format BLOB produit : n_bands × [min_g, max_g, min_d, max_d] uint8
+    (4 octets/bande, little-endian natif numpy).
+    """
+
+    def __init__(
+        self,
+        freqs_hz: np.ndarray,
+        n_bands: int = 24,
+        min_hz: float = 2.0,
+        max_hz: float = 150.0,
+        db_min: float = -140.0,
+        db_range: float = 160.0,
+        interval_s: float = 60.0,
+    ) -> None:
+        if n_bands < 1:
+            raise ValueError(f"n_bands must be >= 1 (got {n_bands})")
+        if not 0.0 < min_hz < max_hz:
+            raise ValueError(f"band range must be 0 < min_hz < max_hz (got {min_hz}, {max_hz})")
+        if db_range <= 0:
+            raise ValueError(f"db_range must be > 0 (got {db_range})")
+        if interval_s <= 0:
+            raise ValueError(f"interval_s must be > 0 (got {interval_s})")
+
+        self.n_bands = n_bands
+        self.min_hz = float(min_hz)
+        self.max_hz = float(max_hz)
+        self.db_min = float(db_min)
+        self.db_range = float(db_range)
+        self.interval_s = float(interval_s)
+
+        freqs = np.asarray(freqs_hz, dtype=np.float64)
+        edges = self.band_edges()
+        # Affectation statique de chaque bin à sa bande (bords supérieurs inclus)
+        band_of_bin = np.clip(np.searchsorted(edges, freqs, side="right") - 1, 0, n_bands - 1)
+        in_range = (freqs >= edges[0]) & (freqs <= edges[-1])
+        sorted_band = np.where(
+            in_range, band_of_bin, n_bands
+        )  # hors plage -> bande n_bands (ignorée)
+        self._perm = np.argsort(sorted_band, kind="stable")
+        sorted_bands = sorted_band[self._perm]
+        unique_bands, starts = np.unique(sorted_bands, return_index=True)
+        keep = unique_bands < n_bands
+        # Bandes présentes et découpage contigu après tri (pour np.add.reduceat)
+        self._present_bands = unique_bands[keep]
+        starts_kept = starts[keep].astype(np.intp)
+        self._starts = starts_kept
+        n_kept = int((sorted_bands < n_bands).sum())
+        self._counts = (
+            np.diff(np.append(starts_kept, n_kept))
+            if len(starts_kept)
+            else np.zeros(0, dtype=np.intp)
+        )
+        self._n_kept = n_kept
+
+        self._reset_window(0.0)
+        self._started = False
+
+    def band_edges(self) -> np.ndarray:
+        """Bords des n_bands+1 bandes log-spacées [min_hz .. max_hz]."""
+        ratio = self.max_hz / self.min_hz
+        return self.min_hz * ratio ** (np.arange(self.n_bands + 1) / self.n_bands)
+
+    def _reset_window(self, t0: float) -> None:
+        self._win_t0 = t0
+        self._min_g = np.full(self.n_bands, np.inf)
+        self._max_g = np.full(self.n_bands, -np.inf)
+        self._min_d = np.full(self.n_bands, np.inf)
+        self._max_d = np.full(self.n_bands, -np.inf)
+
+    def _band_energy_db(self, psd_db: np.ndarray) -> np.ndarray:
+        """Énergie agrégée par bande (dB) ; bandes vides = -inf."""
+        out = np.full(self.n_bands, -np.inf)
+        if len(self._starts) == 0:
+            return out
+        p = np.power(10.0, psd_db[self._perm[: self._n_kept]] / 10.0)
+        sums = np.add.reduceat(p, self._starts)
+        out[self._present_bands] = 10.0 * np.log10(sums + 1e-12)
+        return out
+
+    @staticmethod
+    def _aminmax(acc_min: np.ndarray, acc_max: np.ndarray, vals: np.ndarray) -> None:
+        """Accumule min/max en ignorant les -inf (bandes vides)."""
+        valid = vals > -np.inf
+        np.minimum(acc_min, vals, out=acc_min, where=valid)
+        np.maximum(acc_max, vals, out=acc_max, where=valid)
+
+    def _quantize(self, arr: np.ndarray) -> np.ndarray:
+        q = np.round((arr - self.db_min) / self.db_range * 255.0)
+        return np.clip(q, 0, 255).astype(np.uint8)
+
+    def update(
+        self, t_wall: float, psd1_db: np.ndarray, psd2_db: np.ndarray
+    ) -> tuple[float, float, bytes] | None:
+        """Ajoute un tick ; retourne (t0, dur, blob) quand la fenêtre se referme.
+
+        t_wall : horodatage mur du tick (time.time(), cohérent DB).
+        """
+        if not self._started:
+            self._win_t0 = t_wall
+            self._started = True
+        bg = self._band_energy_db(psd1_db)
+        bd = self._band_energy_db(psd2_db)
+        self._aminmax(self._min_g, self._max_g, bg)
+        self._aminmax(self._min_d, self._max_d, bd)
+
+        if t_wall - self._win_t0 < self.interval_s:
+            return None
+        t0, dur = self._win_t0, t_wall - self._win_t0
+        # Quantifier AVANT le reset : les accumulateurs sont remis à ±inf sinon
+        blob = np.empty((self.n_bands, 4), dtype=np.uint8)
+        blob[:, 0] = self._quantize(self._min_g)
+        blob[:, 1] = self._quantize(self._max_g)
+        blob[:, 2] = self._quantize(self._min_d)
+        blob[:, 3] = self._quantize(self._max_d)
+        self._reset_window(t_wall)
+        return t0, dur, blob.tobytes()
+
+
 class FloorTracker:
     """Tracks dynamic noise floor per frequency bin using a rolling median."""
 

@@ -79,6 +79,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   .card-title { font-size: 15px; font-weight: bold; margin-bottom: 12px; color: var(--text); display: flex; justify-content: space-between; }
 
   #timelineCanvas { width: 100%; height: 260px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); cursor: crosshair; }
+  #specCanvas { width: 100%; height: 120px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); margin-top: 6px; display: none; }
 
   table { width: 100%; border-collapse: collapse; text-align: left; }
   tr[data-ev-id] { cursor: pointer; }
@@ -139,6 +140,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
     <button id="toggleChG" class="btn btn-sm" onclick="toggleChannel(0)">IN1 (Air)</button>
     <button id="toggleChD" class="btn btn-sm" onclick="toggleChannel(1)">IN2 (Struct)</button>
+    <button id="toggleSpec" class="btn btn-sm" onclick="toggleSpectrum()" title="I63 : heatmap de l'historique spectre (signaux quasi permanents, invisibles dans les événements)">Spectre</button>
     <span style="opacity:.4">|</span>
     <button id="winBtn1h" class="btn btn-sm" onclick="setTimeWin(3600,this)">1h</button>
     <button id="winBtn6h" class="btn btn-sm" onclick="setTimeWin(21600,this)">6h</button>
@@ -150,6 +152,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <span id="zoomBadge" onclick="resetFviews()" title="I54 : reset zoom X+Y (double-clic ou Échap)" style="display:none; cursor:pointer; color:#94a3b8; font-size:12px;"></span>
   </div>
   <canvas id="timelineCanvas" width="1000" height="260"></canvas>
+  <canvas id="specCanvas"></canvas>
 </div>
 
 <div class="layout-2col">
@@ -307,6 +310,7 @@ async function refreshAll() {
     fetchJson('/api/events?limit=20000'), // I55: plus de plafond 200 — fenêtre ?since= déleste le éventail complet
     fetchJson('/api/clusters')
   ]);
+  fetchSpectrum(); // I63 : heatmap spectre (async, non bloquant)
 
   if (stats) {
     document.getElementById('statEvents').innerText = stats.total_events || 0;
@@ -791,6 +795,93 @@ function drawTimeline(events) {
     ctx.fillText('Aucun événement visible sur la plage affichée', w / 2, h / 2 - 10);
     ctx.textAlign = 'left';
   }
+
+  drawSpecPanel(); // I63 : heatmap spectre alignée sur la même échelle temps (tlScale à jour)
+}
+
+// ===== I63 : historique spectre — heatmap bandes log sous la timeline =====
+// Config injectée côté serveur (placeholders remplacés par BruitTrackHandler).
+const SPEC = { enabled: __SPEC_ENABLED__, bands: __SPEC_BANDS__, dbMin: __SPEC_DB_MIN__, dbRange: __SPEC_DB_RANGE__ };
+let specRows = [];
+let specShow = true;
+let specEdges = null;
+
+function toggleSpectrum() {
+  if (!SPEC.enabled) return;
+  specShow = !specShow;
+  document.getElementById('toggleSpec').classList.toggle('btn-active', specShow);
+  document.getElementById('specCanvas').style.display = specShow ? 'block' : 'none';
+  drawTimelineFull();
+}
+
+async function fetchSpectrum() {
+  if (!SPEC.enabled) return;
+  // Plafond 20000 lignes ≈ 14 jours à 1 ligne/min (au-delà : zoomer puis recharger)
+  const got = await fetchJson('/api/spectrum?limit=20000');
+  if (got && Array.isArray(got.rows)) specRows = got.rows;
+}
+
+function specBandEdge(i) { // bords log identiques au serveur (SpectrumAggregator.band_edges)
+  return MIN_EVENT_HZ * Math.pow(FREQ_MAX / MIN_EVENT_HZ, i / SPEC.bands);
+}
+
+function specColor(t) { // noir -> bleu -> cyan -> jaune
+  if (t < 1 / 3) { const k = t * 3; return 'rgb(' + Math.round(8 + k * 30) + ',' + Math.round(12 + k * 60) + ',' + Math.round(18 + k * 140) + ')'; }
+  if (t < 2 / 3) { const k = t * 3 - 1; return 'rgb(' + Math.round(38 + k * 40) + ',' + Math.round(72 + k * 110) + ',' + Math.round(158 + k * 90) + ')'; }
+  const k = t * 3 - 2; return 'rgb(' + Math.round(78 + k * 177) + ',' + Math.round(182 + k * 73) + ',' + Math.round(248 - k * 184) + ')';
+}
+
+function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale (même axe X)
+  const cv = document.getElementById('specCanvas');
+  if (!cv || !SPEC.enabled || !tlScale) return;
+  cv.style.display = specShow ? 'block' : 'none';
+  if (!specShow) return;
+  const dpr = window.devicePixelRatio || 1;
+  const wCss = TL_CKWW, hCss = 120;
+  const bw = Math.round(wCss * dpr), bh = Math.round(hCss * dpr);
+  if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, wCss, hCss);
+  ctx.fillStyle = '#080c12'; ctx.fillRect(0, 0, wCss, hCss);
+
+  const minT = tlScale.minT, span = tlScale.span;
+  const x0 = 40, x1 = wCss - 10;
+  const logLo = Math.log(MIN_EVENT_HZ), logHi = Math.log(FREQ_MAX);
+  const yOfHz = (f) => 4 + (logHi - Math.log(Math.max(f, MIN_EVENT_HZ))) / (logHi - logLo) * (hCss - 8);
+
+  if (!specRows.length) { // état vide
+    ctx.fillStyle = '#64748b'; ctx.font = '12px monospace'; ctx.textAlign = 'center';
+    ctx.fillText("Pas encore d'historique spectre", wCss / 2, hCss / 2);
+    ctx.textAlign = 'left';
+  }
+
+  for (const r of specRows) {
+    const tEnd = r.t0 + r.dur;
+    if (tEnd < minT || r.t0 > minT + span) continue;
+    let xa = Math.max(x0, x0 + ((r.t0 - minT) / span) * (x1 - x0));
+    const xb = Math.min(x1, x0 + ((tEnd - minT) / span) * (x1 - x0));
+    if (xb <= xa) continue;
+    const raw = atob(r.data);
+    const colW = Math.max(1, xb - xa);
+    for (let b = 0; b < r.n_bands; b++) {
+      let q;
+      if (showCh.l && showCh.d) q = Math.max(raw.charCodeAt(b * 4 + 1), raw.charCodeAt(b * 4 + 3));
+      else if (showCh.l) q = raw.charCodeAt(b * 4 + 1);
+      else q = raw.charCodeAt(b * 4 + 3);
+      if (q === 0) continue; // bande sans bin ou niveau au plancher de quantification
+      const yT = yOfHz(specBandEdge(b)), yB = yOfHz(specBandEdge(b + 1));
+      ctx.fillStyle = specColor(q / 255);
+      ctx.fillRect(xa, yT, colW, Math.max(1, yB - yT));
+    }
+  }
+
+  // Étiquettes Hz (échelle log) alignées sur la marge gauche de la timeline
+  ctx.fillStyle = '#94a3b8'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
+  for (const f of [FREQ_MAX, 50, 20, 10, MIN_EVENT_HZ]) {
+    if (f >= MIN_EVENT_HZ && f <= FREQ_MAX) ctx.fillText(f + ' Hz', 36, yOfHz(f) + 4);
+  }
+  ctx.textAlign = 'left';
 }
 
 // ===== Zoom par brushing sur la timeline (I39) : glisser = plage temps, double-clic/Esc = réinit =====
@@ -893,6 +984,10 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
             payload = (
                 HTML_DASHBOARD.replace("__FREQ_MAX__", f"{self.config.dsp.freq_max:g}")
                 .replace("__MIN_EVENT_HZ__", f"{self.config.dsp.min_event_hz:g}")
+                .replace("__SPEC_ENABLED__", "true" if self.config.spectrum.enabled else "false")
+                .replace("__SPEC_BANDS__", str(self.config.spectrum.n_bands))
+                .replace("__SPEC_DB_MIN__", f"{self.config.spectrum.db_min:g}")
+                .replace("__SPEC_DB_RANGE__", f"{self.config.spectrum.db_range:g}")
             ).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -930,13 +1025,35 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
             if order not in ("asc", "desc"):
                 self.send_error(400, "order doit valoir 'asc' ou 'desc'")
                 return
-            events = self.store.get_events(limit=limit, offset=offset, since=since, cluster=cluster, order=order)
+            events = self.store.get_events(
+                limit=limit, offset=offset, since=since, cluster=cluster, order=order
+            )
             self._send_json(events)
             return
 
         if path == "/api/clusters":
             clusters = self.store.get_clusters_summary()
             self._send_json(clusters)
+            return
+
+        if path == "/api/spectrum":
+            try:
+                since_spec = float(qs["since"][0]) if "since" in qs else None
+                until_spec = float(qs["until"][0]) if "until" in qs else None
+                limit_spec = int(qs.get("limit", [20000])[0])
+            except (ValueError, IndexError):
+                self.send_error(400, "Paramètre de requête invalide")
+                return
+            if limit_spec <= 0:
+                self.send_error(400, "limit doit > 0")
+                return
+            self._send_json(
+                {
+                    "rows": self.store.get_spectrum(
+                        since=since_spec, until=until_spec, limit=limit_spec
+                    )
+                }
+            )
             return
 
         if path.startswith("/api/exemplar/"):

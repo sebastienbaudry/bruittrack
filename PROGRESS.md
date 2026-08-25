@@ -49,3 +49,10 @@
 - [2026-08-27] I61c (fix) : yToFreq était le miroir vertical de yOfFreq — ancre molette inversée (curseur haut => zone basse étirée). Inverse exact corrigé + repro recalculé via inverse de yOfFreq ; échoue sur ancien code. 113 tests, zoom_check 8/8, DEPLOY_OK.
 - [2026-08-27] I62 : échelle X heure de Paris (ex-UTC) + jour affiché au changement + 24h explicite ; pas max 40h->24h ancré minuit Paris ; badge+formatDate alignés. Sandbox ok, 113 tests, DEPLOY_OK.
 - [2026-08-27] I62b : date inline « jj/mm hh:mm » sur la ligne des heures (l'étiquette h-21 était masquée par les points) ; sandbox + 113 tests + zoom_check 8/8, DEPLOY_OK.
+
+## I63 (2026-02) — Historique spectre (option 2) : table `spectrum` + heatmap viz
+- But : visualiser un signal infra quasi permanent (absorbé par le floor → jamais d'événement).
+- Plan : [x] config [spectrum] (enabled/interval_s=60/n_bands=24/db_min/db_range/retention_days)
+  [ ] dsp.SpectrumAggregator (bandes log min_event_hz..freq_max, min/max uint8, blob n_bands×4 o)
+  [ ] store: table spectrum + add/get + rétention [ ] pipeline wiring + rétention quotidienne
+  [ ] viz /api/spectrum + canvas heatmap sous timeline [ ] config.toml.example [ ] tests [ ] decision-log

@@ -14,7 +14,7 @@ import numpy as np
 
 from bruittrack.capture import SLOW_BLOCK_STREAK, AudioCapture, MockAudioCapture
 from bruittrack.config import Config
-from bruittrack.dsp import DspPipeline, FloorTracker, compute_channel_delay_ms
+from bruittrack.dsp import DspPipeline, FloorTracker, SpectrumAggregator, compute_channel_delay_ms
 from bruittrack.events import EventDetector, SoundEvent
 from bruittrack.store import EventStore
 
@@ -86,6 +86,19 @@ class Engine:
                 batch_timeout_s=config.storage.batch_timeout_s,
             )
 
+        # Spectrum history (bandes log, cf. docs/decision-log.md I63)
+        self.spectrum_agg: SpectrumAggregator | None = None
+        if config.spectrum.enabled:
+            self.spectrum_agg = SpectrumAggregator(
+                freqs_hz=self.dsp.freqs,
+                n_bands=config.spectrum.n_bands,
+                min_hz=config.dsp.min_event_hz,
+                max_hz=config.dsp.freq_max,
+                db_min=config.spectrum.db_min,
+                db_range=config.spectrum.db_range,
+                interval_s=config.spectrum.interval_s,
+            )
+
         # Load existing clusters into detector index
         self._load_cluster_index()
 
@@ -96,6 +109,7 @@ class Engine:
             self.store.apply_retention(
                 config.storage.retention_days,
                 exemplars_dir=config.storage.exemplars_dir,
+                spectrum_days=(config.spectrum.retention_days if config.spectrum.enabled else None),
             )
 
         self._is_running = False
@@ -130,6 +144,13 @@ class Engine:
         self.floor_tracker.update(psd1, psd2)
         em1, em2, _, _ = self.floor_tracker.compute_emergence(psd1, psd2)
 
+        # 2b. Spectrum history (quasi permanent signals never trigger events)
+        if self.spectrum_agg is not None:
+            row = self.spectrum_agg.update(time.time(), psd1, psd2)
+            if row is not None:
+                t0_spec, dur_spec, blob = row
+                self.store.add_spectrum(t0_spec, dur_spec, self.config.spectrum.n_bands, blob)
+
         events: list[SoundEvent] = []
         # 3. Detect events once warmed up
         if self.floor_tracker.is_warmed_up:
@@ -152,6 +173,9 @@ class Engine:
             self.store.apply_retention(
                 self.config.storage.retention_days,
                 exemplars_dir=self.config.storage.exemplars_dir,
+                spectrum_days=(
+                    self.config.spectrum.retention_days if self.config.spectrum.enabled else None
+                ),
             )
             self._last_retention_check = now_wall
 

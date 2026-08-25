@@ -59,6 +59,18 @@ class StorageConfig:
 
 
 @dataclass
+class SpectrumConfig:
+    """Historique spectre basse fréquence (bandes log, cf. docs/decision-log.md)."""
+
+    enabled: bool = True
+    interval_s: float = 60.0
+    n_bands: int = 24
+    db_min: float = -140.0
+    db_range: float = 160.0
+    retention_days: int | None = None
+
+
+@dataclass
 class VizConfig:
     host: str = "0.0.0.0"
     port: int = 8760
@@ -70,6 +82,7 @@ class Config:
     dsp: DspConfig = field(default_factory=DspConfig)
     detector: DetectorConfig = field(default_factory=DetectorConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
+    spectrum: SpectrumConfig = field(default_factory=SpectrumConfig)
     viz: VizConfig = field(default_factory=VizConfig)
 
     def validate(self) -> None:
@@ -125,6 +138,14 @@ class Config:
             raise ValueError("Storage batch_timeout_s must be > 0")
         if self.storage.retention_days is not None and self.storage.retention_days <= 0:
             raise ValueError("Storage retention_days must be > 0 (or None to disable)")
+        if self.spectrum.interval_s <= 0:
+            raise ValueError(f"Spectrum interval_s must be > 0 (got {self.spectrum.interval_s})")
+        if self.spectrum.n_bands < 1:
+            raise ValueError(f"Spectrum n_bands must be >= 1 (got {self.spectrum.n_bands})")
+        if self.spectrum.db_range <= 0:
+            raise ValueError(f"Spectrum db_range must be > 0 (got {self.spectrum.db_range})")
+        if self.spectrum.retention_days is not None and self.spectrum.retention_days <= 0:
+            raise ValueError("Spectrum retention_days must be > 0 (or None to disable)")
         nyquist = self.audio.sample_rate / 2.0
         if not 0 < self.dsp.lp_cutoff_hz < nyquist:
             raise ValueError(
@@ -221,6 +242,20 @@ def load_config(config_path: str | Path | None = None) -> Config:
         rd = int(store_dict["retention_days"])
         store_cfg.retention_days = None if rd <= 0 else rd
 
+    # Spectrum
+    spec_dict = raw_data.get("spectrum", {})
+    spec_cfg = SpectrumConfig(
+        enabled=bool(spec_dict.get("enabled", True)),
+        interval_s=float(spec_dict.get("interval_s", 60.0)),
+        n_bands=int(spec_dict.get("n_bands", 24)),
+        db_min=float(spec_dict.get("db_min", -140.0)),
+        db_range=float(spec_dict.get("db_range", 160.0)),
+    )
+    # retention_days: dataclass default None applies unless explicitly set
+    if "retention_days" in spec_dict:
+        srd = int(spec_dict["retention_days"])
+        spec_cfg.retention_days = None if srd <= 0 else srd
+
     # Viz
     viz_dict = raw_data.get("viz", {})
     viz_cfg = VizConfig(
@@ -233,6 +268,7 @@ def load_config(config_path: str | Path | None = None) -> Config:
         dsp=dsp_cfg,
         detector=det_cfg,
         storage=store_cfg,
+        spectrum=spec_cfg,
         viz=viz_cfg,
     )
     config.validate()
