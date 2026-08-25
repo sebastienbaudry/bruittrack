@@ -152,6 +152,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <span id="zoomBadge" onclick="resetFviews()" title="I54 : reset zoom X+Y (double-clic ou Échap)" style="display:none; cursor:pointer; color:#94a3b8; font-size:12px;"></span>
   </div>
   <canvas id="timelineCanvas" width="1000" height="260"></canvas>
+  <div id="specBar" style="display:none; text-align:right; font-size:11px; color:#64748b; margin:4px 2px 0 0;">Spectre — contraste auto par bande (p5–p95), niveau relatif par bande</div>
   <canvas id="specCanvas"></canvas>
 </div>
 
@@ -835,6 +836,8 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   const cv = document.getElementById('specCanvas');
   if (!cv || !SPEC.enabled || !tlScale) return;
   cv.style.display = specShow ? 'block' : 'none';
+  const bar = document.getElementById('specBar');
+  if (bar) bar.style.display = specShow ? 'block' : 'none';
   if (!specShow) return;
   const dpr = window.devicePixelRatio || 1;
   const wCss = TL_CKWW, hCss = 150;
@@ -904,14 +907,17 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
     }
   }
 
-  // Étiquettes Hz (échelle log) + légende de contraste auto (plage dB réellement affichée)
+  // Limite f_min (même repère pointillé que la timeline) — au-dessus des cellules
+  const yMin = Math.round(yOfHz(MIN_EVENT_HZ));
+  ctx.strokeStyle = 'rgba(245,158,11,.5)';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(40, yMin + 0.5); ctx.lineTo(wCss - 10, yMin + 0.5); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Étiquettes Hz (échelle log) — y borné au canvas (le label 2 Hz tombait hors cadre)
   ctx.fillStyle = '#94a3b8'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
   for (const f of [FREQ_MAX, 50, 20, 10, MIN_EVENT_HZ]) {
-    if (f >= MIN_EVENT_HZ && f <= FREQ_MAX) ctx.fillText(f + ' Hz', 36, yOfHz(f) + 4);
-  }
-  if (vis.length) {
-    ctx.fillStyle = '#64748b'; ctx.textAlign = 'right';
-    ctx.fillText('contraste auto par bande (p5-p95)', wCss - 14, hCss - 6);
+    if (f >= MIN_EVENT_HZ && f <= FREQ_MAX) ctx.fillText(f + ' Hz', 36, Math.min(hCss - 2, yOfHz(f) + 4));
   }
   ctx.textAlign = 'left';
 }
