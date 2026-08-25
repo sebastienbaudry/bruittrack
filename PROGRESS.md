@@ -57,3 +57,8 @@
   [ ] dsp.SpectrumAggregator (bandes log min_event_hz..freq_max, min/max uint8, blob n_bands×4 o)
   [ ] store: table spectrum + add/get + rétention [ ] pipeline wiring + rétention quotidienne
   [ ] viz /api/spectrum + canvas heatmap sous timeline [ ] config.toml.example [ ] tests [ ] decision-log
+
+## I63 DEPLOYÉ pi-t620 (2026-02) — DEPLOY_OK_I63
+- scripts/deploy_i63.sh : wheel → install venv → [spectrum] config idempotente → restart bruittrack+viz → verify (health, table spectrum via python sqlite3 [pas de CLI sqlite3 sur le T620], /api/spectrum, markers HTML toggleSpec/drawSpecPanel).
+- I63b retour terrain : bande log vide → artefact min=255 corrigé (_quantize non-fini→0) ; défauts db_min/db_range recalés −60/120 d'après niveaux réels mesurés (ambiant ≈ −35..−15 dB/bande) ; config distante mise à jour (sed) ; 5 vieilles lignes à l'ancienne échelle purgées.
+- État prod : table spectrum alimentée (1 ligne/60 s, blob 96 o), heatmap dispo via bouton « Spectre ». Reste : contrôle visuel du rendu dans le navigateur ; ajuster db_min/db_range si contraste mauvais.
