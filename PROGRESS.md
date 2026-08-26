@@ -55,3 +55,13 @@
 ## I76 (it.31) — Entry decision-log I59b + verifications
 - `docs/decision-log.md` : 2 nouvelles entries (invariance de pic — match ; I59b — post-hoc fusion avant rebuild de l'index).
 - Commit 14ef902. PROCHAIN : deploy via tools/deploy_pi.sh (marker `merge_quasi_duplicate_clusters`) + smoke M6/M9 pi-t620.
+
+## Loop it.6 — état + plan (correction dérive)
+- État : store.py modifié (fusion I59b en union-find, non commité) ; tests/test_store.py modifié (+test_i59b_merge_transitive_chain). Bugs fixés au passage : re-marquage d'un id déjà absorbé + comparaison uniquement sur le fp racine.
+- C'était essayé : premier patch = loop de paires simple (résultat [1,2], bug) ; 2e patch union-find avec fps[ra] seul (merged==1, test attend 2).
+- Échecs/fixes restants : comparer aussi le fp du membre `a` absorbé vs b (chaîne a~b~c ⇒ classe 1). Ensuite tests verts + check.sh + commit.
+
+### Prochaines étapes
+1. Patch store.py : fp_a = fps[a] dans la boucle des paires (membre, pas racine), roots[b]=_find(a) uniquement si match ; exécuter les tests test_store.py.
+2. bash tools/check.sh (gate complète).
+3. git add -A && commit « I59b : union-find cluster merge, chaîne transitive canonique min-id » + entry decision-log.

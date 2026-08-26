@@ -231,3 +231,12 @@ Décision : uniformité en linéaire des deux côtés du serveur.
 - Contexte : les clusters créés avant l'invariance de pic restaient séparés ; la recoloration par cluster exige un ID unique par famille (exemplaires indexés ex_<cluster>_*.raw, filtre et légende du dashboard).
 - Décision : `EventStore.merge_quasi_duplicate_clusters(max_bin_delta, exemplars_dir)` — comparaison par paires des fp representatives à chargement (seul coût de démarrage), canonical = plus petit ID survivant (stable entre redémarrages), UPDATE cluster en COMMIT unique `merge_clusters`, consolidation exemplaires `ex_<fusi>_<eid>.raw` → `canonical` avec vérification intégrité DB (`flags & FLAG_EXEMPLAR`). Appelée dans `Engine.__init__` AVANT `_load_cluster_index()`.
 - Justification : id canonical unique, zéro dépendance, coût N² sur le nb de clusters négligeable à démarrage. Preuves : `tests/test_store.py::test_i59b_merge_quasi_duplicate_clusters`, `tests/test_pipeline.py::test_engine_startup_merges_before_cluster_index` (ordonnancement), check.sh 154 tests verts.
+
+## I59b (it.6) — Fusion de clusters en chaines transitives (union-find)
+merge_quasi_duplicate_clusters comportait deux defauts : (1) la liste des pairs cids
+etait figee avant les UPDATE, si bien qu'un cluster deja absorbe reintervenait comme
+canonique et re-marquait les restants sous son propre id ; (2) le comparateur n'utilisait
+que l'empreinte de la racine de classe, ce qui cassait les chaines a~b~c (fingerprints_match
+non transitive). Correction : union-find dont la racine reste l'id minimal ; chaque membre
+a (absorbe ou pas) compare son propre fp aux candidats plus grands ; une seule passe d'UPDATE
+par id absorbe en fin de boucle. Garantit : le cluster canonique final est l'id minimal.

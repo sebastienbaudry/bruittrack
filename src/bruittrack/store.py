@@ -352,29 +352,48 @@ class EventStore:
                 if row is not None and row["fp"]:
                     fps[g["cluster"]] = bytes(row["fp"])
             cids = sorted(fps)
-            merges: list[tuple[int, int]] = []
+            # Union-find par id croissant : le racine d'une classe est toujours
+            # l'id minimal de celle-ci ; un groupe deja absorbe n'est plus canonique.
+            roots: dict[int, int] = {c: c for c in cids}
+
+            def _find(x: int) -> int:
+                while roots[x] != x:
+                    roots[x] = roots[roots[x]]
+                    x = roots[x]
+                return x
+
+            merged_pairs: list[int] = []  # ids effectivement absorbes (fondu, non canonique)
             for i in range(len(cids)):
                 a = cids[i]
+                ra = _find(a)
+                fp_a = fps[a]  # membre (absorbe ou non) : laisse la chaine a~b~c fonctionner
                 for b in cids[i + 1:]:
+                    if _find(b) != b:
+                        continue  # deja absorbe dans une classe
                     try:
                         compatible = fingerprints_match(
-                            fps[a], fps[b], max_bin_delta
+                            fp_a, fps[b], max_bin_delta
                         )
                     except Exception as exc:  # corruption fp tollerale
-                        logger.debug(f"I59: paire ({a},{b}) inanalysable: {exc}")
+                        logger.debug(f"I59: paire ({ra},{b}) inanalysable: {exc}")
                         continue
                     if not compatible:
                         continue
-                    cur = conn.execute(
-                        "UPDATE events SET cluster = ? WHERE cluster = ?",
-                        (a, b),
+                    roots[b] = ra  # class(b) absorbee par la classe minimale compatiple
+                    merged_pairs.append(b)
+            merges: list[tuple[int, int]] = []
+            for b in sorted(merged_pairs):
+                a = _find(b)
+                cur = conn.execute(
+                    "UPDATE events SET cluster = ? WHERE cluster = ?",
+                    (a, b),
+                )
+                if cur.rowcount:
+                    merged += 1
+                    merges.append((a, b))
+                    logger.info(
+                        f"I59: fusion cluster {b} -> {a} ({cur.rowcount} evts)"
                     )
-                    if cur.rowcount:
-                        merged += 1
-                        merges.append((a, b))
-                        logger.info(
-                            f"I59: fusion cluster {b} -> {a} ({cur.rowcount} evts)"
-                        )
             if merged:
                 conn.commit()
         if merged and exemplars_dir is not None:

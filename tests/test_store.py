@@ -512,3 +512,36 @@ def test_i59b_merge_renames_exemplars(tmp_path: Path) -> None:
         assert (ex_dir / "ex_1.raw").read_bytes() in (b"aaa", b"bbb")
     finally:
         store.close()
+
+
+def test_i59b_merge_transitive_chain() -> None:
+    """I59b : chaine A~B~C fusionnee en un seul cluster (id canonique min)."""
+    import numpy as np
+
+    from bruittrack.events import encode_fingerprint
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "t.db"
+        store = EventStore(db_path=db_path, batch_size=50)
+        spec = np.zeros(120, dtype=np.float32)
+        spec[80:85] = [3.0, 6.0, 12.0, 6.0, 3.0]
+        # fp_a pic au bin 82 ; fp_b pic au bin 83 ; fp_c : briques quantifiees d'un
+        # cran seulement vs fp_b (distance L1 = 1 <= l1_max) -> chaine transitive.
+        spec2 = np.zeros(120, dtype=np.float32)
+        spec2[79:84] = [6.0, 6.0, 12.0, 5.0, 3.0]
+        fp_a = encode_fingerprint(82, spec, dominant_ch=0, off_ms=2.0)
+        fp_b = encode_fingerprint(83, spec, dominant_ch=0, off_ms=2.0)
+        fp_c = encode_fingerprint(84, spec2, dominant_ch=0, off_ms=3.0)
+        for cid, fp in [(1, fp_a), (2, fp_b), (3, fp_c)]:
+            store.add_event(
+                SoundEvent(t0=1700000000.0 + cid, dur=1.5, bin_i=cid * 8,
+                           freq=40.96, lvl_g=12, lvl_d=8, off_ms=1.5,
+                           fp=fp, flags=0, cluster=cid)
+            )
+        store.flush()
+        merged = store.merge_quasi_duplicate_clusters(max_bin_delta=3)
+        assert merged == 2
+        events = store.get_events(limit=10)
+        assert sorted({e["cluster"] for e in events}) == [1]
+        assert len(events) == 3
+        store.close()
