@@ -52,3 +52,6 @@
 - test_i59b_merge_renames_exemplars vert ; suite store 13/13. Commit suivant gate complète.
 ## I76 (it.30) — Test de wiring I59b : merge avant reconstitution d'index au démarrage
 - test_engine_startup_merges_before_cluster_index (tests/test_pipeline.py) : DB seedée avec 2 clusters quasi-doublons ; après Engine.__init__, l'index n'a plus que le cluster 1.
+## I76 (it.31) — Entry decision-log I59b + verifications
+- `docs/decision-log.md` : 2 nouvelles entries (invariance de pic — match ; I59b — post-hoc fusion avant rebuild de l'index).
+- Commit 14ef902. PROCHAIN : deploy via tools/deploy_pi.sh (marker `merge_quasi_duplicate_clusters`) + smoke M6/M9 pi-t620.
