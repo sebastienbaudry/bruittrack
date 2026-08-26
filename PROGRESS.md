@@ -1,84 +1,15 @@
-# PROGRESS
+# PROGRESS — couleur par bin (getBinColor) + déploiement
 
+## État
+- I67b commit `edac3da` : palette discontinue 12 teintes × 30°, L alternée [50,67] — bins adjacents distincts.
+- I67c commit `699fa35` : test regression palette (`tests/test_viz_api.py`) + `tools/color_check.py`. Gate verte : 144 tests, ruff OK, check.sh OK.
+- Arbo worked tree clean. Déploiement pi-t620 demandé (it. 14).
 
+## Fait (essais/échecs)
+- Vérif numérique HSL→RGB bins 1..75 : min dist RGB adjacents = 0.264 (paires 15/16) ; doublons exacts seulement à 24 bins d'écart (~11.7 Hz, non adjacents visuellement).
+- I53 majBadge/updateMaj absent de src malgré commit doc 2418242 → item I56 reste ouvert (re-faire si temps).
 
-## Current state
-- [x] I67b (getBinColor) : 12 teintes fixes pas 30� + alternance de clarte par groupe de 12 bins � chaque bin i et i+1 separes d au moins 30� en hue ; meme bin_i => meme couleur ; bins a distance <=75 distincts sur la periode complete. ruff rc=0, 143 tests verts, zoom_check SCORE: 7/8 (core oui)
-
-- I35-I52 done + deploie pi-t620 (health OK, freq_max 150 prod)
-
-- I54 IN PROGRESS : boucle zoom 2 axes (GOAL.md + tools/zoom_check.sh)
-  - [x] I58 sync tableau/graphe (92ab8d7) + I58c ancrage zoom exact (9f75210 : tgt tlMode||tlScale ; tlMode prioritaire vs branche vide ; repro 20 ticks |delta|<10 ms ; ruff propre, 106 tests, zoom_check 8/8)
-
-  - [x] M0 gate verte : doublon test_store.py fusionne (+ asserts legacy), ruff OK, 101 tests
-
-  - [x] M1 freqView/axZoom(  [x] M2 fenetrage since  [x] M3 Ctrl+drag/badge/grille  [x] M4 docs  [x] M5 deploy DEPLOY_OK (SCORE 8/8, RC=0)
-
-- I53 open : bouton "Tout" 90 j + horodatage dernier fetch UI
-
-
-
-- [2026-08-25] I55 (commis 874d463) — Correction zoom terminée : brush `toTime` employait `canvas.width` (px device HiDPI) au lieu des px CSS → décalé sur écran rétina. Suppression plafond 200 : fetch initial `?limit=20000` + `fetchWindow()` en fin de `refreshAll()` (boutons ET zoom), merge clampé dataSince/dataUntil, watermark `winCursorT` anti-relance. Gate : 104 tests passés, ruff OK, JS node --check OK, zoom_check 7/8 (core oui ; B2 = deploy à refaire sur pi-t620).
-
-- [2026-08-25] I55+ deployé pi-t620 DEPLOY_OK (health ok, DB 1590 lignes > ancien plafond 200 ; markers live ok). zoom_check **SCORE 8/8** incl. B2.
-- [2026-08-25] I53 (commis 2418242) — badge « MAJ hh:mm:ss » (`majBadge` + `updateMaj()` en fin de refreshAll réussi). Bouton « Tout » déjà présent. 104 tests passés.
-
-## What was tried / failed
-
-- write tool drops path key under heavy quoting -> use heredoc cat > f <<'EOF' (quote delimiter to avoid expansion) then wc -c + grep marker.
-
-- WinOpenSSH: no VAR=val ssh prefix -> pass values as positional args via bash -s -- value.
-
-- Python one-liner: prefer 2-arg str.replace or scp-ed script file; never cat big files in output.
-
-
-
-## Next steps
-
-1. Apply I52 test (tests/test_store.py): old event cluster=7 + new event; create exemplar ex_7.raw before retention; assert apply_retention(30, exemplars_dir) deletes old row AND ex_7.raw, keeps example of live cluster.
-
-2. Run python -m pytest tests/test_store.py -q ; ruff check src/bruittrack ; commit I52 feat + doc.
-
-3. I53: in viz.py HTML add MAJ hh:mm:ss fed by last successful fetch (event timestamp badge near title) and update on each poll; commit; redeploy via scripts/deploy_pi.sh (verify markers incl. new one).
-
-- [2026-08-24] I54 (deploiement) — pi-t620 : freq_max 48.0 -> 150.0 dans /opt/bruittrack/config.toml, restart bruittrack + bruittrack-viz.
-- [x] I58(2)/inf sync table-graphe : lastVisible unique (temps+freqView+canaux) dans drawTimeline ; syncEventsToTable() orchestre le tableau ; 106 tests verts ; commit 92ab8d7
-- [2026-08-25] I59 FIX ZOOM (en cours) — B1 drawTimelineFull repart toujours de eventsData (lastVisible = sortie) ; B2 hiSpan sur eventsData ; B3 get_events(order=asc) + fetchWindow &order=asc ; B4 brush exclut Ctrl/bouton≠0 ; B5 wheel passive:false+preventDefault ; hover/pan/brush-draw sans rebuild table (drawTimelineFull(false)) ; EPSF 0,01. Tests : zoom_repro I59 + test_viz_zoom order.
-- [2026-08-25] I59 FIX ZOOM (commis 208fc7e) — B1..B5 + perf table corrigés ; repro I59 (échoue sur HEAD^), zoom_check 7/8 core, check.sh 113 tests vertes. Reste : B2 déployer sur pi-t620.
-- [2026-08-27] I61 (commis 1056014) : molette = zoom axe Y SEUL centré curseur ; zoomTimeAt/yToAnchorTime supprimés, repro I61 réécrit (span X constant + Δf curseur<0.1 Hz), 113 tests, zoom_check 8/8, DEPLOY_OK pi-t620.
-- [2026-08-27] I61b (fix) : dérive ancre molette au plancher 2 Hz — clamp réparti autour du curseur ; repro I61b ajouté (échoue avant fix), 113 tests, zoom_check 8/8, DEPLOY_OK.
-- [2026-08-27] I61c (fix) : yToFreq était le miroir vertical de yOfFreq — ancre molette inversée (curseur haut => zone basse étirée). Inverse exact corrigé + repro recalculé via inverse de yOfFreq ; échoue sur ancien code. 113 tests, zoom_check 8/8, DEPLOY_OK.
-- [2026-08-27] I62 : échelle X heure de Paris (ex-UTC) + jour affiché au changement + 24h explicite ; pas max 40h->24h ancré minuit Paris ; badge+formatDate alignés. Sandbox ok, 113 tests, DEPLOY_OK.
-- [2026-08-27] I62b : date inline « jj/mm hh:mm » sur la ligne des heures (l'étiquette h-21 était masquée par les points) ; sandbox + 113 tests + zoom_check 8/8, DEPLOY_OK.
-
-## I63 (2026-02) — Historique spectre (option 2) : table `spectrum` + heatmap viz
-- But : visualiser un signal infra quasi permanent (absorbé par le floor → jamais d'événement).
-- Plan : terminé (commit 0f5ecea) — config [spectrum], dsp.SpectrumAggregator (bug reset-avant-blob corrigé), store table+flush lot, pipeline wiring+rétention, viz /api/spectrum + heatmap canvas, 23 tests (136 verts), ruff propre, decision-log I63.
-- Reste (déploiement) : git push + pull sur pi-t620, redémarrer bruittrack.service, vérifier /api/spectrum et le rendu « Spectre » ; ajuster db_min/db_range si la heatmap est saturée/noire selon le gain réel.
-  [ ] dsp.SpectrumAggregator (bandes log min_event_hz..freq_max, min/max uint8, blob n_bands×4 o)
-  [ ] store: table spectrum + add/get + rétention [ ] pipeline wiring + rétention quotidienne
-  [ ] viz /api/spectrum + canvas heatmap sous timeline [ ] config.toml.example [ ] tests [ ] decision-log
-
-## I63 DEPLOYÉ pi-t620 (2026-02) — DEPLOY_OK_I63
-- scripts/deploy_i63.sh : wheel → install venv → [spectrum] config idempotente → restart bruittrack+viz → verify (health, table spectrum via python sqlite3 [pas de CLI sqlite3 sur le T620], /api/spectrum, markers HTML toggleSpec/drawSpecPanel).
-- I63b retour terrain : bande log vide → artefact min=255 corrigé (_quantize non-fini→0) ; défauts db_min/db_range recalés −60/120 d'après niveaux réels mesurés (ambiant ≈ −35..−15 dB/bande) ; config distante mise à jour (sed) ; 5 vieilles lignes à l'ancienne échelle purgées.
-- État prod : table spectrum alimentée (1 ligne/60 s, blob 96 o), heatmap dispo via bouton « Spectre ». Reste : contrôle visuel du rendu dans le navigateur ; ajuster db_min/db_range si contraste mauvais.
-- I63c retour terrain viz : lignes noires = skip q=0 + jointures sous-pixel → bords arrondis partagés, plus de skip ; nuances invisibles (fenêtre absolue vs ambiant ±5 dB) → contraste auto p5-p95 + légende plage dB ; h 150px. Format blob inchangé. Déployé DEPLOY_OK.
-- I63e : tooltips cassés au survol — drawSpecPanel rappelé à chaque frame (rAF mousemove) → cache offscreen + clé (vue|données|canaux|dpr), décodage atob mémoïsé. Déployé DEPLOY_OK.
-- I63f : tooltips de survol — bug PRÉEXISTANT démontré headless (identique sur HTML pré-I63) : hideEvtTip() dans drawTimeline masquait le tip ~16 ms après chaque mousemove. Fix : masquage porté par mouseleave/showTip(!best). Vérifié Playwright : tip stable + sticky clic. Déployé DEPLOY_OK.
-## I64 (2026-02) — Exemplaires audio désactivables par config + player retiré de la viz
-- Enregistrement des exemplaires piloté par record_exemplars sous [storage] (défaut true), passé au EventDetector ; si false : aucun ex_*.raw écrit et bit 2 FLAG_EXEMPLAR non posé.
-- Viz : const EXEMPLARS_ENABLED injectée côté serveur dans le dashboard HTML ; la cellule player passe à un tiret quand désactivé. config.toml.example complété.
-- Gate OK : 141 tests verts (137 avant), ruff check propres, viz.py formaté.
-
-## I64b (2026-02) — Colonne Audio masquee entierement quand record_exemplars=false
-- th id=audioTh retiree au boot (JS, 1 ligne) + cellule player supprimee du template de ligne ; etat vide en colspan dynamique. Test viz etendu (verification audioTh). Re-deploye pi-t620.
-
-## I64c — spectre : axe Y et bandes linéaires (fait)
-- [x] dsp.py band_edges linéaires ; pipeline docstring/commenté.
-- [x] viz.py JS : specBandEdge/yOfHz/yOfHz2 linéaires clampés, ticks niceHzStep.
-- [x] Test renommé (diffs constants) ; gate 141 + ruff ok.
-- [x] Déployé pi-t620 : DEPLOY_OK_I64, health ok, JS linéaire servi vérifié.
-- [x] I64d : /api/spectrum expose edges lineaires (test payload).
-
-- [2026-08-27] I67 (commis 625bdcc) : chromogramme — color des bulles par bin frequentiel getBinColor(e.bin_i), reemplace getClusterColor(e.cluster) ; test i67 ajoute ; ruff 0 + 143 tests verts + node --check OK.
+## Prochaines étapes
+1. Déployer sur pi-t620 : `bash scripts/deploy_pi.sh` (vérifier marker I67 getBinColor après déploiement ; DEPLOY_OK attendu). «
+2. Après OK : noter it. 14 + commit si artefacts modifs (PROGRESS/IMPROVEMENTS).
+3. Suite loop : I56 badge MAJ relatif (relMaj) ou I59 clustering meilleur alignement.
