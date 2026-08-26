@@ -43,3 +43,7 @@
 - `tools/clusters_check.py --demo` : cas pic+1bin → cluster 1 (match) ; étiquette mise à jour.
 - Test régression `test_i59_peak_wobble_shift_invariance` (tests/test_events.py).
 - Gate : check.sh CHECK OK, 151 tests verts. PROCHAIN : fusion post-hoc quasi-doublons dans store.py (partie restante I59) ou déployer + scanner la base pi-t620.
+## I75 (it. 24) — I59b fusion post-hoc quasi-doublons
+- `store.merge_quasi_duplicate_clusters(max_bin_delta, exemplars_dir)` : compare les fp representatives par paire croissante, UPDATE minimum-id canonique, commit explicite, renommage exemplaires ex_<fusi>_* → ex_<canon>_* (flags & FLAG_EXEMPLAR). Retour nb paires.
+- pipeline.Engine init : fusion AVANT _load_cluster_index() avec detector.cluster_max_bin_delta ; log nb paires.
+- Test regression test_i59_merge_quasi_duplicate_clusters. Gate CHECK OK, 152 tests.

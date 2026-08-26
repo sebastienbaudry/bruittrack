@@ -11,6 +11,8 @@ Features:
 from __future__ import annotations
 
 import base64
+import logging
+import os
 import re
 import sqlite3
 import threading
@@ -21,7 +23,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
 
-from bruittrack.events import FLAG_OVER_LEGAL, SoundEvent
+from bruittrack.events import FLAG_EXEMPLAR, FLAG_OVER_LEGAL, SoundEvent
 
 
 @contextmanager
@@ -319,6 +321,95 @@ class EventStore:
                 if row is not None:
                     result[cid] = bytes(row["fp"])
             return result
+
+    def merge_quasi_duplicate_clusters(
+        self,
+        max_bin_delta: int = 1,
+        exemplars_dir: str | Path | None = None,
+    ) -> int:
+        """I59 : fusionner les clusters quasi-doublons (fp compatibles). Le plus
+        petit id reste canonique ; les exemplaires sont renommés en conséquence.
+
+        Deterministe : paires parcourues par ordre d'id croissant.
+        Retour : nombre de paires effectivement fusionnees.
+        """
+        from .events import fingerprints_match  # local : pas de cycle au chargement
+
+        logger = logging.getLogger(__name__)
+        merged = 0
+        with self._db() as conn:
+            if not self._table_exists(conn, "events"):
+                return 0
+            groups = conn.execute(
+                "SELECT cluster, MIN(id) AS fid FROM events "
+                "WHERE cluster IS NOT NULL GROUP BY cluster"
+            ).fetchall()
+            fps: dict[int, bytes] = {}
+            for g in groups:
+                row = conn.execute(
+                    "SELECT fp FROM events WHERE id = ?", (g["fid"],)
+                ).fetchone()
+                if row is not None and row["fp"]:
+                    fps[g["cluster"]] = bytes(row["fp"])
+            cids = sorted(fps)
+            merges: list[tuple[int, int]] = []
+            for i in range(len(cids)):
+                a = cids[i]
+                for b in cids[i + 1:]:
+                    try:
+                        compatible = fingerprints_match(
+                            fps[a], fps[b], max_bin_delta
+                        )
+                    except Exception as exc:  # corruption fp tollerale
+                        logger.debug(f"I59: paire ({a},{b}) inanalysable: {exc}")
+                        continue
+                    if not compatible:
+                        continue
+                    cur = conn.execute(
+                        "UPDATE events SET cluster = ? WHERE cluster = ?",
+                        (a, b),
+                    )
+                    if cur.rowcount:
+                        merged += 1
+                        merges.append((a, b))
+                        logger.info(
+                            f"I59: fusion cluster {b} -> {a} ({cur.rowcount} evts)"
+                        )
+            if merged:
+                conn.commit()
+        if merged and exemplars_dir is not None:
+            self._rename_merged_exemplars(exemplars_dir, merges)
+        return merged
+
+    def _rename_merged_exemplars(
+        self, exemplars_dir: str | Path, merges: list[tuple[int, int]]
+    ) -> None:
+        """I59 : renommer ex_<fusi>_<id>.raw vers le cluster canonique."""
+        d = Path(exemplars_dir)
+        if not d.is_dir():
+            return
+        for canon, old in merges:
+            try:
+                with self._db(readonly=True) as conn:
+                    rows = conn.execute(
+                        "SELECT id FROM events "
+                        "WHERE cluster = ? AND (flags & ?) != 0",
+                        (canon, FLAG_EXEMPLAR),
+                    ).fetchall()
+            except sqlite3.Error:
+                continue
+            by_id = {r["id"]: r for r in rows}
+            for f in sorted(d.glob(f"ex_{old}_*.raw")):
+                m = re.fullmatch(rf"ex_{old}_(\d+)\.raw", f.name)
+                if not m:
+                    continue
+                eid = int(m.group(1))
+                if eid in by_id:
+                    target = d / f"ex_{canon}_{eid}.raw"
+                    try:
+                        os.replace(f, target)
+                    except OSError:
+                        pass
 
     def get_events(
         self,

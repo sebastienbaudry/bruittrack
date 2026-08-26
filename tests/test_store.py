@@ -435,3 +435,45 @@ def test_get_events_order_asc_and_validation(tmp_path):
             store.get_events(order="sideways")
     finally:
         store.close()
+
+
+def test_i59_merge_quasi_duplicate_clusters() -> None:
+    """I59 : deux clusters dont la fp differe d'un bin (pic wobble) sont fusionnes."""
+    import numpy as np
+
+    from bruittrack.events import encode_fingerprint
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "test.db"
+        store = EventStore(db_path=db_path, batch_size=50)
+        spec = np.zeros(100, dtype=np.float32)
+        spec[80:85] = [3.0, 6.0, 12.0, 6.0, 3.0]
+        fp_a = encode_fingerprint(82, spec, dominant_ch=0, off_ms=2.0)
+        fp_b = encode_fingerprint(83, spec, dominant_ch=0, off_ms=2.0)  # delayer le pic
+        fp_c = encode_fingerprint(70, np.full(100, 5.0, dtype=np.float32), dominant_ch=1, off_ms=-4.0)
+        for cid, fp in [(1, fp_a), (2, fp_b), (3, fp_c)]:
+            store.add_event(
+                SoundEvent(
+                    t0=1700000000.0 + cid,
+                    dur=1.0,
+                    bin_i=82,
+                    freq=40.04,
+                    lvl_g=10, lvl_d=9, off_ms=0.0, fp=fp, flags=0, cluster=cid,
+                )
+            )
+            store.add_event(
+                SoundEvent(
+                    t0=1700000100.0 + cid,
+                    dur=1.0,
+                    bin_i=82,
+                    freq=40.04,
+                    lvl_g=10, lvl_d=9, off_ms=0.0, fp=fp, flags=0, cluster=cid,
+                )
+            )
+        store.flush()
+        merged = store.merge_quasi_duplicate_clusters(max_bin_delta=1)
+        assert merged == 1
+        events = store.get_events(limit=10)
+        clusters_present = sorted({e["cluster"] for e in events})
+        assert clusters_present == [1, 3]
+        assert len(store.get_events(limit=10, cluster=1)) == 4

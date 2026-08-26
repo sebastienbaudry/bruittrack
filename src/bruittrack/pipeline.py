@@ -100,6 +100,14 @@ class Engine:
                 interval_s=config.spectrum.interval_s,
             )
 
+        # I59 : fusionner d'abord les quasi-doublons pour un index propre
+        dupes = self.store.merge_quasi_duplicate_clusters(
+            self.detector.cluster_max_bin_delta,
+            exemplars_dir=config.storage.exemplars_dir,
+        )
+        if dupes:
+            logger.info(f"I59: {dupes} paire(s) de clusters quasi-doublons fusionnees")
+
         # Load existing clusters into detector index
         self._load_cluster_index()
 
