@@ -604,6 +604,18 @@ function hideEvtTip() {
     const ev = best.ev;
     tip.textContent = `#${ev.cluster || '-'} · bin ${ev.bin_i} (${ev.freq.toFixed(2)} Hz) · G +${ev.lvl_g.toFixed(1)} / D +${ev.lvl_d.toFixed(1)} dB` + (ev.over_legal ? ' · ▲ legal' : '');
     tip.style.display = 'inline';
+    // I69 : le texte suit la bulle — centré au-dessus d'elle (plus jamais ancré
+    // dans la barre d'outils, qui était perçu comme un « décalage »).
+    tip.style.position = 'fixed';
+    tip.style.zIndex = '50';
+    tip.style.pointerEvents = 'none';
+    const crect = canvas.getBoundingClientRect();
+    let lx = crect.left + best.x - tip.offsetWidth / 2;
+    lx = Math.max(4, Math.min(lx, window.innerWidth - tip.offsetWidth - 4));
+    let ly = crect.top + best.y - tip.offsetHeight - 10;
+    if (ly < 4) ly = crect.top + best.y + best.r + 6; // sous la bulle si trop haut
+    tip.style.left = lx + 'px';
+    tip.style.top = ly + 'px';
     return ev; // I40 : point cliquable → lien avec le tableau
   }
   canvas.addEventListener('mousemove', showTip);

@@ -375,6 +375,20 @@ def test_i64c_spectrogram_linear_scale_in_dashboard() -> None:
     assert "niceHzStep((FREQ_MAX - MIN_EVENT_HZ) / 4)" in HTML_DASHBOARD
 
 
+def test_i69_tooltip_above_hovered_bubble() -> None:
+    """I69 : le texte survol est positionné juste au-dessus de la bulle survolée
+
+    (`position: fixed`, centré sur best.x, top = y_bulle - hauteur_tip - 10) —
+    avant, il restait à sa place fixe dans la barre d'outils et
+    paraissait « décalé » par rapport à la bulle.
+    """
+    from bruittrack.viz import HTML_DASHBOARD
+
+    assert "tip.style.position = 'fixed'" in HTML_DASHBOARD
+    assert "crect.left + best.x - tip.offsetWidth / 2" in HTML_DASHBOARD
+    assert "crect.top + best.y - tip.offsetHeight - 10" in HTML_DASHBOARD
+
+
 def test_i68_hover_hit_radius_and_lock() -> None:
     """I68 : survol des points — hit-test aligné sur le rayon visible de chaque bulle
     (max(12, r+3) px) et verrou du point survolé (hoverLockId) anti-flicker.

@@ -2,6 +2,8 @@
 
 Chaque item : fichier(s) + critère d'acceptation en une ligne.
 
+- [x] **I69** Tooltip survol positionné au-dessus de la bulle : `#evtTip` passe en `position: fixed` centré sur le point survolé (top = y_bulle − hauteur − 10 px, clamped écran, repli dessous si trop haut) — le texte ne reste plus ancré dans la barre d'outils (« décalage » corrigé). Fichier : `src/bruittrack/viz.py`.
+
 - [x] **I68** Tooltip timeline : hit-test aligné sur le rayon visible de chaque bulle `max(12, r+3)` px (au lieu du 10 px fixe du centre qui ratait les bulles fines et flottait entre voisines) + verrou `hoverLockId` — le texte au survol reste collé à la bulle en cours tant que le curseur est dans son rayon (anti-flicker). Fichiers : `src/bruittrack/viz.py`, `tests/test_viz_api.py`. OK quand : `pytest tests/test_viz_api.py -k i68 -q` vert, check.sh verte (145 tests).
 
 - [x] **I1** `bruittrack stats --json` : flag manquant promis par README (matrice M6 « rc=0 + JSON valide »).

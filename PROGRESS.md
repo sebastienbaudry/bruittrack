@@ -11,3 +11,7 @@
 1. **[FAIT]** Déploiement I68 sur pi-t620 : DEPLOY_OK — services actives, health `ok` (3271 lignes), markers HTML vérifiés y compris `hoverLockId`, pip check OK.
 2. Suite loop : I56 badge MAJ relatif ou I59 clustering alignement.
 
+
+## I69 (après déploiement I68)
+- evtTip repassé en position:fixed, centré au-dessus de la bulle survolée (clamp écran, repli dessous).
+- 146 tests verts, DEPLOY_OK pi-t620. Voir IMPROVEMENTS.md I69.
