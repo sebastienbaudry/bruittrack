@@ -38,3 +38,8 @@
 - Découverte : le commit I53 (2418242) n'avait rien porté à viz.py (doc-only) ; `majBadge`/`updateMaj()` absents du code.
 - Fait : span `#majBadge` + `renderMaj()` (« MAJ il y a Xs » < 60 s, sinon hh:mm:ss TZ_VIZ) + tick 1 s léger `startMajTick()` ; `lastMajTs` posé en fin de `refreshAll()`. Test marqueurs `test_i56_maj_badge_relative_time`.
 - Gate : check.sh CHECK OK, 150 tests verts. PROCHAIN : deploy pi-t620 (marker majBadge), sinon I59 fragmentation clustering.
+## I74 (it. 20-23) — I59 invariant fingerprint à la dérive du pic
+- `fingerprints_match` (events.py) : Δbin=0 strict L1≤2 sur les 5 briques ; Δ≠0 meilleur alignement de profil (δ ∈ {−1,0,+1}) ≥3 briques, distance normalisée |a−b|/max(1,max(a,b)) cumulée ≤ 2 — corrige la fragmentation quand le pic saute d'un bin (saturation du ratio relatif).
+- `tools/clusters_check.py --demo` : cas pic+1bin → cluster 1 (match) ; étiquette mise à jour.
+- Test régression `test_i59_peak_wobble_shift_invariance` (tests/test_events.py).
+- Gate : check.sh CHECK OK, 151 tests verts. PROCHAIN : fusion post-hoc quasi-doublons dans store.py (partie restante I59) ou déployer + scanner la base pi-t620.

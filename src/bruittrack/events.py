@@ -160,10 +160,28 @@ def fingerprints_match(
     if abs(d1.delay_class - d2.delay_class) > 2:
         return False
 
-    # Manhattan distance on quantized neighbors
-    dist_neighbors = sum(abs(a - b) for a, b in zip(d1.neighbors, d2.neighbors))
+    # I59 : comparer les blocs en ALIGNEMENT D'ÉNERGIE (meilleur décalage
+    # δ du profil de fp2 sur celui de fp1), distance normalisée — invariance
+    # au saut de pic d'un bin ; cas s=0 reste strict (L1 ≤ 2).
+    if d1.bin_peak == d2.bin_peak:
+        dist_neighbors = sum(abs(a - b) for a, b in zip(d1.neighbors, d2.neighbors))
+        return dist_neighbors <= 2
 
-    return dist_neighbors <= 2
+    best = None
+    for shift in (-1, 0, 1):
+        terms = [
+            (a, b)
+            for i, (a, b) in enumerate(zip(d1.neighbors, d2.neighbors))
+            if 0 <= i + shift < 5
+        ]
+        if len(terms) < 3:
+            continue
+        dist = sum(
+            abs(a - b) / max(1.0, float(max(a, b))) for a, b in terms
+        )
+        if best is None or dist < best:
+            best = dist
+    return best is not None and best <= 2.0
 
 
 class ClusterIndex:

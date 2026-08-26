@@ -348,3 +348,15 @@ class TestCumDurationChain:
         assert any(e.flags & FLAG_OVER_LEGAL for e in events[-3:]), (
             "le segment final doit être évalué sur la durée cumulée de l'épisode"
         )
+
+
+def test_i59_peak_wobble_shift_invariance() -> None:
+    """I59 : même forme, pic détecté décalé d'1 bin → MATCH (pas de fragmentation)."""
+    spec = np.zeros(100, dtype=np.float32)
+    spec[80:85] = [3.0, 6.0, 12.0, 6.0, 3.0]
+    fp_a = encode_fingerprint(82, spec, dominant_ch=0, off_ms=2.0)
+    fp_b = encode_fingerprint(83, spec, dominant_ch=0, off_ms=2.0)
+    idx = ClusterIndex(max_bin_delta=4)
+    c1, new1 = idx.match_or_create(fp_a)
+    c2, new2 = idx.match_or_create(fp_b)
+    assert new1 and not new2 and c1 == c2
