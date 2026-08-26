@@ -180,12 +180,14 @@ SMOKECFGEOF
         sm_row M5 "floor tracker (verbose-floor)" FAIL "rc=${SMOKE_RC} | $(printf '%s' "$F_OUT" | tail -5)"
     fi
 
-    # M6 — store/stats : rc=0, sortie parseable
+    # M6 — store/stats : rc=0, sortie parseable + total_clusters visible
     SMOKE_RC=0; S_OUT=$("$PYB" -m bruittrack stats 2>&1) || SMOKE_RC=$?
-    if [ "$SMOKE_RC" -eq 0 ] && printf '%s' "$S_OUT" | grep -q "clusters distincts"; then
-        sm_row M6 "store/stats CLI + total_clusters" OK "$(printf '%s' "$S_OUT" | grep 'clusters distincts')"
+    JSON_RC=0; JSON_OUT=$("$PYB" -m bruittrack stats --json 2>/dev/null) || JSON_RC=$?
+    if [ "$SMOKE_RC" -eq 0 ] && printf '%s' "$S_OUT" | grep -q "clusters distincts" \
+       && [ "$JSON_RC" -eq 0 ] && printf '%s' "$JSON_OUT" | grep -q '"total_clusters"'; then
+        sm_row M6 "store/stats CLI + total_clusters" OK "$(printf '%s' "$S_OUT" | grep 'clusters distincts') | JSON ok"
     else
-        sm_row M6 "store/stats CLI + total_clusters" FAIL "rc=${SMOKE_RC} out=${S_OUT}"
+        sm_row M6 "store/stats CLI + total_clusters" FAIL "rc=${SMOKE_RC} jrc=${JSON_RC} out=${S_OUT}"
     fi
 
     # M7 — viz/API : /api/stats 200 JSON + timeline HTML

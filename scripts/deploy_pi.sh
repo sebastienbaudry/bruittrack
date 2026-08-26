@@ -35,6 +35,11 @@ done
 curl -sf http://127.0.0.1:8760/api/events?limit=1 >/dev/null
 /opt/bruittrack/.venv/bin/python3 -m pip check
 ls /opt/bruittrack/.venv/lib/python3.13/site-packages/bruittrack/viz.py >/dev/null
+# I74/I75 : invariance pic + fusion quasi-doublons presentes sur le site distant
+D=/opt/bruittrack/.venv/lib/python3.13/site-packages/bruittrack
+grep -q "def merge_quasi_duplicate_clusters" $D/store.py || exit 6
+grep -q "merge_quasi_duplicate_clusters" $D/pipeline.py || exit 7
+grep -q "max_bin_delta" $D/events.py || exit 8
 echo VERIFY_OK
 VEOF
 echo "DEPLOY_OK"
