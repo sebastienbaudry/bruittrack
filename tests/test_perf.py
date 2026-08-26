@@ -78,3 +78,34 @@ def test_perf_pid_gone_returns_1(monkeypatch):
     rc, out = _run_perf(monkeypatch, [_stat_text(100, 5, 30_000), _stat_text(100, 5, 31_000)])
     assert rc == 1
     assert "Impossible de mesurer" in out
+
+def test_perf_auto_resolves_service_mainpid(monkeypatch):
+    """Sans --pid sur Linux, le MainPID du service bruittrack est utilise."""
+
+    class _FakeCompleted:
+        stdout = "77207\n"
+
+    def fake_run(cmd, **kwargs):
+        assert cmd[:3] == ["systemctl", "show", "-p"]
+        assert cmd[-1:] == ["bruittrack"]
+        return _FakeCompleted()
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    fake = _FakeProc([_stat_text(10, 5, 30_000), _stat_text(60, 5, 30_000)])
+
+    def fake_read_text(self, encoding=None, errors=None):  # type: ignore[no-untyped-def]
+        norm = str(self).replace("\\", "/")
+        assert norm == "/proc/77207/stat", f"attendu /proc/77207/stat, obtenu {self}"
+        return fake.read_text()
+
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    monkeypatch.setattr("platform.system", lambda: "Linux")
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+    buf = io.StringIO()
+    ns = argparse.Namespace(pid=None)
+
+    with redirect_stdout(buf):
+        rc = cli.cmd_perf(ns)
+
+    assert rc == 0
+    assert "PID 77207" in buf.getvalue()

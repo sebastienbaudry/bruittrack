@@ -298,7 +298,22 @@ def cmd_perf(args: argparse.Namespace) -> int:
     import os as _os
     import platform
 
-    pid = args.pid or _os.getpid()
+    pid = args.pid
+    if not pid and platform.system() == "Linux":
+        # Réso solution auto du MainPID du service (layout HP: systemctl présent)
+        import subprocess as _sp
+
+        try:
+            out = _sp.run(
+                ["systemctl", "show", "-p", "MainPID", "--value",
+                 "bruittrack"],
+                capture_output=True, text=True, timeout=5,
+            ).stdout.strip()
+            if out.isdigit() and int(out) > 1:
+                pid = int(out)
+        except Exception:
+            pass
+    pid = pid or _os.getpid()
     if platform.system() != "Linux":
         print("La commande perf nécessite /proc (Linux).")
         return 1
