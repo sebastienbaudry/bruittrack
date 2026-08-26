@@ -34,3 +34,7 @@
 - Deploy pi-t620 via scripts/deploy_pi.sh : wheel refabrique, pip install force, services active, VERIFY_OK + DEPLOY_OK, health ok (3390 lignes), getClusterColor dans le HTML servi.
 - Site distant verifie : /opt/bruittrack/src/bruittrack/viz.py → getClusterColor ×4, getBinColor ×0.
 - GOAL I71 DONE.
+## I73 (it. 18) — I56 badge MAJ temps relatif (rétablit I53)
+- Découverte : le commit I53 (2418242) n'avait rien porté à viz.py (doc-only) ; `majBadge`/`updateMaj()` absents du code.
+- Fait : span `#majBadge` + `renderMaj()` (« MAJ il y a Xs » < 60 s, sinon hh:mm:ss TZ_VIZ) + tick 1 s léger `startMajTick()` ; `lastMajTs` posé en fin de `refreshAll()`. Test marqueurs `test_i56_maj_badge_relative_time`.
+- Gate : check.sh CHECK OK, 150 tests verts. PROCHAIN : deploy pi-t620 (marker majBadge), sinon I59 fragmentation clustering.

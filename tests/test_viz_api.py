@@ -495,3 +495,19 @@ def test_i71_clustercolor_palette_distinct_nearby_ids() -> None:
     for i in range(1, 30):
         for j in range(i + 1, min(i + 7, 30)):
             assert d(col(i), col(j)) >= 0.05, f"clusters {i},{j} trop proches"
+
+
+def test_i56_maj_badge_relative_time() -> None:
+    """I53/I56 : badge MAJ relatif — span present, tick 1 s, affichage "il y a Xs" / horodate."""
+    from bruittrack.viz import HTML_DASHBOARD as html
+
+    for tok in (
+        'id="majBadge"',
+        "function renderMaj()",
+        "function startMajTick()",
+        "let lastMajTs = 0",
+        "setInterval(renderMaj, 1000)",
+        "MAJ il y a ${dt}s",
+        "lastMajTs = Date.now() / 1000; renderMaj(); startMajTick();",
+    ):
+        assert tok in html, f"marqueur manquant : {tok}"

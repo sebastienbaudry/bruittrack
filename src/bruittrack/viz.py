@@ -150,6 +150,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <span id="evtTip" style="font-family:monospace; font-size:12px; color:#e2e8f0; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
     <span id="freqTip" title="I49 : fréquence sous le curseur" style="font-family:monospace; font-size:12px; color:#93c5fd; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
     <span id="zoomBadge" onclick="resetFviews()" title="I54 : reset zoom X+Y (double-clic ou Échap)" style="display:none; cursor:pointer; color:#94a3b8; font-size:12px;"></span>
+    <span id="majBadge" title="I53/I56 : dernière MAJ réussie" style="margin-left:10px; font-family:monospace; font-size:12px; color:#94a3b8;"></span>
   </div>
   <canvas id="timelineCanvas" width="1000" height="260"></canvas>
   <div id="specBar" style="display:none; text-align:right; font-size:11px; color:#64748b; margin:4px 2px 0 0;">Spectre — contraste auto par bande (p5–p95), niveau relatif par bande</div>
@@ -287,6 +288,19 @@ function updateZoomBadge() { // I54 : badge si des vues libres ; clic dessus = r
   b.style.display = 'inline';
 }
 
+let lastMajTs = 0; // I56 : horodatage (epoch s) de la dernière MAJ réussie
+function renderMaj() { // I53/I56 : « il y a Xs » si < 60 s, sinon horodaté hh:mm:ss (TZ_VIZ)
+  const b = document.getElementById('majBadge');
+  if (!b || !lastMajTs) return;
+  const dt = Math.floor(Date.now() / 1000 - lastMajTs);
+  const abs = new Date(lastMajTs * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: TZ_VIZ });
+  b.textContent = dt < 60 ? `MAJ il y a ${dt}s` : `MAJ ${abs}`;
+}
+function startMajTick() { // I56 : tick 1 s léger (texte seul, pas de refetch)
+  if (window.__majTick) return;
+  window.__majTick = setInterval(renderMaj, 1000);
+}
+
 function resetFviews() { // I54 : double-clic / Échap / badge → vues par défaut (X + Y)
   if (!tlMode && !freqView) return;
   tlMode = null; freqView = null;
@@ -337,6 +351,7 @@ async function refreshAll() {
   }
   await fetchWindow(); // I55 : tous les événements de la plage sélectionnée (plus de plafond figé)
   drawTimelineFull();
+  lastMajTs = Date.now() / 1000; renderMaj(); startMajTick(); // I53/I56 : badge MAJ après chargement réussi
 }
 
 function chanOf(e) { // canal dominant, cohérent avec les badges du tableau

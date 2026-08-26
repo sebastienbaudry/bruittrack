@@ -135,7 +135,7 @@ Chaque item : fichier(s) + critère d'acceptation en une ligne.
 
 ## Backlog it. 6 (ajouts I53b+)
 - [x] **I55** Commit du script de regression zoom `tools/zoom_repro.js` (node + stub DOM : invariance du point sous le curseur molette) — OK quand : `git status --porcelain tools/zoom_repro.js` vide et `node tools/zoom_repro.js src/bruittrack/viz.py` renvoie INVA_OK ou sort un diagnostic lisible sans crash.
-- [ ] **I56** Badge MAJ en temps relatif : `updateMaj()` affiche « il y a Xs » si < 60 s sinon hh:mm:ss, rafraichi par interval 1 s existant — OK quand : le HTML contient `relMaj( et le test marqueur correspondance passe.
+- [x] **I56** Badge MAJ en temps relatif : `renderMaj()` affiche « MAJ il y a Xs » si < 60 s sinon horodaté hh:mm:ss (TZ_VIZ), tick 1 s léger (`startMajTick()`, texte seul, pas de refetch) ; `lastMajTs` posé en fin de `refreshAll()` après chargement réussi. Span `#majBadge` dans la barre du chronogramme. Restore du code I53 (commit doc-only 2418242 n'avait rien porté à viz.py). Fichiers : `src/bruittrack/viz.py`, `tests/test_viz_api.py` (`test_i56_maj_badge_relative_time`). OK quand : tokens marqueurs présents et check.sh verte (150 tests).
 - [x] **I57** README.md : documenter l aboli plafond 200 (boutons Tout/90j + zoom charge via `?since=`, watermark anti-relance) — Fichier : README.md. OK quand : grep 'limit=20000\|fenetrage' README.md > 0 et check.sh verte. (documenté en section Fenêtrage, it. 26)
 
 ## Backlog it. 4 (additions)
