@@ -184,7 +184,8 @@ SMOKECFGEOF
     SMOKE_RC=0; S_OUT=$("$PYB" -m bruittrack stats 2>&1) || SMOKE_RC=$?
     JSON_RC=0; JSON_OUT=$("$PYB" -m bruittrack stats --json 2>/dev/null) || JSON_RC=$?
     if [ "$SMOKE_RC" -eq 0 ] && printf '%s' "$S_OUT" | grep -q "clusters distincts" \
-       && [ "$JSON_RC" -eq 0 ] && printf '%s' "$JSON_OUT" | grep -q '"total_clusters"'; then
+       && [ "$JSON_RC" -eq 0 ] \
+       && printf '%s' "$JSON_OUT" | "$PYB" -c 'import json,sys; v=json.load(sys.stdin)["total_clusters"]; assert isinstance(v,int) and v>=0' 2>/dev/null; then
         sm_row M6 "store/stats CLI + total_clusters" OK "$(printf '%s' "$S_OUT" | grep 'clusters distincts') | JSON ok"
     else
         sm_row M6 "store/stats CLI + total_clusters" FAIL "rc=${SMOKE_RC} jrc=${JSON_RC} out=${S_OUT}"
