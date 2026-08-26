@@ -234,13 +234,6 @@ function getClusterColor(clusterId) {
   return `hsl(${hue}, 85%, ${l}%)`;
 }
 
-function getBinColor(binI) { // I67c : pas de teintes trop proches entre bins adjacents
-  if (!binI) return "#94a3b8"; // DC / bin inconnu
-  const H = (binI - 1) % 12; // 12 teintes fixes a 30 deg du rouge au magenta
-  const L = [50, 67][Math.floor((binI - 1) / 12) % 2]; // alternance de clarte par groupe de 12 bins
-  return `hsl(${H * 30}, 80%, ${L}%)`; // meme bin_i => meme couleur ; voisin = hue +30 deg ou L oppohee
-}
-
 // ===== I54 : fenêtrage de données, pan fréquence, badge, reset des 2 axes =====
 let dataSince = null; // t0 le plus ancien chargé localement (I54)
 let dataUntil = null; // t0 le plus récent chargé localement (I54)
@@ -794,7 +787,7 @@ function drawTimeline(events) {
       timelinePoints.push({x, y, r: radius, ev: e});
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fillStyle = getBinColor(e.bin_i);
+      ctx.fillStyle = getClusterColor(e.cluster);
       ctx.globalAlpha = 0.85;
       ctx.fill();
       ctx.strokeStyle = '#ffffff';

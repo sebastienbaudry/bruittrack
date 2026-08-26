@@ -432,50 +432,30 @@ def test_i68_hover_hit_radius_and_lock() -> None:
     assert "bd = 10 * 10" not in HTML_DASHBOARD  # ancien hit-test fixe à 10 px retiré
 
 
-def test_i67_bubbles_colored_per_bin() -> None:
-    """I67 : les bulles du chronogramme prennent 1 teinte par bin (plus par cluster)."""
+def test_i71_bubbles_colored_per_cluster() -> None:
+    """I71 : les bulles du chronogramme reprennent 1 couleur par cluster (reprend I67)."""
     from bruittrack.viz import HTML_DASHBOARD
 
-    # Fonction couleur par bin present, utilise la frequence max/min en entree.
-    assert "function getBinColor(binI)" in HTML_DASHBOARD
-    # Remplacement du colorage par cluster dans le draw des bulles.
-    assert "ctx.fillStyle = getBinColor(e.bin_i)" in HTML_DASHBOARD
-    assert "ctx.fillStyle = getClusterColor(e.cluster)" not in HTML_DASHBOARD
+    assert "function getClusterColor(clusterId)" in HTML_DASHBOARD
+    assert "ctx.fillStyle = getClusterColor(e.cluster)" in HTML_DASHBOARD
+    # getBinColor retire completement du fichier servi.
+    assert "getBinColor" not in HTML_DASHBOARD
 
 
-def test_i67_bincolor_palette_distinct_nearby_bins() -> None:
-    """I67 : pas de doublon/coulure trop proche entre bins visuellement proximaux.
-
-    Reproduction numerique (colorsys.hls_to_rgb) du getBinColor JS pour verifier
-    que la palette discrete reste stable et discriminante sur la plage utilisable
-    (max ~75 bins : FREQ_MAX/MIN_EVENT_HZ). Garde anti-regression si la formule
-    change dans HTML_DASHBOARD.
-    """
-    import math
-    from colorsys import hls_to_rgb
-
+def test_i71_dashbadges_still_use_cluster_color() -> None:
+    """I71 : badges/table events et cards clusters continuent a utiliser getClusterColor."""
     from bruittrack.viz import HTML_DASHBOARD
 
-    # Garde formule : 12 teintes de 30 deg + clarte alternee par groupe de 12.
-    assert "% 12" in HTML_DASHBOARD
-    assert "* 30}" in HTML_DASHBOARD or "* 30 )" in HTML_DASHBOARD
-    assert "[50, 67]" in HTML_DASHBOARD
+    assert "getClusterColor(e.cluster)}22" in HTML_DASHBOARD
+    assert "getClusterColor(c.cluster_id)" in HTML_DASHBOARD
 
-    def col(b: int) -> tuple[float, float, float]:
-        h = ((b - 1) % 12 * 30) / 360.0
-        l = [50, 67][math.floor((b - 1) // 12) % 2] / 100.0
-        return hls_to_rgb(h, l, 80 / 100)
 
-    d = lambda a, b: sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5
+def test_clustercolor_gray_fallback_for_missing_cluster() -> None:
+    """I71 : cluster NULL/absent dessine le gris neutre #94a3b8."""
+    from bruittrack.viz import HTML_DASHBOARD
 
-    # Bins adjacents (proches en frequence) : distance RGB comfortably >= 0.2.
-    for b in range(1, 75):
-        assert d(col(b), col(b + 1)) >= 0.2, f"bins adjacents {b},{b + 1} trop proches"
-
-    # Proximite visuelle <=6 bins : aucune couleur quasi identique (<0.05).
-    for i in range(1, 76):
-        for j in range(i + 2, min(i + 7, 76)):
-            assert d(col(i), col(j)) >= 0.05, f"bins {i},{j} trop proches"
+    assert "if (!clusterId)" in HTML_DASHBOARD
+    assert "#94a3b8" in HTML_DASHBOARD
 
 
 def test_i71_clustercolor_palette_distinct_nearby_ids() -> None:

@@ -57,5 +57,10 @@ if "$PY" -m ruff check "$VIZ" "$TST" >/dev/null 2>&1; then
   ok "C8 ruff clean"
 else ko "C8 ruff non conforme sur viz.py / test_viz_api.py"; fi
 
+# C9 — proprietes numeriques palette : ids adjacents >= 0.13, fenetre |Δid|<=6 >= 0.05 [1]
+if "$PY" tools/color_check.py --max-id 29 --min-adjacent 0.13 >/tmp/cluster_color_c9.log 2>&1; then
+  ok "C9 proprietes numeriques palette (T1)"
+else ko "C9 palette non discriminante (details : /tmp/cluster_color_c9.log)"; fi
+
 echo "SCORE: $score/10"
 [ "$score" -eq 10 ] && exit 0 || exit 1
