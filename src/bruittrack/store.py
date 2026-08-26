@@ -384,7 +384,11 @@ class EventStore:
     def _rename_merged_exemplars(
         self, exemplars_dir: str | Path, merges: list[tuple[int, int]]
     ) -> None:
-        """I59 : renommer ex_<fusi>_<id>.raw vers le cluster canonique."""
+        """I59 : renommer les exemplaires du cluster fondu vers le canonique.
+
+        Gère les deux schémas d'implantation : le nom réel ``ex_<cluster>.raw»
+        et le nom de la documentation ``ex_<cluster>_<id>.raw » (ce dernier n'est
+        renommé que si l'événement référencé porte bien le flag exemplaire)."""
         d = Path(exemplars_dir)
         if not d.is_dir():
             return
@@ -398,18 +402,25 @@ class EventStore:
                     ).fetchall()
             except sqlite3.Error:
                 continue
-            by_id = {r["id"]: r for r in rows}
+            by_id = {r["id"] for r in rows}
+            # Schéma réel : un seul fichier par cluster, ex_<cluster>.raw
+            legacy = d / f"ex_{old}.raw"
+            if legacy.is_file():
+                target = d / f"ex_{canon}.raw"
+                try:
+                    os.replace(legacy, target)
+                except OSError:
+                    pass
+            # Schéma doc : ex_<cluster>_<id>.raw par événement exemplaire.
             for f in sorted(d.glob(f"ex_{old}_*.raw")):
                 m = re.fullmatch(rf"ex_{old}_(\d+)\.raw", f.name)
-                if not m:
+                if not m or int(m.group(1)) not in by_id:
                     continue
-                eid = int(m.group(1))
-                if eid in by_id:
-                    target = d / f"ex_{canon}_{eid}.raw"
-                    try:
-                        os.replace(f, target)
-                    except OSError:
-                        pass
+                target = d / f"ex_{canon}_{m.group(1)}.raw"
+                try:
+                    os.replace(f, target)
+                except OSError:
+                    pass
 
     def get_events(
         self,

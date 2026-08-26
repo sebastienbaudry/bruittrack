@@ -47,3 +47,6 @@
 - `store.merge_quasi_duplicate_clusters(max_bin_delta, exemplars_dir)` : compare les fp representatives par paire croissante, UPDATE minimum-id canonique, commit explicite, renommage exemplaires ex_<fusi>_* → ex_<canon>_* (flags & FLAG_EXEMPLAR). Retour nb paires.
 - pipeline.Engine init : fusion AVANT _load_cluster_index() avec detector.cluster_max_bin_delta ; log nb paires.
 - Test regression test_i59_merge_quasi_duplicate_clusters. Gate CHECK OK, 152 tests.
+## I76 (it.27) — I59b exemplaire : double schéma de renommage
+- _rename_merged_exemplars gère à la fois ex_<c>.raw (nom réel écrit par le détecteur) et ex_<c>_<id>.raw (doc) ; corrige un renommage jamais effectif.
+- test_i59b_merge_renames_exemplars vert ; suite store 13/13. Commit suivant gate complète.

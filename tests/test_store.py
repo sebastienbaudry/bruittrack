@@ -477,3 +477,38 @@ def test_i59_merge_quasi_duplicate_clusters() -> None:
         clusters_present = sorted({e["cluster"] for e in events})
         assert clusters_present == [1, 3]
         assert len(store.get_events(limit=10, cluster=1)) == 4
+        store.close()
+
+
+def test_i59b_merge_renames_exemplars(tmp_path: Path) -> None:
+    """I59b : fusion renomme les exemplaires du cluster fondu vers le canonique."""
+    import numpy as np
+
+    from bruittrack.events import encode_fingerprint
+
+    ex_dir = tmp_path / "ex"
+    ex_dir.mkdir()
+    db_path = tmp_path / "m.db"
+    store = EventStore(db_path=db_path, batch_size=50)
+    try:
+        spec = np.zeros(100, dtype=np.float32)
+        spec[80:85] = [3.0, 6.0, 12.0, 6.0, 3.0]
+        fp_a = encode_fingerprint(82, spec, dominant_ch=0, off_ms=2.0)
+        fp_b = encode_fingerprint(83, spec, dominant_ch=0, off_ms=2.0)  # pic décalé d’un bin
+        for cid, fp in [(1, fp_a), (2, fp_b)]:
+            store.add_event(
+                SoundEvent(
+                    t0=1700000000.0 + cid, dur=1.0, bin_i=82, freq=40.04,
+                    lvl_g=10, lvl_d=9, off_ms=0.0, fp=fp, flags=0, cluster=cid,
+                )
+            )
+        store.flush()
+        (ex_dir / "ex_1.raw").write_bytes(b"aaa")
+        (ex_dir / "ex_2.raw").write_bytes(b"bbb")
+        merged = store.merge_quasi_duplicate_clusters(max_bin_delta=1, exemplars_dir=ex_dir)
+        assert merged == 1
+        # L’exemplaire du cluster fondu est renommé vers le canonique.
+        assert not (ex_dir / "ex_2.raw").exists()
+        assert (ex_dir / "ex_1.raw").read_bytes() in (b"aaa", b"bbb")
+    finally:
+        store.close()
