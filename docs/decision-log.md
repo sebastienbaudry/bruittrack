@@ -205,3 +205,17 @@ Décision : uniformité en linéaire des deux côtés du serveur.
 - `tests/test_spectrum.py` : `test_band_edges_log_spaced` → `test_band_edges_linear_spaced`
   (diffs constants). Gate : 141 pass, ruff net.
  I64d — `/api/spectrum` sert `edges` : les n_bands+1 bords lineaires (min_event_hz + i*step, arrondis 1 mHz), meme formule que SpectrumAggregator.band_edges ; le client peut consommer l'echelle serveur sans recalcul. Test API : diffs constantes > 0 + bornes exactes.
+
+### I71 — Chronogramme : bulles colorées par cluster (inversion de I67)
+- Décision : le draw du timeline canvas repasse sur `getClusterColor(e.cluster)` ;
+  `getBinColor` et toute référence sont retirés de viz.py. Motif opérateur :
+  même couleur = même famille de bruit récurrent, cohérent avec les badges
+  events/clusters qui utilisaient déjà la palette par cluster.
+- Palette (JS servi, vérifiée numériquement `tools/color_check.py` +
+  `tests/test_viz_api.py`) : hue angle d'or `(id*137.5)%360`, sat 85 %, clarté
+  [45,68] alternée par bloc de 6 ids ; props numériques ids 1..29 : adjacents
+  |Δid|=1 dist RGB ≥ 0.13, fenêtre |Δid|≤6 dist ≥ 0.05 ; cluster NULL → #94a3b8.
+- Vérification cible : `tools/install_verify_marker.sh <id>` ou sur pi-t620 :
+  `grep -c getClusterColor /opt/bruittrack/src/bruittrack/viz.py` ≥ 4 ET
+  `grep -c getBinColor .../viz.py` = 0 ; `bash tools/cluster_color_check.sh`
+  → SCORE 10/10 exit 0 ; suite locale 149 tests verts.
