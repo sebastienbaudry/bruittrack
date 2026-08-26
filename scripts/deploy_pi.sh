@@ -29,7 +29,7 @@ echo "== verify (health + markers I48-I50) =="
 ssh -o ControlPath=none "$HOST" <<'VEOF'
 curl -sf http://127.0.0.1:8760/api/health || exit 2
 HTML=$(curl -s http://127.0.0.1:8760/) || exit 3
-for tok in freqTip hoverYpx TL_CKVH getBinColor; do
+for tok in freqTip hoverYpx TL_CKVH getBinColor hoverLockId; do
   echo "$HTML" | grep -q "$tok" || { echo "FATAL: marker $tok absent du HTML servi"; exit 4; }
 done
 curl -sf http://127.0.0.1:8760/api/events?limit=1 >/dev/null
