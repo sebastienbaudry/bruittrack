@@ -20,3 +20,11 @@
 - Gate tools/cluster_color_check.sh REPARÉ et opérationnel : bloc ROOT aplati (D=$(dirname "$0"), ROOT="$D/..", cd) ; doublon corrompu supprimé ; CRLF normalisés en LF.
 - Sortie attendue avant M2 : SCORE 6/10 (C2/C3/C6 KO tant que le canvas est coloré par bin ; C7/C8 verts car baseline 147 tests + ruff propres). Exit code : 0 seulement à 10/10.
 - Commit : b20e042 I71 M3. Prochain : M1 (palette par cluster + test numérique T1/T2) puis M2 (draw par cluster, retrait de getBinColor).
+
+
+## I71 M2 (ce tour — DONE, d1a802a + 550ddc4 M1)
+- Palette par cluster : hue angle d'or (id*137.5)%360, sat 85%, clarte [45,68] par bloc de 6 ids ; fallback #94a3b8.
+- Draw chronogramme : ctx.fillStyle = getClusterColor(e.cluster) ; getBinColor RETIRE de viz.py.
+- tests : test_i71_bubbles_colored_per_cluster + test_gray_fallback remplacent les 2 tests I67 bin ; test_i71_clustercolor_palette_distinct_nearby_ids (port colorsys, adj ≥0.13 / fen |Δid|≤6 ≥0.05).
+- tools/color_check.py retargete palette cluster ; gate +C9 → SCORE 10/10 exit 0 ; tools/check.sh CHECK OK (149 tests).
+- NEXT : deploy pi-t620 puis GOAL I71 DONE.
