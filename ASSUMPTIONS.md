@@ -10,3 +10,4 @@ Le dépôt déployé est PLAT : /opt/bruittrack contient src/, tools/, .venv/ (p
 - Conformite legale : bit3 (FLAG_OVER_LEGAL) pose si l event depasse la limite CSP R1336-7 evaluee avec duree_cumulee approximee par la duree de l event et l heure locale du t0.
 2026-08-23 I30: scripts/creer_release.py crible ruff; publication deferree a un GITHUB_TOKEN (aucun token local, pas de gh CLI)
 2026-08-23 Supposition I39: le pinceau est toujours actif sur la timeline; dblclic/Echap retournent a la fenetre par boutons.
+A019 (I67c) : getBinColor = 12 teintes fixes a 30 deg, clarte 50/67 %3 alternee par groupe de 12 bins; bins a distance 24 partagent teinte+clarte (nb bins detectables ~=FREQ_MAX/MIN_EVENT_HZ <= ~75) — tolere car separation hue >= 30 deg entre voisins.

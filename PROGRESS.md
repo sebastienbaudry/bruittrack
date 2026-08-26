@@ -3,6 +3,7 @@
 
 
 ## Current state
+- [x] I67b (getBinColor) : 12 teintes fixes pas 30° + alternance de clarte par groupe de 12 bins — chaque bin i et i+1 separes d au moins 30° en hue ; meme bin_i => meme couleur ; bins a distance <=75 distincts sur la periode complete. ruff rc=0, 143 tests verts, zoom_check SCORE: 7/8 (core oui)
 
 - I35-I52 done + deploie pi-t620 (health OK, freq_max 150 prod)
 

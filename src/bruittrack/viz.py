@@ -233,11 +233,11 @@ function getClusterColor(clusterId) {
   return `hsl(${hue}, 80%, 60%)`;
 }
 
-function getBinColor(binI) { // I67 : bulles du graphe = 1 teinte par bin fréquentiel (rampe lisible bas→haut)
+function getBinColor(binI) { // I67c : pas de teintes trop proches entre bins adjacents
   if (!binI) return "#94a3b8"; // DC / bin inconnu
-  const nBins = Math.max(1, Math.floor(FREQ_MAX / MIN_EVENT_HZ)); // ~bins détectables 0..FREQ_MAX
-  const t = Math.min(1, Math.max(0, (binI - 1) / (nBins - 1)));
-  return `hsl(${Math.round(200 + t * 160)}, 85%, 55%)`; // 200° (bleu) → 360° (rouge)
+  const H = (binI - 1) % 12; // 12 teintes fixes a 30 deg du rouge au magenta
+  const L = [50, 67][Math.floor((binI - 1) / 12) % 2]; // alternance de clarte par groupe de 12 bins
+  return `hsl(${H * 30}, 80%, ${L}%)`; // meme bin_i => meme couleur ; voisin = hue +30 deg ou L oppohee
 }
 
 // ===== I54 : fenêtrage de données, pan fréquence, badge, reset des 2 axes =====
