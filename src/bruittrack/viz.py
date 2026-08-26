@@ -228,9 +228,10 @@ function formatDate(unixSec) { // I62 : horodatage Paris 24 h explicite (l'heure
 }
 
 function getClusterColor(clusterId) {
-  if (!clusterId) return "#94a3b8";
-  const hue = (clusterId * 137.5) % 360;
-  return `hsl(${hue}, 80%, 60%)`;
+  if (!clusterId) return "#94a3b8"; // cluster NULL / inconnu
+  const hue = (clusterId * 137.5) % 360; // angle d'or : ids proches => teintes eloignees
+  const l = [45, 68][Math.floor(clusterId / 6) % 2]; // clarte alternee par bloc de 6 ids
+  return `hsl(${hue}, 85%, ${l}%)`;
 }
 
 function getBinColor(binI) { // I67c : pas de teintes trop proches entre bins adjacents
@@ -610,12 +611,12 @@ function hideEvtTip() {
     tip.style.zIndex = '50';
     tip.style.pointerEvents = 'none';
     const crect = canvas.getBoundingClientRect();
-    let lx = crect.left + best.x - tip.offsetWidth / 2;
-    lx = Math.max(4, Math.min(lx, window.innerWidth - tip.offsetWidth - 4));
-    let ly = crect.top + best.y - tip.offsetHeight - 10;
-    if (ly < 4) ly = crect.top + best.y + best.r + 6; // sous la bulle si trop haut
-    tip.style.left = lx + 'px';
-    tip.style.top = ly + 'px';
+    let tipLx = crect.left + best.x - tip.offsetWidth / 2;
+    tipLx = Math.max(4, Math.min(tipLx, window.innerWidth - tip.offsetWidth - 4));
+    let tipLy = crect.top + best.y - tip.offsetHeight - 10;
+    if (tipLy < 4) tipLy = crect.top + best.y + best.r + 6; // sous la bulle si trop haut
+    tip.style.left = tipLx + 'px';
+    tip.style.top = tipLy + 'px';
     return ev; // I40 : point cliquable → lien avec le tableau
   }
   canvas.addEventListener('mousemove', showTip);

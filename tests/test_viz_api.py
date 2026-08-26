@@ -14,6 +14,7 @@ import threading
 import urllib.error
 import urllib.request
 import wave
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -375,6 +376,31 @@ def test_i64c_spectrogram_linear_scale_in_dashboard() -> None:
     assert "niceHzStep((FREQ_MAX - MIN_EVENT_HZ) / 4)" in HTML_DASHBOARD
 
 
+def test_served_js_is_valid_syntax() -> None:
+    """I70 : le JS servi doit être syntaxiquement valide (node --check).
+
+    Le dashoard est un script inline unique — une erreur de syntaxe (ex. le
+    `let ly` dupliqué de I69) tue l'ENTIER canvas, invisible des tests à
+    marqueurs. node étant absent sur certaines cibles, on saute proprement.
+    """
+    import os
+    import re
+    import subprocess
+    import tempfile
+
+    from bruittrack.viz import HTML_DASHBOARD
+
+    js = "\n".join(re.findall(r"<script>(.*?)</script>", HTML_DASHBOARD, re.DOTALL))
+    assert len(js) > 5000, "script inline du dashoard introuvable"
+    p = os.path.join(tempfile.gettempdir(), "bruittrack_dash_check.js")
+    Path(p).write_text(js, encoding="utf-8")
+    try:
+        r = subprocess.run(["node", "--check", p], capture_output=True, timeout=30, check=False)
+    except (OSError, FileNotFoundError):
+        pytest.skip("node introuvable — vérif syntaxique JS non applicable")
+    assert r.returncode == 0, f"JS du dashoard invalide : {r.stderr.decode()[:500]}"
+
+
 def test_i69_tooltip_above_hovered_bubble() -> None:
     """I69 : le texte survol est positionné juste au-dessus de la bulle survolée
 
@@ -403,7 +429,7 @@ def test_i68_hover_hit_radius_and_lock() -> None:
     assert "timelinePoints.push({x, y, r: radius, ev: e})" in HTML_DASHBOARD
     assert "Math.max(12, p.r + 3)" in HTML_DASHBOARD
     assert "hoverLockId" in HTML_DASHBOARD
-    assert "bd = 10 * 10" not in HTML_DASHBOARD   # ancien hit-test fixe à 10 px retiré
+    assert "bd = 10 * 10" not in HTML_DASHBOARD  # ancien hit-test fixe à 10 px retiré
 
 
 def test_i67_bubbles_colored_per_bin() -> None:
@@ -444,9 +470,48 @@ def test_i67_bincolor_palette_distinct_nearby_bins() -> None:
 
     # Bins adjacents (proches en frequence) : distance RGB comfortably >= 0.2.
     for b in range(1, 75):
-        assert d(col(b), col(b + 1)) >= 0.2, f"bins adjacents {b},{b+1} trop proches"
+        assert d(col(b), col(b + 1)) >= 0.2, f"bins adjacents {b},{b + 1} trop proches"
 
     # Proximite visuelle <=6 bins : aucune couleur quasi identique (<0.05).
     for i in range(1, 76):
         for j in range(i + 2, min(i + 7, 76)):
             assert d(col(i), col(j)) >= 0.05, f"bins {i},{j} trop proches"
+
+
+def test_i71_clustercolor_palette_distinct_nearby_ids() -> None:
+    """I71 : la palette par cluster reste discriminante sur ids proches.
+
+    Reproduction numerique (colorsys.hls_to_rgb) du getClusterColor JS servi :
+    hue = (id*137.5)%360 (angle d'or), saturation 85 %, clarte [45,68] alternatee
+    par bloc de 6 ids. Meme distance-metre que I67c sur la plage realiste
+    d'ids (1..29 ~ 303 clusters observes / densite dashboard).
+    """
+    import math
+    from colorsys import hls_to_rgb
+
+    from bruittrack.viz import HTML_DASHBOARD
+
+    # Garde formule : angle d'or + clarte alternee par bloc de 6 ids.
+    assert "* 137.5) % 360" in HTML_DASHBOARD
+    assert "[45, 68]" in HTML_DASHBOARD
+    assert "85%" in HTML_DASHBOARD
+
+    def col(cid: int) -> tuple[float, float, float]:
+        h = ((cid * 137.5) % 360) / 360.0
+        l = [45, 68][math.floor(cid / 6) % 2] / 100.0
+        return hls_to_rgb(h, l, 85 / 100)
+
+    d = lambda a, b: sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5
+
+    # Fallback cluster NULL/absent : gris neutre, gardes marqueurs.
+    assert "#94a3b8" in HTML_DASHBOARD
+    assert "if (!clusterId)" in HTML_DASHBOARD
+
+    # Ids adjacents : distance RGB comfortably >= 0.13.
+    for i in range(1, 29):
+        assert d(col(i), col(i + 1)) >= 0.13, f"clusters adjacents {i},{i + 1} trop proches"
+
+    # Fenetre compacte |Δid| <= 6 : aucune couleur quasi identique (<0.05).
+    for i in range(1, 30):
+        for j in range(i + 1, min(i + 7, 30)):
+            assert d(col(i), col(j)) >= 0.05, f"clusters {i},{j} trop proches"
