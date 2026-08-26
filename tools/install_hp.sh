@@ -182,10 +182,10 @@ SMOKECFGEOF
 
     # M6 — store/stats : rc=0, sortie parseable
     SMOKE_RC=0; S_OUT=$("$PYB" -m bruittrack stats 2>&1) || SMOKE_RC=$?
-    if [ "$SMOKE_RC" -eq 0 ]; then
-        sm_row M6 "store/stats CLI" OK "$(printf '%s' "$S_OUT" | head -4)"
+    if [ "$SMOKE_RC" -eq 0 ] && printf '%s' "$S_OUT" | grep -q "clusters distincts"; then
+        sm_row M6 "store/stats CLI + total_clusters" OK "$(printf '%s' "$S_OUT" | grep 'clusters distincts')"
     else
-        sm_row M6 "store/stats CLI" FAIL "rc=${SMOKE_RC} out=${S_OUT}"
+        sm_row M6 "store/stats CLI + total_clusters" FAIL "rc=${SMOKE_RC} out=${S_OUT}"
     fi
 
     # M7 — viz/API : /api/stats 200 JSON + timeline HTML
