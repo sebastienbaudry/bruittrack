@@ -373,3 +373,14 @@ def test_i64c_spectrogram_linear_scale_in_dashboard() -> None:
     assert "logLo" not in HTML_DASHBOARD and "logHi" not in HTML_DASHBOARD
     # Ticks Hz sur pas « nice » (remplace les étiquettes log fixes)
     assert "niceHzStep((FREQ_MAX - MIN_EVENT_HZ) / 4)" in HTML_DASHBOARD
+
+
+def test_i67_bubbles_colored_per_bin() -> None:
+    """I67 : les bulles du chronogramme prennent 1 teinte par bin (plus par cluster)."""
+    from bruittrack.viz import HTML_DASHBOARD
+
+    # Fonction couleur par bin present, utilise la frequence max/min en entree.
+    assert "function getBinColor(binI)" in HTML_DASHBOARD
+    # Remplacement du colorage par cluster dans le draw des bulles.
+    assert "ctx.fillStyle = getBinColor(e.bin_i)" in HTML_DASHBOARD
+    assert "ctx.fillStyle = getClusterColor(e.cluster)" not in HTML_DASHBOARD

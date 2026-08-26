@@ -233,6 +233,13 @@ function getClusterColor(clusterId) {
   return `hsl(${hue}, 80%, 60%)`;
 }
 
+function getBinColor(binI) { // I67 : bulles du graphe = 1 teinte par bin fréquentiel (rampe lisible bas→haut)
+  if (!binI) return "#94a3b8"; // DC / bin inconnu
+  const nBins = Math.max(1, Math.floor(FREQ_MAX / MIN_EVENT_HZ)); // ~bins détectables 0..FREQ_MAX
+  const t = Math.min(1, Math.max(0, (binI - 1) / (nBins - 1)));
+  return `hsl(${Math.round(200 + t * 160)}, 85%, 55%)`; // 200° (bleu) → 360° (rouge)
+}
+
 // ===== I54 : fenêtrage de données, pan fréquence, badge, reset des 2 axes =====
 let dataSince = null; // t0 le plus ancien chargé localement (I54)
 let dataUntil = null; // t0 le plus récent chargé localement (I54)
@@ -756,7 +763,7 @@ function drawTimeline(events) {
       const radius = Math.max(3, Math.min(10, (e.lvl_g + e.lvl_d) / 6));
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fillStyle = getClusterColor(e.cluster);
+      ctx.fillStyle = getBinColor(e.bin_i);
       ctx.globalAlpha = 0.85;
       ctx.fill();
       ctx.strokeStyle = '#ffffff';
