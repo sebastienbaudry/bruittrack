@@ -219,3 +219,15 @@ Décision : uniformité en linéaire des deux côtés du serveur.
   `grep -c getClusterColor /opt/bruittrack/src/bruittrack/viz.py` ≥ 4 ET
   `grep -c getBinColor .../viz.py` = 0 ; `bash tools/cluster_color_check.sh`
   → SCORE 10/10 exit 0 ; suite locale 149 tests verts.
+
+## [2026-09-14] Invariance au décalage de pic dans le matching de fingerprint
+
+- Contexte : le matching imposait Δbin(peak)=0 strict avec distance L1 ≤ 2 sur les 5 briques. Quand un pic saturé saute d'un bin, la distance des briques voisines dépasse le seuil → fragmentation en clusters quasi-doublons (constatée sur la base pi-t620).
+- Décision : `fingerprints_match(fp_a, fp_b, max_bin_delta, l1_max=2)` — Δbin=0 : L1(briques) ≤ 2 ; Δbin ∈ 1..max_bin_delta : meilleur alignement de profil sur δ ∈ {−1,0,+1} sur ≥ 3/5 briokes non nulles, distance normalisée |a−b|/max(1,max(a,b)) cumulée ≤ l1_max (insensible à la saturation d'échelle).
+- Justification : corrige la fragmentation sans élargir l'espace des clusters stables ; delta strict conservé en Δbin=0. Preuves : `tools/clusters_check.py --demo` (pic+1 bin → 1 cluster), `tests/test_events.py::test_i59_peak_wobble_shift_invariance`, check.sh verte 151 tests.
+
+## [2026-09-14] Fusion post-hoc des quasi-doublons de clusters (I59b)
+
+- Contexte : les clusters créés avant l'invariance de pic restaient séparés ; la recoloration par cluster exige un ID unique par famille (exemplaires indexés ex_<cluster>_*.raw, filtre et légende du dashboard).
+- Décision : `EventStore.merge_quasi_duplicate_clusters(max_bin_delta, exemplars_dir)` — comparaison par paires des fp representatives à chargement (seul coût de démarrage), canonical = plus petit ID survivant (stable entre redémarrages), UPDATE cluster en COMMIT unique `merge_clusters`, consolidation exemplaires `ex_<fusi>_<eid>.raw` → `canonical` avec vérification intégrité DB (`flags & FLAG_EXEMPLAR`). Appelée dans `Engine.__init__` AVANT `_load_cluster_index()`.
+- Justification : id canonical unique, zéro dépendance, coût N² sur le nb de clusters négligeable à démarrage. Preuves : `tests/test_store.py::test_i59b_merge_quasi_duplicate_clusters`, `tests/test_pipeline.py::test_engine_startup_merges_before_cluster_index` (ordonnancement), check.sh 154 tests verts.
