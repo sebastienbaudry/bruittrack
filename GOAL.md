@@ -1,110 +1,130 @@
-# GOAL — I54 : zoom/dézoom interactif sur les 2 axes du chronogramme
+# GOAL — Chronogramme : couleur des bulles par cluster (reprend I67)
 
-Check fin de tour : `bash tools/zoom_check.sh` → affiche `SCORE: n/8`, exit 0 dès que
-les 6 critères core (Z1–Z6) sont atteints.
+## Fallback rapide (si perdu)
+1. `cat PROGRESS.md | tail -30` ; `git log --oneline -5` ; `git status --short`
+2. Critère objectif : `bash tools/cluster_color_check.sh` → exit 0 et `SCORE: 10`.
 
 ## Objectif
-Permettre de zoomer/dézoomer sur **les deux axes** (X = temps, Y = fréquence)
-du graphique « Chronogramme des événements » du dashboard web
-(`src/bruittrack/viz.py`, template HTML canvas :~830 lignes), sans aucune
-dépendance JS externe (canvas pur + stdlib).
-Contrainte utilisateur : **toutes les données de la plage temporelle visible
-doivent être affichées** — la récupération des événements doit être dynamique
-(fenêtrage `since`), jamais un `?limit=200` figé.
+Recolor les bulles du chronogramme (canvas du dashboard, `src/bruittrack/viz.py`)
+**par cluster plutôt que par bin** (décision opérateur : même couleur = même
+famille de bruit récurrent, cohérent avec le tableau clusters/badges qui
+utilisent déjà `getClusterColor`). I67 avait basculé le draw sur `getBinColor` :
+cette itération inverse ce choix ET corrige la palette par cluster, trop
+faible en l'état (hue angulaire d'or seul → ids éloignés confondus, ex. des
+clusters qui partagent une teinte quasi identique).
 
-## État de départ (vérifié)
-- Baseline : `pytest -q` → 101 passés ; **ruff ROUGE** : définition en double
-du test `test_apply_retention_prunes_exemplars` (`tests/test_store.py`
-~L377 et ~L404) → `bash tools/check.sh` retourne ≠ 0. M0 commence par réparer ça.
-- Template JS actuel (`src/bruittrack/viz.py`) :
-  - fetch statique : `fetchJson('/api/events?limit=200')` (~L234), polling
-    `setInterval(refreshAll, 10000)` (~L685) ;
-  - axe Y figé : `function yOfFreq(f)` (~L473) et `stepHz = niceHzStep(FREQ_MAX / 5)`
-    (~L511) bornés à FREQ_MAX, `Math.min(f, FREQ_MAX)` en entrée ;
-  - fenêtre temps : boutons winBtn* / `tlMode` + brush drag → `brushZoom(` (I39)
-    — **contrat à préserver** ;
-  - API dispo sans modif serveur : `/api/events?limit&offset&since&cluster`
-    (`store.get_events(..., since=)` existe déjà).
+## État de départ (vérifié, HEAD 00f9564 + WIP incommité I70 — NE PAS ROLLBACK)
+- `viz.py:~230` : `getClusterColor(clusterId)` = `hue = (id*137.5)%360`,
+  fallback `#94a3b8` ; consommateurs existants : badge du tableau d'événements
+  (`getClusterColor(e.cluster)`) et tableau clusters (`getClusterColor(c.cluster_id)`, ×2 sur la ligne).
+- `viz.py:~236` : `getBinColor(binI)` (palette discrète I67c, 12 teintes × clarté). Usage UNIQUE :
+  ligne de draw `ctx.fillStyle = getBinColor(e.bin_i);` (~L796 du bloc chronogramme).
+- `viz.py:~605` : tooltip affiche déjà `#${ev.cluster}` — les lignes `/api/events`
+  exposent bien `cluster` (peut être null) : rien à changer côté serveur.
+- Tests à mettre en conformité (`tests/test_viz_api.py`) :
+  `test_i67_bubbles_colored_per_bin` (marqueurs par bin) et
+  `test_i67_bincolor_palette_distinct_nearby_bins` (+ `tools/color_check.py`
+  qui porte le port numérique de getBinColor).
+- Travail incommité I70 déjà vert dans le WIP : renommage `lx/ly → tipLx/tipLy`
+  + `test_served_js_is_valid_syntax`. L'accepter tel quel ; le committer en M0
+  avec un message du type « I70 : » s'il est propre (pytest + ruff vert).
+- Gate baseline à reconstruire : `bash tools/check.sh` vert (pytest complet).
 
-## Périmètre / contrats (tokens EXACTS exigés dans le HTML servi)
-| Marqueur | Rôle |
-|----------|------|
-| `let freqView = null;` | état vue fréquence : `null` → [0, FREQ_MAX] sinon `{fLo, fHi}` |
-| `function axZoom(` | molette sur canvas : zoom/dézoom **les 2 axes** centré curseur (ancrage X = temps sous x-curseur, ancrage Y = fréquence sous y-curseur) |
-| `function panFreqBy(` | Ctrl + glisser vertical → translate de l'axe fréquence seul |
-| `function fetchWindow(` | rechargement dynamique `/api/events?since=<minT>&limit=20000` + merge dédupé par id, déclenché quand la vue X s'étend à gauche de `dataSince` |
-| `function renderTableRow(` | lignes du tableau événement ; plafonné 500 lignes visible + note « (sur N) » si plus |
-| `<span id="zoomBadge">` | badge visible dès que `freqView` ou une vue temps libre est active ; « ×k · f a–b Hz · t a → b » ; re-cliquable pour réinitialiser |
+## Périmètre / contrats exacts (tokens EXACTS attendus dans le HTML servi)
+| Marqueur | État exigé |
+|---|---|
+| `function getClusterColor(clusterId)` | présent (palette améliorée) |
+| `ctx.fillStyle = getClusterColor(e.cluster)` | présent (draw canvas — substitut de I68) |
+| littéral `getBinColor` n'importe où dans `viz.py` | ABSENT (fonction retirée, aucun usage restant) |
+| `#94a3b8` dans le corps de `getClusterColor` | présent (fallback cluster NULL) |
 
-Contraintes mécaniques :
-- Zoom molette : facteur ±1.3/arret ; clamp temps span ∈ [10 s, 90 j] borné par
-  l'étendue des données chargées ; clamp fréquence span ≥ 2 Hz, [fLo,fHi] ⊂ [0, FREQ_MAX] ;
-  clamp indépendant par axe (peut ne bouger qu'un axe en bout de course).
-- Reset : double-clic sur canvas ET touche Échap → `freqView = null`, vue temps
-  de retour au mode bouton actif par défaut (24 h), `fetchWindow` repris, badge caché.
-- Drag **normal** horizontal : brush time I39 inchangé. Ctrl+drag ne touche que freqView.
-- HiDPI, filtres actuels (canal/lvl/cluster/onlyLegal), tooltip `evtTip`, crosshair
-  (I50) et lecture fréquence sous curseur (I49) restent fonctionnels sur la vue zoomée ;
-  les graduations Y re-calculées avec `niceHzStep((hi-lo)/5)` sur `[fLo,fHi]` ;
-  graduations temps recalculées sur la fenêtre visible (grille I48 conservée).
+**Contrat palette (testable numériquement, style I67c avec `colorsys.hls_to_rgb`) :**
+reproduction Python exakte du JS servi. Propriétés exigées sur les ids 1..29 :
+1. couleur(id=0/absent) = gris neutre ; marker : le corps de la fonction
+   contient `#94a3b8` et `if (!clusterId)`.
+2. ids adjacents (|Δid| = 1) : distance Euclidienne RGB ≥ 0.13.
+3. aucune quasi-identique dans une fenêtre compacte |Δid ≤ 6 : distance ≥ 0.05.
+Cible de formulation (ajuster les constantes SEULEMENT si un des tests
+numériques échoue, sinon gardez-la) :
+```js
+function getClusterColor(clusterId) {
+  if (!clusterId) return "#94a3b8"; // cluster NULL / inconnu
+  const h = (clusterId * 137.5) % 360; // angle d'or : ids proches => teintes eloignees
+  const l = [45, 68][Math.floor(clusterId / 6) % 2]; // clarte alternee par bloc de 6 ids
+  return `hsl(${h}, 85%, ${l}%)`;
+}
+```
+Cette teinte alimente UNIQUEMENT la couleur des bulles ; taille/opacité/anneau
+de sélection/invisibilité (I40, I48, I58) inchangés.
 
-## Hors périmètre
-pas de gestures tactile/pinch, pas de box-zoom (drag = brush I39), pas de nouvelle
-route API ni de modif du pipeline DSP/détection, pas de bibliothèque JS, pas de
-persistance du zoom (URL hash) — c'est du backlog de suite.
+## Non-périmètre
+- Zéro changement serveur/API/SQLite/pipeline/dsp/events (`store`, `/api/*` intact).
+- Pas de dépendance nouvelle ni de bibliothèque JS externe (stdlib + canvas pur).
+- Pas de légende cluster/couleur dans le dashboard (→ IMPROVEMENTS, option 16+).
+- Pas de changement de zoom/brush/fenêtre/filtre/tooltip (contrats I39–I69 conservés).
+- Pas de déploiement HP obligatoire pour valider le goal (deploy = amélioration, pas critère).
 
-## Critères de fin mesurables (core = Z1–Z6 via tools/zoom_check.sh)
-1. `bash tools/check.sh` exit 0 (ruff vert + **≥ 103 tests passés**).
-2. Z-tokens : HTML servi / template contient `axZoom(`, `let freqView`, `panFreqBy(`,
-   `fetchWindow(` + `?since=`, `renderTableRow(`, `id="zoomBadge"`.
-3. Régression **zéro** : tous les marqueurs existants de `tests/test_viz_api.py`
-   passent sans modification (`toggleChannel`, `evtTip`, `timelinePoints`, `showCh`,
-   `let FREQ_MAX = 150;`, crosshair I50, I49...). Nouvelle démo `test_viz_zoom_markers`.
-4. Complétude de données : fenêtre « Tout » sans zoom → fetch via `since` (plus le
-   `?limit=200` unique) ; scénario testé en local : ~3 h de données synthétiques > 500
-   événements ⇒ le tableau affiche la note plafonnée, le canvas tous les points visibles.
-5. Docs : entrée decision-log (molette 2 axes + fenêtrage since), README §Viz une
-   ligne usage, IMPROVEMENTS.md : I54 ajouté+coché à M4 ; PROGRESS.md à jour à chaque M.
-6. Déploiement pi-t620 : `bash scripts/deploy_pi.sh` → DEPLOY_OK rc=0, puis
-   `curl -s localhost:8760 | grep -c 'axZoom('` ≥ 1 (B2).
+## Roadmap jalonnée (1 commit par étape terminée : `git add -A && git commit`)
+- **M0 — Baseline** : accepter/committer le WIP I70 tel quel s'il est vert
+  (`pytest -q`, `ruff check`) ; noter baseline `bash tools/check.sh` dans
+  PROGRESS.md.
+- **M1 — Palette par cluster** : remplacer `getClusterColor` par la formule du
+  contrat (ou sa variante ajustée) ; test unitaire `test_i71_cluster_color_*`
+  dans `tests/test_viz_api.py` : marqueurs de fonction + fallback `#94a3b8` +
+  port numérique (colorsys) des propriétés 2 et 3 du contrat, exactement comme
+  le test I67c pour bins. Commit.
+- **M2 — Basculer le draw** : dans le bloc chronogramme, `
+  ctx.fillStyle = getClusterColor(e.cluster)` remplace `getBinColor(e.bin_i)` ;
+  RETIRER la fonction `getBinColor` de viz.py (usage unique vérifié en amont
+  par grep) ; réécrire/supprimer les tests I67 qui verrouillent le coloriage
+  par bin ; mettre à jour `tools/color_check.py` (ou le remplacer par une vérif
+  de la palette cluster) — aucune référence orpheline : `rg getBinColor` vide.
+  Commit.
+- **M3 — Guardes & cohérence** : test de régression : tous les consommateurs
+  du dashboard (canvas, badge événements, tableau clusters) passent par
+  `getClusterColor` (nombre d'occurrences `getClusterColor(` ≥ 3 dans viz.py)
+  ; script `tools/cluster_color_check.sh` est le contract objectif (ci-dessous).
+  Commit.
+- **M4 — Gate finale** : `bash tools/check.sh` vert (pytest complet + ruff) ;
+  `bash tools/cluster_color_check.sh` → « SCORE: 10 » exit 0 ; PROGRESS.md
+  mis à jour avec la décision (« couleur par cluster, I71 ») et l'entrée de la
+  légende dans IMPROVEMENTS.md. Commit.
 
-## Feuille de route
-- **M0 — Réparer la baseline** : fusionner les deux tests en double de
-tests/test_store.py (conserver le corps du 1er, ajouter l'assertion legacy du 2nd :
-au 2e appel `apply_retention` sans `exemplars_dir` → aucun fichier écrasé/purge),
-ruff + check.sh verts. Commit « test(store): M0 fusion doublon I52 ».
-- **M1 — Générer les axes** : `let freqView = null;`, vue dérivée par frame
-  `fy={lo,hi}` ; généraliser `yOfFreq`, `stepHz`, garde-fou Y des points et frt
-  fréquence (I49) sur `[fLo,fHi]`. Sans zoom, rendu identique au comportement actuel.
-- **M2 — Fenêtrage de données** : `fetchWindow(sinceUnix, cap=20000)` + `dataSince` ;
-déplacer le chargement initial et le polling 1 s par là ; merge dédupé par id ;
-tableau via `renderTableRow(` plafonné 500 + note. Plus de `?limit=200`.
-- **M3 — Interactions** : `axZoom(` molette (preventDefault, dual-axis clampées),
-`panFreqBy(` Ctrl+drag, reset dblclick+Échap, badge zoomBadge (+ ré-init au clic),
-désync des boutons winBtn* quand vue temps libre (re-sync au reset).
-- **M4 — Docs** : decision-log + README + IMPROVEMENTS I54 (non cochée→cochée) + PROGRESS.
-  Commit doc.
-- **M5 — Déployer pi-t620** : `bash scripts/deploy_pi.sh` (DEPLOY_OK), vifs marqueurs
-  sur :8760, santé OK, commit final + push local→origin si possible.
+## Critères de complétion (objectifs, vérifiés par `bash tools/cluster_color_check.sh`)
+« Exit 0 uniquement si « SCORE: 10 » : 5/5 markers + guards + suite + style.
+| # | Point(s) | Critère |
+|---|---|---|
+| C1 | 1 | `function getClusterColor(clusterId)` servi dans le dashoard |
+| C2 | 1 | draw canvas : `ctx.fillStyle = getClusterColor(e.cluster)` servi |
+| C3 | 1 | zéro occurrence du littéral `getBinColor` dans viz.py |
+| C4 | 1 | fallback gris `#94a3b8` + garde `if (!clusterId)` dans la fonction |
+| C5 | 1 | cohérence : ≥ 3 occurrences de `getClusterColor(` dans viz.py |
+| C6 | 1 | tests verrouillent le coloriage par cluster (marker C2 présent dans
+  `tests/test_viz_api.py` ET marqueur d'assertion par bin absent des tests) |
+| C7 | 2 | suite pytest complète verte (`pytest -q`) |
+| C8 | 1 | `ruff check src/bruittrack/viz.py tests/test_viz_api.py` exit 0 |
 
-## Normes de qualité
-- Un commit conventional par milestone (`feat(viz):`, `test(viz):`, `docs:` ...)
-  ; jamais dégrader les gates existantes entre deux checkpoints ; numpy/scipy/
-sounddevice+stdlib uniquement (zéro nouvelle dépendance côté backend ni JS tiers) ;
-pas de magic number non nommé (facteur 1.3, clamps → constantes nommées en tête du script JS).
+## Normes de qualité (maisons)
+- Tests déterministes sans matériel : assertions sur `HTML_DASHBOARD`
+  (import static depuis `bruittrack.viz`) — style existant I39–I70. Pas de
+  snapshot, pas de navigateur.
+- Code anglais, messages/CLI français ; docstrings courtes ; aucun nombre
+  magique non commenté.
+- 1 commit par milestone avec message français qui raconte le WHY (« I71 : »).
+- PROGRESS.md mis à jour à chaque changement d'état (état / fait / prochaines étapes).
+- Si un test numériquement impossible : relâcher la constante la PLUS proche
+  du contrat, NOTER l'écart exact dans PROGRESS.md + ASSUMPTIONS.md.
 
-## Hypothèses explicites
-- Le endpoint `/api/events?since=` suffit (pas de pagination serveur ajoutée) ;
-  cap client 20 000 lignes ≫ density max attendue (~1 400 lignes totales sur 30 j).
-- Les tests frontend restent des assertions par marqueur token dans
-  `tests/test_viz_api.py` (« test » sans navigateur de l'existant ; le canvas est
-  dans une chaîne template Python).
-- Le badge « dernier refresh » d'I53 éventuel est indépendant ; ici on n'ajoute
-  que le badge zoom.
-
-## Suite post-core (amélioration continue, enchaînement si l'opérateur continue)
-- I55 : persistance du zoom (hash URL `#t=..&f=..`) + raccourcis clavier (+/−/0).
-- I56 : double-clic sur un point = centrage fin (zoom ×10 sur ce point) + défilement
-  auto du tableau au point le plus récent visible.
-- Boucle : après M5, audits courts (perf rAF sur T620 à zoom extrême, mémoisation
-  des lignes triées) + 3 nouveaux items backlog par tour, sans jamais dégrader Z1–Z6.
+## Hypothèses explicites (à consigner si contredites en cours de route)
+1. `event.cluster` peut être NULL sur des lignes orphelines → bulles gris
+   `#94a3b8` plutôt qu'inchangé ; l'écrasement de couleur ne change rien aux
+   autres propriétés du draw.
+2. ≤ ~27 clusters simultanés en pratique : la palette à cycle 13+6 (ou
+   équivalent de formulation) suffit ; au-delà, une répétition de teinte à > 26
+   ids d'écart est ACCEPTÈE (propriété 3 reste vraie).
+3. WIP I70 incommité est validé ET accepté tel quel : le goal ne le refait pas.
+4. `tools/color_check.py` devient caduque s'il vérifie uniquement la palette
+   bin : le supprimer ou le rebrancher sur la palette cluster est autorisé,
+   mais ne PAS laisser un script mort qui échoue/silencieusement diverge.
+5. Le check du goal ne nécessite PAS de serveur démarré (markers + pytest seule
+   + ruff) ; le dashboard continue de se valider manuellement via `viz --port`.
