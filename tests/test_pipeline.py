@@ -130,3 +130,40 @@ def test_engine_synthetic_spike_fires(tmp_path) -> None:
     stats = store.get_stats()
     assert stats["total_events"] >= 1, f"event not persisted: {stats}"
     store.close()
+
+
+def test_engine_startup_merges_before_cluster_index(tmp_path) -> None:
+    """I59b : au démarrage, la fusion des quasi-doublons precede la reconstitution de l'index."""
+    import numpy as np
+
+    from bruittrack.events import SoundEvent, encode_fingerprint
+
+    db_path = tmp_path / "startup.db"
+    config = Config()
+    config.storage.db_path = str(db_path)
+
+    # Graine : deux clusters quasi-doublons (pic de 1 bin d'ecart) dans la DB.
+    store = EventStore(db_path=db_path, batch_size=50)
+    spec = np.zeros(100, dtype=np.float32)
+    spec[80:85] = [3.0, 6.0, 12.0, 6.0, 3.0]
+    fpa = encode_fingerprint(82, spec, dominant_ch=0, off_ms=2.0)
+    fpb = encode_fingerprint(83, spec, dominant_ch=0, off_ms=2.0)
+    for cid, fp in [(1, fpa), (2, fpb)]:
+        store.add_event(
+            SoundEvent(
+                t0=1700000000.0 + cid, dur=1.0, bin_i=82, freq=40.04,
+                lvl_g=10, lvl_d=9, off_ms=0.0, fp=fp, flags=0, cluster=cid,
+            )
+        )
+    store.flush()
+    store.close()
+
+    class FakeCapture:  # pas de capture pour ce test
+        def stop(self) -> None:
+            pass
+
+        def get_block(self, timeout: float | None = None):
+            return None
+
+    engine = Engine(config=config, capture=FakeCapture())
+    assert engine.detector.cluster_index.clusters == {1: fpa}

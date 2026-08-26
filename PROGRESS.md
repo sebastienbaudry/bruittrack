@@ -50,3 +50,5 @@
 ## I76 (it.27) — I59b exemplaire : double schéma de renommage
 - _rename_merged_exemplars gère à la fois ex_<c>.raw (nom réel écrit par le détecteur) et ex_<c>_<id>.raw (doc) ; corrige un renommage jamais effectif.
 - test_i59b_merge_renames_exemplars vert ; suite store 13/13. Commit suivant gate complète.
+## I76 (it.30) — Test de wiring I59b : merge avant reconstitution d'index au démarrage
+- test_engine_startup_merges_before_cluster_index (tests/test_pipeline.py) : DB seedée avec 2 clusters quasi-doublons ; après Engine.__init__, l'index n'a plus que le cluster 1.
