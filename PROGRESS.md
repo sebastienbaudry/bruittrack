@@ -1,15 +1,13 @@
-# PROGRESS — couleur par bin (getBinColor) + déploiement
+# PROGRESS — I68 (hover tip précision) après I67 + déploiement
 
 ## État
-- I67b commit `edac3da` : palette discontinue 12 teintes × 30°, L alternée [50,67] — bins adjacents distincts.
-- I67c commit `699fa35` : test regression palette (`tests/test_viz_api.py`) + `tools/color_check.py`. Gate verte : 144 tests, ruff OK, check.sh OK.
-- Arbo worked tree clean. Déploiement pi-t620 demandé (it. 14).
+- Loop « précision texte survol points » : diagnostic = hit-test 10 px fixe du centre + deux bulles proches disputant le tooltip. Correction I68.
+- Gate verte : ruff OK, **145 tests passés**, check.sh OK.
 
 ## Fait (essais/échecs)
-- Vérif numérique HSL→RGB bins 1..75 : min dist RGB adjacents = 0.264 (paires 15/16) ; doublons exacts seulement à 24 bins d'écart (~11.7 Hz, non adjacents visuellement).
-- I53 majBadge/updateMaj absent de src malgré commit doc 2418242 → item I56 reste ouvert (re-faire si temps).
+- I68 : `timelinePoints` porte désormais `r` (rayon visuel) ; hit-test par point `max(12, r+3)` px ; verrou `hoverLockId` (change seulement en sortant du rayon) → texte stable sur des bulles voisines.
 
 ## Prochaines étapes
-1. Déployer sur pi-t620 : `bash scripts/deploy_pi.sh` (vérifier marker I67 getBinColor après déploiement ; DEPLOY_OK attendu). «
-2. Après OK : noter it. 14 + commit si artefacts modifs (PROGRESS/IMPROVEMENTS).
-3. Suite loop : I56 badge MAJ relatif (relMaj) ou I59 clustering meilleur alignement.
+1. Commit I68 (le cas échéant) puis `bash scripts/deploy_pi.sh` si déploiement demandé ; markers attendus : hoverLockId, r: radius.
+2. Suite loop : I56 badge MAJ relatif ou I59 clustering alignement.
+

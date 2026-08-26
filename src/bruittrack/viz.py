@@ -556,6 +556,10 @@ function hideEvtTip() {
 (function attachTips() {
   const canvas = document.getElementById('timelineCanvas');
   let raf = null, hoverRaf = 0;
+  // I68 : point survolé en cours — VERROUILLÉ tant que le curseur reste dans son
+  // rayon de hit, sinon deux bulles proches (<=24 px entre centres) se disputent
+  // le tooltip et le texte change à chaque léger mouvement de souris (« décalage »).
+  let hoverLockId = null;
   function showTip(e) {
     const rect = canvas.getBoundingClientRect();
     // Espace logique = pixels CSS (le backing store hi-DPI est mis à l'échelle
@@ -576,11 +580,24 @@ function hideEvtTip() {
     const ly = my >= 20 && my <= TL_CSS_H - 20 ? Math.round(my) : null;
     if (ly !== hoverYpx) { hoverYpx = ly; if (!hoverRaf) hoverRaf = requestAnimationFrame(() => { hoverRaf = 0; drawTimelineFull(false); }); } // I59 : survol = pas de rebuild tableau
 
-    let best = null, bd = 10 * 10; // rayon 10 px
-    for (const p of timelinePoints) {
-      const dx = p.x - mx, dy = p.y - my;
-      const dd = dx * dx + dy * dy;
-      if (dd < bd) { bd = dd; best = p; }
+    // I68 : rayon de hit par point = max(12, rayon visuel + 3 px) au lieu du
+    // test unique à 10 px du centre qui ratait les bulles fines (r=3) et
+    // délimitait mal les grosses — texte au survol aligné sur la bulle visible.
+    const fit = (p) => { const dx = p.x - mx, dy = p.y - my; const rr = Math.max(12, p.r + 3); return dx * dx + dy * dy <= rr * rr; };
+    let best = null;
+    if (hoverLockId !== null) {
+      const lk = timelinePoints.find(p => p.ev.id === hoverLockId);
+      if (lk && fit(lk)) { best = lk; }
+    }
+    if (!best) {
+      let bd = Infinity;
+      for (const p of timelinePoints) {
+        if (!fit(p)) continue;
+        const dx = p.x - mx, dy = p.y - my;
+        const dd = dx * dx + dy * dy;
+        if (dd < bd) { bd = dd; best = p; }
+      }
+      hoverLockId = best ? best.ev.id : null; // le verrou change en sortant du rayon
     }
     const tip = document.getElementById('evtTip');
     if (!best) { hideEvtTip(); return; }
@@ -759,8 +776,9 @@ function drawTimeline(events) {
     if (!(showCh.l && onL) && !(showCh.d && onD)) return; // 'return' (pas 'continue') : on est dans un callback forEach
 
     if (x >= 40 && x <= w) {
-      timelinePoints.push({x, y, ev: e});
+      // I68 : rayon visuel calculé avant le push — stocké sur le point pour le hit-test.
       const radius = Math.max(3, Math.min(10, (e.lvl_g + e.lvl_d) / 6));
+      timelinePoints.push({x, y, r: radius, ev: e});
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fillStyle = getBinColor(e.bin_i);

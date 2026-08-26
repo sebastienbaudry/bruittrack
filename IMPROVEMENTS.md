@@ -2,6 +2,8 @@
 
 Chaque item : fichier(s) + critère d'acceptation en une ligne.
 
+- [x] **I68** Tooltip timeline : hit-test aligné sur le rayon visible de chaque bulle `max(12, r+3)` px (au lieu du 10 px fixe du centre qui ratait les bulles fines et flottait entre voisines) + verrou `hoverLockId` — le texte au survol reste collé à la bulle en cours tant que le curseur est dans son rayon (anti-flicker). Fichiers : `src/bruittrack/viz.py`, `tests/test_viz_api.py`. OK quand : `pytest tests/test_viz_api.py -k i68 -q` vert, check.sh verte (145 tests).
+
 - [x] **I1** `bruittrack stats --json` : flag manquant promis par README (matrice M6 « rc=0 + JSON valide »).
       Fichiers : `src/bruittrack/__main__.py`, `tests/test_cli.py`.
       OK quand : `pytest tests/test_cli.py -k json` vert, sortie JSON parseable avec les compteurs events/clusters.

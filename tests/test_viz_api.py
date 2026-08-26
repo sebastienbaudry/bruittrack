@@ -375,6 +375,23 @@ def test_i64c_spectrogram_linear_scale_in_dashboard() -> None:
     assert "niceHzStep((FREQ_MAX - MIN_EVENT_HZ) / 4)" in HTML_DASHBOARD
 
 
+def test_i68_hover_hit_radius_and_lock() -> None:
+    """I68 : survol des points — hit-test aligné sur le rayon visible de chaque bulle
+    (max(12, r+3) px) et verrou du point survolé (hoverLockId) anti-flicker.
+
+    Avant (bug « décalage ») : test unique à 10 px du centre — une bulle r=3
+    n'était saisissable qu'à ±10 px alors que visuellement elle fait 3 px, et
+    deux bulles voisines alternaient le texte du tooltip à chaque pixel de
+    souris dans la zone de chevauchement des rayons.
+    """
+    from bruittrack.viz import HTML_DASHBOARD
+
+    assert "timelinePoints.push({x, y, r: radius, ev: e})" in HTML_DASHBOARD
+    assert "Math.max(12, p.r + 3)" in HTML_DASHBOARD
+    assert "hoverLockId" in HTML_DASHBOARD
+    assert "bd = 10 * 10" not in HTML_DASHBOARD   # ancien hit-test fixe à 10 px retiré
+
+
 def test_i67_bubbles_colored_per_bin() -> None:
     """I67 : les bulles du chronogramme prennent 1 teinte par bin (plus par cluster)."""
     from bruittrack.viz import HTML_DASHBOARD
