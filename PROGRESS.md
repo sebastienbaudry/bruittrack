@@ -79,3 +79,5 @@
 - [x] Test renommé (diffs constants) ; gate 141 + ruff ok.
 - [x] Déployé pi-t620 : DEPLOY_OK_I64, health ok, JS linéaire servi vérifié.
 - [x] I64d : /api/spectrum expose edges lineaires (test payload).
+
+- [2026-08-27] I67 (commis 625bdcc) : chromogramme — color des bulles par bin frequentiel getBinColor(e.bin_i), reemplace getClusterColor(e.cluster) ; test i67 ajoute ; ruff 0 + 143 tests verts + node --check OK.
