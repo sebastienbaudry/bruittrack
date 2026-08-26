@@ -65,3 +65,5 @@
 1. Patch store.py : fp_a = fps[a] dans la boucle des paires (membre, pas racine), roots[b]=_find(a) uniquement si match ; exécuter les tests test_store.py.
 2. bash tools/check.sh (gate complète).
 3. git add -A && commit « I59b : union-find cluster merge, chaîne transitive canonique min-id » + entry decision-log.
+- FAIT it.6 : patch fp_a=fps[a] (membre) → test_store.py 14/14 ; check.sh CHECK OK **158 tests** ; commit ffb303b + entry decision-log.
+- Prochain tour : M9 smoke pi-t620 ou I70 style hardening du viz.
