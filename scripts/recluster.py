@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """One-shot re-clustering of existing events with the configured tolerance (I44).
 
 Replay all persisted events in live insertion order (id, AUTOINCREMENT) with a

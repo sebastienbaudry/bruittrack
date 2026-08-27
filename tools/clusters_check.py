@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """clusters_check.py — diagnostic du clustering (backlog I59).
 
 Deux modes :
