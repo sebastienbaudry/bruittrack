@@ -478,10 +478,11 @@ def test_i71_clustercolor_palette_distinct_nearby_ids() -> None:
 
     def col(cid: int) -> tuple[float, float, float]:
         h = ((cid * 137.5) % 360) / 360.0
-        l = [45, 68][math.floor(cid / 6) % 2] / 100.0
-        return hls_to_rgb(h, l, 85 / 100)
+        lightness = [45, 68][math.floor(cid / 6) % 2] / 100.0
+        return hls_to_rgb(h, lightness, 85 / 100)
 
-    d = lambda a, b: sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5
+    def d(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:
+        return sum((x - y) ** 2 for x, y in zip(a, b, strict=False)) ** 0.5
 
     # Fallback cluster NULL/absent : gris neutre, gardes marqueurs.
     assert "#94a3b8" in HTML_DASHBOARD

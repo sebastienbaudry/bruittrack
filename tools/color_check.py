@@ -18,8 +18,8 @@ def cluster_color(cid: int) -> tuple[float, float, float] | None:
     if not cid:
         return None  # grey sentinel (#94a3b8), checked separately in tests
     h = ((cid * 137.5) % 360) / 360.0
-    l = [45, 68][math.floor(cid / 6) % 2] / 100.0
-    return hls_to_rgb(h, l, 85 / 100)
+    lightness = [45, 68][math.floor(cid / 6) % 2] / 100.0
+    return hls_to_rgb(h, lightness, 85 / 100)
 
 
 def euclid(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:

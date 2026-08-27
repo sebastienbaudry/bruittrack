@@ -10,8 +10,8 @@ def _cluster_color(cluster_id: int) -> tuple[float, float, float] | str:
     if not cluster_id:
         return "#94a3b8"
     hue = (cluster_id * 137.5) % 360
-    l = (45, 68)[int(cluster_id // 6) % 2]
-    r, g, b = colorsys.hls_to_rgb(hue / 360.0, l / 100.0, 0.85)
+    lightness = (45, 68)[int(cluster_id // 6) % 2]
+    r, g, b = colorsys.hls_to_rgb(hue / 360.0, lightness / 100.0, 0.85)
     return (r, g, b)
 
 
