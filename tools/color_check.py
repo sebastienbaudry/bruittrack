@@ -4,6 +4,7 @@ Usage: python tools/color_check.py [--max-id 29] [--min-adjacent 0.13] [--min-wi
 Exit 0 if every consecutive pair is at least --min-adjacent apart in RGB
 (euclidean), and no near-duplicate (<0.05) within |Δid| <= --min-window.
 """
+
 from __future__ import annotations
 
 import argparse

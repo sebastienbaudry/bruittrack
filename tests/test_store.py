@@ -383,12 +383,20 @@ def test_apply_retention_prunes_exemplars(tmp_path: Path) -> None:
 
     def ev(t0: float, cluster: int) -> SoundEvent:
         return SoundEvent(
-            t0=t0, dur=1.0, bin_i=5, freq=2.5, lvl_g=8.0, lvl_d=7.0,
-            off_ms=0.0, fp=b"a" * 16, flags=0, cluster=cluster,
+            t0=t0,
+            dur=1.0,
+            bin_i=5,
+            freq=2.5,
+            lvl_g=8.0,
+            lvl_d=7.0,
+            off_ms=0.0,
+            fp=b"a" * 16,
+            flags=0,
+            cluster=cluster,
         )
 
-    store.add_event(ev(now - 90 * 86400, 7))   # will be purged (30 d)
-    store.add_event(ev(now - 3600.0, 8))       # kept
+    store.add_event(ev(now - 90 * 86400, 7))  # will be purged (30 d)
+    store.add_event(ev(now - 3600.0, 8))  # kept
     store.flush()
     (ex_dir / "ex_7.raw").write_bytes(b"old")
     (ex_dir / "ex_8.raw").write_bytes(b"new")
@@ -396,17 +404,15 @@ def test_apply_retention_prunes_exemplars(tmp_path: Path) -> None:
     deleted = store.apply_retention(retention_days=30, exemplars_dir=ex_dir)
 
     assert deleted == 1
-    assert not (ex_dir / "ex_7.raw").exists()   # orphaned by purge -> removed
-    assert (ex_dir / "ex_8.raw").is_file()      # still referenced -> kept
+    assert not (ex_dir / "ex_7.raw").exists()  # orphaned by purge -> removed
+    assert (ex_dir / "ex_8.raw").is_file()  # still referenced -> kept
 
     # Legacy: sans exemplars_dir aucun effacement d’exemplaires.
     deleted2 = store.apply_retention(retention_days=30)
     assert deleted2 == 0
-    assert (ex_dir / "ex_8.raw").is_file()      # intacts sans exemplars_dir
+    assert (ex_dir / "ex_8.raw").is_file()  # intacts sans exemplars_dir
 
     store.close()
-
-
 
 
 def test_get_events_order_asc_and_validation(tmp_path):
@@ -450,7 +456,9 @@ def test_i59_merge_quasi_duplicate_clusters() -> None:
         spec[80:85] = [3.0, 6.0, 12.0, 6.0, 3.0]
         fp_a = encode_fingerprint(82, spec, dominant_ch=0, off_ms=2.0)
         fp_b = encode_fingerprint(83, spec, dominant_ch=0, off_ms=2.0)  # delayer le pic
-        fp_c = encode_fingerprint(70, np.full(100, 5.0, dtype=np.float32), dominant_ch=1, off_ms=-4.0)
+        fp_c = encode_fingerprint(
+            70, np.full(100, 5.0, dtype=np.float32), dominant_ch=1, off_ms=-4.0
+        )
         for cid, fp in [(1, fp_a), (2, fp_b), (3, fp_c)]:
             store.add_event(
                 SoundEvent(
@@ -458,7 +466,12 @@ def test_i59_merge_quasi_duplicate_clusters() -> None:
                     dur=1.0,
                     bin_i=82,
                     freq=40.04,
-                    lvl_g=10, lvl_d=9, off_ms=0.0, fp=fp, flags=0, cluster=cid,
+                    lvl_g=10,
+                    lvl_d=9,
+                    off_ms=0.0,
+                    fp=fp,
+                    flags=0,
+                    cluster=cid,
                 )
             )
             store.add_event(
@@ -467,7 +480,12 @@ def test_i59_merge_quasi_duplicate_clusters() -> None:
                     dur=1.0,
                     bin_i=82,
                     freq=40.04,
-                    lvl_g=10, lvl_d=9, off_ms=0.0, fp=fp, flags=0, cluster=cid,
+                    lvl_g=10,
+                    lvl_d=9,
+                    off_ms=0.0,
+                    fp=fp,
+                    flags=0,
+                    cluster=cid,
                 )
             )
         store.flush()
@@ -498,8 +516,16 @@ def test_i59b_merge_renames_exemplars(tmp_path: Path) -> None:
         for cid, fp in [(1, fp_a), (2, fp_b)]:
             store.add_event(
                 SoundEvent(
-                    t0=1700000000.0 + cid, dur=1.0, bin_i=82, freq=40.04,
-                    lvl_g=10, lvl_d=9, off_ms=0.0, fp=fp, flags=0, cluster=cid,
+                    t0=1700000000.0 + cid,
+                    dur=1.0,
+                    bin_i=82,
+                    freq=40.04,
+                    lvl_g=10,
+                    lvl_d=9,
+                    off_ms=0.0,
+                    fp=fp,
+                    flags=0,
+                    cluster=cid,
                 )
             )
         store.flush()
@@ -534,9 +560,18 @@ def test_i59b_merge_transitive_chain() -> None:
         fp_c = encode_fingerprint(84, spec2, dominant_ch=0, off_ms=3.0)
         for cid, fp in [(1, fp_a), (2, fp_b), (3, fp_c)]:
             store.add_event(
-                SoundEvent(t0=1700000000.0 + cid, dur=1.5, bin_i=cid * 8,
-                           freq=40.96, lvl_g=12, lvl_d=8, off_ms=1.5,
-                           fp=fp, flags=0, cluster=cid)
+                SoundEvent(
+                    t0=1700000000.0 + cid,
+                    dur=1.5,
+                    bin_i=cid * 8,
+                    freq=40.96,
+                    lvl_g=12,
+                    lvl_d=8,
+                    off_ms=1.5,
+                    fp=fp,
+                    flags=0,
+                    cluster=cid,
+                )
             )
         store.flush()
         merged = store.merge_quasi_duplicate_clusters(max_bin_delta=3)

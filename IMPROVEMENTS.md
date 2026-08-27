@@ -1,149 +1,182 @@
-# IMPROVEMENTS — backlog BruitTrack
+# Backlog des Améliorations — BruitTrack
 
-Chaque item : fichier(s) + critère d'acceptation en une ligne.
+Analyse globale du projet réalisée le **27 août 2026**.
+- **État courant du projet** : 159 tests unitaires et d'intégration validés (`pytest`), architecture modulaire respectant les contraintes matérielles du thin client HP T620 (1.5 GHz, 4 Go RAM, 16 Go SSD, fanless 24/7).
+- Les améliorations ci-dessous sont classées par **ordre d'importance décroissant** (de P0 Critique à P7 Hygiène).
 
-- [x] **I69** Tooltip survol positionné au-dessus de la bulle : `#evtTip` passe en `position: fixed` centré sur le point survolé (top = y_bulle − hauteur − 10 px, clamped écran, repli dessous si trop haut) — le texte ne reste plus ancré dans la barre d'outils (« décalage » corrigé). Fichier : `src/bruittrack/viz.py`.
+---
 
-- [x] **I68** Tooltip timeline : hit-test aligné sur le rayon visible de chaque bulle `max(12, r+3)` px (au lieu du 10 px fixe du centre qui ratait les bulles fines et flottait entre voisines) + verrou `hoverLockId` — le texte au survol reste collé à la bulle en cours tant que le curseur est dans son rayon (anti-flicker). Fichiers : `src/bruittrack/viz.py`, `tests/test_viz_api.py`. OK quand : `pytest tests/test_viz_api.py -k i68 -q` vert, check.sh verte (145 tests).
+## Sommaire des Priorités
 
-- [x] **I1** `bruittrack stats --json` : flag manquant promis par README (matrice M6 « rc=0 + JSON valide »).
-      Fichiers : `src/bruittrack/__main__.py`, `tests/test_cli.py`.
-      OK quand : `pytest tests/test_cli.py -k json` vert, sortie JSON parseable avec les compteurs events/clusters.
-- [x] **I2** CI GitHub Actions : `ruff check . && ruff format --check . && pytest`.
-      Fichier : `.github/workflows/ci.yml` (python 3.12/3.13).
-      OK quand : le workflow YAML est présent et `bash tools/check.sh` locale reste verte.
-- [x] **I3** `config.toml.example` : documenter `storage.retention_days = 365` (défaut dataclass) avec commentaire.
-      Fichier : `config.toml.example`.
-      OK quand : `grep -c retention_days config.toml.example` ≥ 1 et `load_config(config.toml.example).validate()` OK.
-- [x] **I4** Garantir la commande de v�rification locale `tools/check.sh` (ruff + pytest) cit�e dans I2.
-      Fichier : `tools/check.sh`.
-      OK quand : `bash tools/check.sh` rc=0 avec 55 tests verts (15/15 � �tendre).
+1. [P0 — Sécurité, Stabilité & Garde-fous Réseau / DoS](#p0--sécurité-stabilité--garde-fous-réseau--dos)
+2. [P1 — Métier & Conformité Réglementaire CSP Art. R1336-7](#p1--métier--conformité-réglementaire-csp-art-r1336-7)
+3. [P2 — Architecture & Refactoring (Découpage de `viz.py`)](#p2--architecture--refactoring-découpage-de-vizpy)
+4. [P3 — Résilience 24/7 & Exploitation HP T620 / Systemd](#p3--résilience-247--exploitation-hp-t620--systemd)
+5. [P4 — Optimisation Base de Données SQLite & Gestion Disque](#p4--optimisation-base-de-données-sqlite--gestion-disque)
+6. [P5 — Qualité de Code, Typage Statique & Pipeline CI](#p5--qualité-de-code-typage-statique--pipeline-ci)
+7. [P6 — Fonctionnalités Dashboard UI & Télémétrie](#p6--fonctionnalités-dashboard-ui--télémétrie)
+8. [P7 — Hygiène du Dépôt Git & Documentation](#p7--hygiène-du-dépôt-git--documentation)
 
-- [x] **I5** Tests unitaires `cmd_perf` (M9) : budget CPU/RSS, PID mort.
-      Fichiers : `tests/test_perf.py`, `src/bruittrack/__main__.py`.
-      OK quand : `pytest tests/test_perf.py -q` vert (4 tests).
-- [x] **I6* Corriger le docstring de `tools/module_check.py` L3 (« rows 1..7 » obsolète → sous-ensemble offline réel).
-      Fichiers : `tools/module_check.py`.
-      OK quand : `python -c "import ast; ..."` n/a ; grep du docstring cohérent et `check.sh` verte.
-- [x] **I7* Entry decision-log : commande `bruittrack perf` + budgets (CPU_MAX_PCT, RSS_MAX_KB) et codes sortie 0/1/2.
-      Fichiers : `docs/decision-log.md`.
-      OK quand : `grep -ci "cmd_perf\|bruittrack perf" docs/decision-log.md` ≥ 1.
-- [x] **I8** Ajouter la ligne M9 (perf sur MainPID, RC attendu 0) à la matrice de smoke en fin d'install.
-      Fichiers : `tools/install_hp.sh`.
-      OK quand : `grep -c "bruittrack perf" tools/install_hp.sh` ≥ 1 et `bash -n tools/install_hp.sh` sans erreur.
+---
 
-- [x] **I9** Validation de `lp_cutoff_hz` dans la configuration : 0 < lp_cutoff_hz < sample_rate/2 strict (config.py validate + test test_lp_cutoff_hz_must_be_below_nyquist).      Fichiers : `src/bruittrack/config.py`, `tests/test_config.py`.
-      OK quand : `Config.validate()` lève un `ValueError` si `lp_cutoff_hz <= 0` ou `>= sample_rate / 2`, et `pytest tests/test_config.py` vert.
-- [x] **I10** Cast numérique explicite du filtre 24h dans `EventStore.get_stats()` : cut-off calculé en Python (`time.time() - 86_400.0`) et passé en paramètre, comparaison `REAL t0 >= ?` plutôt que `strftime` string (test `tests/test_store.py::test_get_stats_events_last_24h`).      Fichiers : `src/bruittrack/store.py`, `tests/test_store.py`.
-      OK quand : `get_stats()` utilise `CAST(strftime('%s', 'now', '-1 day') AS REAL)` et `pytest tests/test_store.py` vert.
-- [x] **I11** Nettoyage des extraits audio exemplaires orphelins (`prune_orphaned_exemplars`).
-      Fichiers : `src/bruittrack/store.py`, `tests/test_store.py`.
-      OK quand : une méthode `prune_orphaned_exemplars()` supprime les fichiers `ex_<id>.raw` orphelins dans `exemplars_dir` et `pytest tests/test_store.py` vert.
-- [x] **I12** Avertissement au démarrage si fallback SOS pure-Python actif (`scipy` absent).
-      Fichiers : `src/bruittrack/dsp.py`, `src/bruittrack/pipeline.py`, `tests/test_dsp.py`.
-      OK quand : un warning de log est émis à l'initialisation si `scipy.signal.sosfilt` est indisponible et `pytest tests/test_dsp.py` vert.
-- [x] **I13** Test HTTP du triage : POST /api/clusters/1/triage (flags+label) persisté dans la table clusters ; réponse JSON success=true.
-      Fichiers : `tests/test_viz_api.py`, `src/bruittrack/viz.py` (pas de modif attendue — brique existante).
-      OK quand : `pytest tests/test_viz_api.py -k triage -q` vert (1+ test) et `bash tools/check.sh` verte.
-- [x] **I14** Documenter le triage par API HTTP (exemple curl `/api/clusters/1/triage`) dans la section Commandes du README.
-      Fichier : `README.md`.
-      OK quand : `grep -c triage README.md >= 1` et l'exemple JSON correspond au handler `do_POST` (keys flags/label).
-- [x] **I15** Test store : `set_cluster_triage()` sur un cluster inexistant crée la ligne (id, label, flags) sans erreur.
-      Fichier : `tests/test_store.py`.
-      OK quand : `pytest tests/test_store.py -k fresh -q` vert (1 test) et les 68+ tests globaux restent verts.
-- [x] **I16** Coverage du triage POST dans `tools/module_check.py --offline` : sonde HTTP `POST /api/clusters/0/triage` (flags=1, label="preflight") + verification SQLite de la ligne creee ; resultat 5/5 OK.
-      Fichier : `tools/module_check.py`.
-      OK quand : `python tools/module_check.py --offline` affiche `triage=True`.
-- [x] **I17** `/api/clusters` : un cluster triage cree avant le 1er event (ligne orpheline dans `clusters`) etait invisible ; `get_clusters_summary` merge maintenant les lignes sans event (event_count=0, stats NULL) + test regresion.
-      Fichiers : `src/bruittrack/store.py`, `tests/test_store.py`.
-      OK quand : `pytest tests/test_store.py -k orphans` passe et `python tools/module_check.py --offline` reste 5/5.
+## P0 — Sécurité, Stabilité & Garde-fous Réseau / DoS
 
-- [x] **I18** CI : passer `actions/setup-python@v5` → `@v6` (Node 24 natif) pour supprimer définitivement le warning deprecation Node.js 20 checkout/setup.
-      Fichier : `.github/workflows/ci.yml`.
-      OK quand : `grep -c "setup-python@v6" .github/workflows/ci.yml` = 1 et le YAML reste valide.
-- [x] **I19** UI web : `triageCluster()` envoie seulement `flags` — ajouter un label (prompt) au triage dans le dashboard, corps JSON `{flags, label}`.
-      Fichier : `src/bruittrack/viz.py` (bloc JS ~ligne 278).
-      OK quand : le body du fetch triage contient `label` et le README section Triage reste cohérement.
-- [x] **I20** Test HTTP I17 : `GET /api/clusters` inclut un cluster orphelin (event_count=0) via viz_server + set_cluster_triage avant lecture.
-      Fichier : `tests/test_viz_api.py`.
-      OK quand : `pytest tests/test_viz_api.py -k orphan -q` vert.
+### - [x] [P0-1] Plafonnement de `Content-Length` et protection anti-DoS sur l'API POST
+- **Fichiers** : `src/bruittrack/viz.py` (`BruitTrackHandler.do_POST`), `tests/test_viz_api.py`.
+- **Statut** : ✅ Réalisé — `MAX_POST_BODY = 64 * 1024` (64 Ko), rejet HTTP 413 (*Payload Too Large*), HTTP 411 si header absent, test `test_p0_triage_payload_too_large_returns_413`.
 
-- [x] **I21** `EventStore.get_events()` (src/bruittrack/store.py:296) : aucun test des filtres `since`/`offset`/`cluster`. Ajouter `test_get_events_filters_and_pagination` dans tests/test_store.py (3 events t0 consécutifs ; since=mi → sous-ensemble exact ; limit+offset + desc ; cluster=5 isole un event).
-      OK quand : `pytest tests/test_store.py -k filters_and_pagination -q` vert.
-- [x] **I22** (déjà implémenté : apply_retention store.py + wiring pipeline.py)  `retention_days` (config.py:54) validé mais jamais consommé. Ajouter `EventStore.purge_old(now)` (src/bruittrack/store.py) supprimant events avec t0 < now − N jours (+ exemplaires orphelins), appelé au démarrage (src/bruittrack/__main__.py, cmd_start) + test tests/test_store.py.
-      OK quand : `pytest -k retention -q` vert et purge visible dans `bash tools/check.sh`.
-- [x] **I23** Smoke CLI : tests/test_bugfixes.py — subprocess `python -m bruittrack <cmd> --help` (devices|test|start|viz|stats) s' exécute en 0, garantissant l'appontage argparse.
-      OK quand : `pytest -k cli_help -q` vert.
-## Poursuite
+### - [x] [P0-2] Plafonnement strict des paramètres de pagination `limit`
+- **Fichiers** : `src/bruittrack/viz.py`, `src/bruittrack/store.py`, `tests/test_viz_api.py`.
+- **Statut** : ✅ Réalisé — `MAX_API_LIMIT = 50_000`, bornage automatique dans `viz.py` et `store.py` (`get_events`, `get_spectrum`), tests `test_p0_events_limit_clamped_to_max_api_limit` et `test_p0_spectrum_limit_clamped_to_max_api_limit`.
 
-- [x] **I24** Test HTTP : exemplaire .raw corrompu -> GET /api/exemplars/<c> renvoie 500 (test_exemplar_corrupt_returns_500).
-      Fichier : tests/test_viz_api.py. OK quand : pytest -k corrupt vert.
-- [x] **I25** CI matrix 3.12/3.13 mais pyproject.toml declare requires-python >=3.11 : ajouter un job 3.11 (planchier declaree) dans .github/workflows/ci.yml.
-      Fichier : .github/workflows/ci.yml. OK quand : le matrix porte 3 versions et le YAML reste valide.
-- [x] **I26** viz.py : valider les params GET /api/events (since=abc, limit<=0, offset<0 -> HTTP 400 au lieu d'errno/traceback) + tests test_viz_api.py.
-      Fichier : src/bruittrack/viz.py. OK quand : des requests de test avec since=abc et limit=0 recoivent 400, gate verte.
-- [x] **I27** config.py : retenir les erreurs de validation (retention_days >= 0, seuils > 0) - levees au chargement avec un message lisible + tests test_config.py.
-      Fichier : src/bruittrack/config.py. OK quand : pytest -k config vert et une config invalide echoue proprement en CLI.
+### - [x] [P0-3] Restriction d'écoute réseau (`host`) et sécurisation des actions d'écriture
+- **Fichiers** : `src/bruittrack/config.py`, `src/bruittrack/viz.py`, `config.toml.example`, `tests/test_config.py`, `tests/test_viz_api.py`.
+- **Statut** : ✅ Réalisé — Défaut `host = "127.0.0.1"` (sécurité locale), support de `auth_token` dans `[viz]` / variable `BRUITTRACK_AUTH_TOKEN` avec vérification des en-têtes `Authorization: Bearer` ou `X-API-Key` sur `/triage` (HTTP 401 si non autorisé), tests `test_viz_config_defaults_and_auth` et `test_p0_triage_auth_token_protection`.
 
+### - [x] [P0-4] Assainissement des messages d'erreur HTTP (Fuite de chemins internes)
+- **Fichiers** : `src/bruittrack/viz.py`, `src/bruittrack/__main__.py`, `tests/test_viz_api.py`.
+- **Statut** : ✅ Réalisé — Messages génériques sécurisés, journalisation serveur `logger.error`, résolution de l'avertissement Ruff `PLW1510` avec `check=False`, test `test_p0_error_responses_sanitized`.
 
-## Release
+---
 
-- [x] **I28** Version stable : tag/v1.0.0 + déploiement sur le HP T620 (systemd/bruittrack.service), puis purge DB serveur des événements non significatifs (freq=0.0 pré-fix 80dbfe9, événements <<seuil noise>). Fichier : scripts/purge_noise.sql (nouveau) + README. OK quand : la purge est scriptable en une commande déclarée dans le README, après un état de CI vert et gates locales passer.
+## P1 — Métier & Conformité Réglementaire CSP Art. R1336-7
 
-## Post-v1.0.0
-- [x] **I29** test_pipeline.py : seule 2 tests Engine — ajouter simulation synthetique de pic > seuil (floor + 12 dB) produisant >=1 event via Engine.step + flush store tmp_path. OK quand : pytest vert, nouveau test test_engine_synthetic_spike_fires.
-- [x] **I30** .github/release.md ou script/creer_release.py : publier la release GitHub v1.0.0 (POST /repos/{o}/{r}/releases via token) ; descriptif = notes ci-jointes CI 3.11-3.13, budget HP T620, commande purge. OK quand : `gh release view v1.0.0` (ou GET API) reponse 200.
-- [x] **I31** src/bruittrack/viz.py do_GET : verifier les routes existantes + ajouter /api/health (200 JSON {ok: true, events_db_rows}) avec test test_health_returns_200 dans tests/test_viz_api.py. OK quand : pytest vert.
-## Post-v1.0.0 — Ops HP T620 & contrainte bande
+### - [x] [P1-1] Correction du libellé et de la sémantique du filtre légal dans l'interface web
+- **Fichiers** : `src/bruittrack/viz.py` (HTML & JS), `tests/test_viz_api.py`.
+- **Statut** : ✅ Réalisé — Libellé explicite `"Infractions / Dépassements légaux (▲)"` avec tooltip CSP, badge inline `▲ Infraction` et badge `? Invalide`, test `test_p1_legal_filter_ui_markers`.
 
-- [x] **I32** Audit hpdebian : tous les modules en 1.0.0 (`src/bruittrack/__init__.py`, `pyproject.toml`, métadonnées pip), service `systemctl restart` effectués (réponse active), purge DB des lignes `freq=0.0` → 0 ligne restante et 1263 événements conservés.
-      Fichiers : PROGRESS.md (log), SSH pi-t620. OK quand : vérifié par SSH le 2026-08-23 (PID 38648, `SELECT count(*) … WHERE freq=0` = 0).
-- [x] **I33** Robustesse normalisation CRLF→LF de `tools/install_hp.sh` : détection par `od -An -c | grep '\r'` (portable MSYS/GNU ; le `grep $'\r'` seul est faux négatif sous MSYS), bloc `if/fi` (pas de `&&` sous errexit), layout plat `/opt/bruittrack`.
-      Fichier : tools/install_hp.sh. OK quand : `bash -n tools/install_hp.sh` rc=0, zéro CR (`grep -c` od = 0), find prune `.git/.venv/data/example` intact.
-- [x] **I34** Outiling ops : `tools/parity_hp.sh` (sha256 local vs /opt/bruittrack engagé), `.pi-loop-log.jsonl` dé-tracké de l'index git.
-      Fichiers : tools/parity_hp.sh, .gitignore. OK quand : commit 10da285 vert et `git status` propre sur ce log.
-- [x] **I35** Contraintes bande **utilisateurs paramétrables** : `freq_max = 150.0` (Hz analysés au maximum) et `min_event_hz = 2.0` (aucun événement en dessous — matériel non fiable sous 2 Hz), ajoutées à `DspConfig` avec validation, pas de magic number, propagées dans le pipeline d'émergence/Détection.
-      Fichiers : src/bruittrack/config.py, src/bruittrack/dsp.py (borne des émergences bin < min_event_hz ; Welch/bins jusqu'à freq_max), src/bruittrack/pipeline.py, config.toml.example, tests/test_config.py + tests/test_dsp.py.
-      OK quand : `pytest -q` vert avec tests synthétiques « 1 Hz jamais détecté » / « pic ~120 Hz détecté avec freq_max=150 » et validation ValueError si values incohérentes (min_event_hz < 1 ou ≥ freq_max).
-- [x] **I36** Mettre à jour fichiers de référence pour les 2 nouvelles contraintes : section Pipeline + Schéma DB d'AGENTS.md (bins utiles, bornes min/max avec note config), entrée `docs/decision-log.md` documentant l'origine matériel des bornes et leur paramétrabilité.
-      Fichiers : AGENTS.md, docs/decision-log.md, README.md (section Configuration).
-      OK quand : `grep -c "min_event_hz\|freq_max" AGENTS.md docs/decision-log.md config.toml.example` retourne ≥1 occurrences dans les 3 fichiers et le texte décrit la raison matériel (« non fiable sous 2 Hz ») + portée configurable.
-- [x] **I37** Purge hpdebian des événements `0 < freq < min_event_hz` (conséquence I35, même règle que purge 0 Hz I32 mais étendue) + note dans le README de la commande de purge.
-      Cible : SSH pi-t620 SQL ; Fichier : README.md. OK quand : `SELECT count(*) FROM events WHERE freq < 2.0` = 0 sur /opt/bruittrack et la commande SQL est réutilisable via scripts/purge_lowfreq.sql à la suite.
-- [x] **I38** UI Timeline « Fréquence / Temps » : graduations visibles sur l'axe X (repères HH:MM clairs, ex. 19:00/19:30/20:00) + sélecteur d'échelle ajustable (Boutons 1h / 6h / 24h / Tout).
-      Fichiers : src/bruittrack/viz.py (HTML/canvas de la timeline ; le JSON des events porte déjà t0), README.md (section dashboard).
-      OK quand : le HTML servi contient les 4 boutons d'échelle et des labels HH:MM calculés côté client sur l'axe, et `bash tools/check.sh` verte.
-- [x] **I39** UI Timeline : supprimer le tassement des points à droite — fenêtre temporelle glissante dynamique (affichage centré sur les N dernières heures d'événements, pas depuis epoch) + option zoom type brushing (sélection d'une plage qui zoom l'axe).
-      Fichiers : src/bruittrack/viz.py ; acceptation testée via `tools/module_check.py`/pytest endpoint si lisible.
-      OK quand : un flux avec événements récents montre les points étalés sur la largeur et une sélection de plage recentre l'échelle (vérifiable par curl du HTML + comportement client documenté dans README).
-- [x] **I40** Lien bidirectionnel scatter ↔ tableau : clic sur un point du Frequency/Time chart → surbrillance de la ligne correspondante dans « Derniers Événements » (et clic sur une ligne → surbrillance du point) ; scroll automatique à la ligne.
-      Fichier : src/bruittrack/viz.py (mapping id d'événement ↔ élément DOM, classes CSS actives).
-      OK quand : les deux directions de highlight existent dans le HTML servi et testent le wiring (`pytest -k crosshair -q` ajouté ou `module_check.py` vérifie la présence du handler + de l'attr id par évènement).
-- [x] **I41** Filtres rapides au-dessus du tableau « Derniers Événements » : par canal (IN1 Air / IN2 Structural / Tous), par émergence minimale (sliders/sélecteur, ex. >+10 dB), par cluster (list déroulante alimentée par /api/clusters).
-      Fichiers : src/bruittrack/viz.py (+ option: GET /api/events?chan=&min_lvl=&cluster= si backend) ; tests/test_viz_api.py si endpoint ajouté.
-      OK quand : les 3 filtres sont rendus au-dessus du tableau, appliquent le filtre côté client par défaut et la commande curl documentée renvoie la liste filtrée ; `bash tools/check.sh` verte.
-- [x] **I47** Échelle temps net : font 10→12px et graduations half-pixel alignées (rendering HiDPI cohérent avec le reste du graphe).
-      Fichier : src/bruittrack/viz.py (drawTimeTicks).
-      OK quand : drawTimeTicks en font 12px et tick X alignées à Math.round(x)+0.5 ; check.sh verte.
-- [x] **I48** Aides visuelles du chronogramme : grille verticale temps (lignes claires aux graduations) + message vide "Aucun événement" centré quand aucun point.
-      Fichier : src/bruittrack/viz.py (drawTimeline/drawTimeTicks).
-      OK quand : HTML servi contient les 2 ajouts (grep verticalGrid / noEventsHint dans viz.py) et `bash tools/check.sh` verte.
-- [x] **I49** Tooltip des graduations Y : le survol de l'axe fréquent montre la fréquence exacte sous le curseur (net + orientable sans zoom).
-- [x] **I50** Fil horizontal pointillé (crosshair) à la hauteur du curseur sur le chronogramme : comparaison immédiate avec l'échelle Y, redraw throttle rAF sur les dernières données dessinées.
-      Fichier : src/bruittrack/viz.py (mousemove existant : ajouter ligne freq sous curseur).
-      OK quand : le handler mousemove expose `freqUnder` sur le tooltip et check.sh verte.
+### - [x] [P1-2] Intégration de la validation de mesure minimale (Règle des 10 secondes)
+- **Fichiers** : `src/bruittrack/events.py`, `src/bruittrack/legal.py`, `src/bruittrack/store.py`, `tests/test_events.py`, `tests/test_legal.py`.
+- **Statut** : ✅ Réalisé — Flag `FLAG_INVALID = 1 << 4`, intégration de `evaluate_conformity` dans `_compute_flags`, exposition de `is_invalid` dans `store.get_events`, tests `test_conformite_et_invalidite` et `test_flag_invalid_for_short_recording`.
 
-## Backlog it. 6 (ajouts I53b+)
-- [x] **I55** Commit du script de regression zoom `tools/zoom_repro.js` (node + stub DOM : invariance du point sous le curseur molette) — OK quand : `git status --porcelain tools/zoom_repro.js` vide et `node tools/zoom_repro.js src/bruittrack/viz.py` renvoie INVA_OK ou sort un diagnostic lisible sans crash.
-- [x] **I56** Badge MAJ en temps relatif : `renderMaj()` affiche « MAJ il y a Xs » si < 60 s sinon horodaté hh:mm:ss (TZ_VIZ), tick 1 s léger (`startMajTick()`, texte seul, pas de refetch) ; `lastMajTs` posé en fin de `refreshAll()` après chargement réussi. Span `#majBadge` dans la barre du chronogramme. Restore du code I53 (commit doc-only 2418242 n'avait rien porté à viz.py). Fichiers : `src/bruittrack/viz.py`, `tests/test_viz_api.py` (`test_i56_maj_badge_relative_time`). OK quand : tokens marqueurs présents et check.sh verte (150 tests).
-- [x] **I57** README.md : documenter l aboli plafond 200 (boutons Tout/90j + zoom charge via `?since=`, watermark anti-relance) — Fichier : README.md. OK quand : grep 'limit=20000\|fenetrage' README.md > 0 et check.sh verte. (documenté en section Fenêtrage, it. 26)
+### - [x] [P1-3] Générateur de procès-verbal / rapport acoustique légal (CLI et API)
+- **Fichiers** : `src/bruittrack/legal.py`, `src/bruittrack/__main__.py`, `src/bruittrack/viz.py`, `tests/test_legal.py`, `tests/test_viz_api.py`, `tests/test_bugfixes.py`.
+- **Statut** : ✅ Réalisé — Fonction `generate_legal_report()` avec ventilation diurne/nocturne et liste détaillée des infractions, commande CLI `bruittrack report [--since ...] [--json] [--output ...]`, route API `GET /api/reports/legal`, tests unitaires et intégration CLI complets.
 
-## Backlog it. 4 (additions)
-- [x] **I51 (DEPLOY_OK rc=0)** Script deploy pi-t620 idempotent `scripts/deploy_pi.sh` : build wheel locale PEP427, scp vers /tmp avec nom conforme, `sudo -S pip install --force-reinstall`, restart bruittrack + bruittrack-viz (port 8760), verify curl health + grep markers I48-I50 sur site-packages — accepte si il retourne 0 et affiche DEPLOY_OK.
-- [x] **I52 Purge exemplaires orphelins : `store.apply_retention` supprime les lignes events mais pas les fichiers `exemplars/ex_*.raw` correspondants (src/bruittrack/store.py) — au moins un test qui cree exemplaire + event puis purge et verifie fichier absent.
-- [x] **I53** Bouton UI « resaut */5s » : l autorefresh est deja gere par le timer JS ; ajouter sur la barre du chronogramme un indicateur visuel de dernier refresh (temps relatif) — accepte si le span existe et se met a jour sans modifie drawTimeline. FAIT (I53b, commit 2418242) : span `majBadge` + `updateMaj()` en fin de refreshAll (heure absolute MAJ hh:mm:ss), sans toucher drawTimeline.
-- [x] **I54 Zoom/dézoom 2 axes du chronogramme** : molette sur le canvas = zoom synchronisé temps (ancré au curseur) + fréquence (`axZoom(`), fenêtrage dynamique `/api/events?since=` via `fetchWindow(` + merge dédup par id, Ctrl+glisser vertical = translate axe fréquence (`panFreqBy(`), reset double-clic / Échap / badge `zoomBadge` re-cliquable, plafond tableau 500 lignes via `renderTableRow(`. Fichiers : `src/bruittrack/viz.py`, `tests/test_viz_zoom.py`, `tools/zoom_check.sh`. OK quand : `bash tools/zoom_check.sh` exit 0 (Z1–Z6) et `bash tools/check.sh` verte avec ≥ 103 tests.
-- [x] **I58 Flag légal vs plafond 30 s : `_compute_flags` évalue désormais `emergence_limit(h, m, cum_duration_s + duration_s)` — la durée est cumulée entre segments chaînés (reset à un nouvel épisode), correctifs >1 min vivants. Fichiers : `src/bruittrack/events.py`, `tests/test_events.py`. OK quand : bruit continu simulé 120 s → premier segment conforme, segments finaux flaggés avec correction cumulée (+5 dB) — tests unitaires et chaîn vert, check.sh verte (FAIT it. 23–25).
-- [x] **I59 Clustering : critère de forme non invariant par décalage — `fingerprints_match` compare les 5 voisins alignés sur le pic de chaque empreinte ; pour une source tonale étroite dont le pic fluctue d'1 bin, le profil relatif change (distance Manhattan ~10 > tolérance 2) → fragmentation en quasi-doublons (`avg_freq` à ~0,1 Hz d'écart) malgré la tolérance ±4 bins. Fichiers : `src/bruittrack/events.py` (`fingerprints_match` : comparer au meilleur alignement sur ±max_bin_delta, ou assouplir la distance), fusion post-hoc des quasi-doublons dans `store.py` (stats/prune), `tests/test_events.py`. OK quand : démo synthétique — même spectre avec pic décalé d'1 bin → MATCH ; test de régression vert, check.sh verte. Vérification d'ampleur AVant implémentation : `python tools/clusters_check.py data/bruittrack.db` (ou copie de la base pi-t620) — noter dans cet item le nb de paires quasi-doublons et les critères séparateurs réellement rencontrés ; script enregistré : `tools/clusters_check.py` (--demo pour la reproduction).
+---
 
-- [x] **I71** Chronogramme : bulles colorées par cluster (reprend/inverse I67) : `ctx.fillStyle = getClusterColor(e.cluster)` ; palette améliorée (hue angle d'or `(id*137.5)%360`, sat 85 %, clarté [45,68] par bloc de 6 ids, fallback `#94a3b8`) ; `getBinColor` retiré ; tests I67→I71 + port numérique colorsys ; gate `tools/cluster_color_check.sh` C1–C9 SCORE 10/10. Fichiers : `src/bruittrack/viz.py`, `tests/test_viz_api.py`, `tools/color_check.py`. OK quand : gate exit 0 et suite locale verte (149 tests).
+## P2 — Architecture & Refactoring (Découpage de `viz.py`)
+
+### [P2-1] Extraction des assets frontend statiques (`dashboard.html`, `.css`, `.js`)
+- **Fichiers** : `src/bruittrack/viz.py`, création de `src/bruittrack/viz_assets/` (`dashboard.html`, `dashboard.css`, `01-api.js`, `02-table.js`, `03-timeline.js`).
+- **Problème** : `viz.py` dépasse 1 250 lignes avec ~830 lignes de HTML/CSS/JS imbriquées dans des chaînes de caractères Python. Impossible de linter le JavaScript, coloration syntaxique absente, risque élevé de régression à chaque retouche UI.
+- **Solution** : Exécuter le plan documenté dans `viz-refactor.md` en utilisant `importlib.resources.files("bruittrack.viz_assets")`.
+- **Critère d'acceptation** : `viz.py` réduit à ~250 lignes de code Python pur ; vérification `node --check` sur tous les fichiers JS dans `tools/check.sh` ; tous les tests viz passent sans modification du comportement client.
+
+### [P2-2] Table de routage déclarative dans le serveur HTTP
+- **Fichiers** : `src/bruittrack/viz.py`, `tests/test_viz_api.py`.
+- **Problème** : Le routage dans `BruitTrackHandler` utilise une suite de blocs `if path == ...: elif path.startswith(...):` difficile à maintenir et à tester isolément.
+- **Solution** : Implémenter un routeur déclaratif avec un dictionnaire de handlers (`ROUTES_GET`, `ROUTES_POST`) séparant parsing d'URL, validation des arguments et logique métier.
+- **Critère d'acceptation** : Chaque endpoint dispose de sa fonction handler dédiée, testable unitairement sans instancier de socket réseau.
+
+---
+
+## P3 — Résilience 24/7 & Exploitation HP T620 / Systemd
+
+### [P3-1] Garde-fous de ressources Systemd (Cgroups CPU & Mémoire)
+- **Fichiers** : `systemd/bruittrack.service`, `systemd/bruittrack-viz.service`.
+- **Problème** : Les services n'ont aucune limite de ressources déclarée. En cas de fuite mémoire ou d'emballement CPU imprévu, le thin client fanless HP T620 (sans swap rapide sur SSD 16 Go) risque de geler totalement.
+- **Solution** : Ajouter dans les fichiers d'unité systemd :
+  - `bruittrack.service` : `MemoryMax=200M`, `MemoryHigh=150M`, `CPUQuota=20%`.
+  - `bruittrack-viz.service` : `MemoryMax=100M`, `MemoryHigh=80M`, `CPUQuota=10%`.
+- **Critère d'acceptation** : `systemd-analyze verify` valide les unités et systemd tue/recharge proprement le service si un quota est franchi.
+
+### [P3-2] Watchdog Systemd (`sd_notify` / `WatchdogSec`)
+- **Fichiers** : `systemd/bruittrack.service`, `src/bruittrack/pipeline.py`, `src/bruittrack/__main__.py`.
+- **Problème** : Si le thread de capture ALSA ou le flux audio se bloque sans lever d'exception (blocage matériel ou driver USB), le service reste actif en apparence mais ne traite plus rien.
+- **Solution** : Configurer `WatchdogSec=30s` dans le service systemd et envoyer périodiquement un ping watchdog (`systemd-notify` ou socket sd_notify via stdlib) à chaque cycle de rétention / toutes les 15 s dans la boucle principale.
+- **Critère d'acceptation** : Un gel simulé de la boucle entraîne le redémarrage automatique du service par systemd sous 30 secondes.
+
+### [P3-3] Reconnexion automatique et tolérance aux déconnexions USB (Hotplug Audio)
+- **Fichiers** : `src/bruittrack/capture.py`, `src/bruittrack/pipeline.py`, `tests/test_capture_slowblock.py`.
+- **Problème** : Une micro-coupure USB sur la carte son M-Track Plus provoque une exception PortAudio/ALSA non rattrapée qui arrête définitivement le service.
+- **Solution** : Ajouter une boucle de réessai avec backoff exponentiel (1 s, 2 s, 5 s, max 30 s) dans `AudioCapture` lors de la perte du flux audio avant d'abandonner.
+- **Critère d'acceptation** : Le redémarrage ou le rebranchement de la carte son n'interrompt pas le processus démon, qui reprend la capture dès que le périphérique réapparaît.
+
+---
+
+## P4 — Optimisation Base de Données SQLite & Gestion Disque
+
+### [P4-1] Récupération d'espace disque physique (`incremental_vacuum`)
+- **Fichiers** : `src/bruittrack/store.py`, `tests/test_store.py`.
+- **Problème** : Lors de la purge des vieux événements (`apply_retention`), SQLite supprime les lignes mais conserve les pages allouées dans le fichier `.db`. Sur un SSD de 16 Go, l'espace n'est jamais restitué au système de fichiers sans vacuum.
+- **Solution** :
+  - Activer `PRAGMA auto_vacuum = INCREMENTAL;` lors de l'initialisation de la base.
+  - Exécuter `PRAGMA incremental_vacuum(100);` lors de la passe quotidienne de rétention.
+- **Critère d'acceptation** : La taille du fichier `bruittrack.db` diminue effectivement sur disque après une purge massive d'événements.
+
+### [P4-2] Rétention automatique par défaut sur la table `spectrum`
+- **Fichiers** : `src/bruittrack/config.py`, `config.toml.example`, `src/bruittrack/pipeline.py`.
+- **Problème** : La table `spectrum` enregistre 1 ligne par minute (~525 600 lignes/an). Contrairement aux événements dont la rétention est à 365 jours par défaut, `SpectrumConfig.retention_days` est initialisé à `None` (rétention infinie).
+- **Solution** : Définir `SpectrumConfig.retention_days = 90` par défaut (3 mois de heatmap spectrale, amplement suffisant et économique pour le SSD).
+- **Critère d'acceptation** : La purge quotidienne nettoie automatiquement les entrées `spectrum` plus vieilles que le seuil configuré.
+
+### [P4-3] Intégrité et nettoyage des extraits audio exemplaires orphelins
+- **Fichiers** : `src/bruittrack/store.py`, `tests/test_store.py`.
+- **Problème** : Lors des fusions de clusters quasi-doublons (I59b) ou de purges manuelles en base, des fichiers `exemplars/ex_<id>.raw` peuvent subsister sans correspondance dans la table `clusters`.
+- **Solution** : Systématiser la vérification de cohérence orpheline au démarrage dans `store.apply_retention` ou `prune_orphaned_exemplars`.
+- **Critère d'acceptation** : Aucun fichier `.raw` ne subsiste sur disque s'il n'est pas référencé par un cluster valide en base.
+
+---
+
+## P5 — Qualité de Code, Typage Statique & Pipeline CI
+
+### [P5-1] Résolution de l'avertissement Ruff dans `__main__.py`
+- **Fichiers** : `src/bruittrack/__main__.py:307`.
+- **Problème** : `ruff check .` remonte `PLW1510 subprocess.run without explicit check argument`.
+- **Solution** : Ajouter explicitement `check=False` à l'appel `_sp.run(...)`.
+- **Critère d'acceptation** : `ruff check .` sort avec le code 0 (zéro erreur, zéro avertissement).
+
+### [P5-2] Intégration du vérificateur de types statiques `mypy` en mode strict
+- **Fichiers** : `pyproject.toml`, `.github/workflows/ci.yml`, `tools/check.sh`.
+- **Problème** : Le code utilise des annotations de types Python mais aucun contrôle statique formel n'est exécuté en CI, laissant passer de potentielles incohérences de signature.
+- **Solution** : Ajouter `mypy` aux dépendances `[project.optional-dependencies] dev` et intégrer `mypy src/` dans `tools/check.sh` et le workflow GitHub Actions.
+- **Critère d'acceptation** : `mypy src/` passe à 100% vert sans `type: ignore` injustifié.
+
+### [P5-3] Couverture de code automatisée (`pytest-cov`)
+- **Fichiers** : `pyproject.toml`, `.github/workflows/ci.yml`.
+- **Solution** : Configurer la mesure de couverture avec un seuil minimal de 90% sur `src/bruittrack/` (hors `capture.py` matériel).
+- **Critère d'acceptation** : Le rapport de couverture est généré en CI et garantit qu'aucune régression de test n'est introduite.
+
+---
+
+## P6 — Fonctionnalités Dashboard UI & Télémétrie
+
+### [P6-1] Export direct des données filtrées en CSV et JSON depuis le web
+- **Fichiers** : `src/bruittrack/viz.py` (UI + API).
+- **Besoin** : Permettre à l'utilisateur d'extraire rapidement les événements filtrés (par canal, niveau ou cluster) pour une analyse tableur ou un partage d'expertise.
+- **Solution** : Ajouter un bouton « Exporter CSV » et « Exporter JSON » au-dessus du tableau « Derniers Événements ».
+- **Critère d'acceptation** : Le clic télécharge instantanément un fichier `.csv` ou `.json` contenant les événements actuellement affichés.
+
+### [P6-2] Indicateur en temps réel du plancher de bruit et du niveau d'émergence
+- **Fichiers** : `src/bruittrack/viz.py`.
+- **Besoin** : L'utilisateur n'a pas de visibilité directe sur le niveau sonore instantané (bruit ambiant / bruit résiduel en dB) mesuré lors des périodes calmes sans événement.
+- **Solution** : Afficher dans l'en-tête de la page le dernier niveau plancher estimé (Canal Gauche / Canal Droit) retourné par `/api/stats`.
+- **Critère d'acceptation** : Le bandeau de statistiques affiche les niveaux ambiants récents mis à jour à chaque cycle de rafraîchissement.
+
+### [P6-3] Amélioration de l'accessibilité et contraste visuel des graphiques
+- **Fichiers** : `src/bruittrack/viz.py` (CSS et Canvas rendering).
+- **Solution** : Améliorer le contraste des graduations d'axes, ajouter un mode d'accentuation des contrastes pour la heatmap du spectre et supporter la navigation clavier sur les filtres.
+- **Critère d'acceptation** : Lisibilité accrue sur écrans basse résolution ou mobiles sans dégradation des performances canvas.
+
+---
+
+## P7 — Hygiène du Dépôt Git & Documentation
+
+### [P7-1] Nettoyage des fichiers parasites trackés dans l'historique Git
+- **Fichiers** : Index Git (`.pi/user-decisions/...`, `f`, `manifest.csv`).
+- **Problème** : Des fichiers résiduels d'anciennes sessions ou créés par inadvertance sont suivis par Git.
+- **Solution** : Exécuter `git rm --cached f manifest.csv .pi/user-decisions/sessions/*`, s'assurer que `.gitignore` les exclut formellement.
+- **Critère d'acceptation** : `git ls-files` ne contient que les fichiers sources, tests, documentation et scripts de déploiement légitimes.
+
+### [P7-2] Unification des scripts de vérification (`check.sh` vs `tools/check.sh`)
+- **Fichiers** : `check.sh` (racine) et `tools/check.sh`.
+- **Problème** : Deux scripts de vérification coexistent avec des critères légèrement divergents (recherche d'anciennes mentions dans le README).
+- **Solution** : Conserver `tools/check.sh` comme point d'entrée unique et remplacer `check.sh` à la racine par un lien ou un appel délégataire direct vers `tools/check.sh`.
+- **Critère d'acceptation** : Une seule commande canonique `bash tools/check.sh` pour valider l'intégrité du projet.
+
+### [P7-3] Synchronisation des budgets de performance dans la documentation
+- **Fichiers** : `README.md`, `AGENTS.md`, `docs/decision-log.md`.
+- **Problème** : Certaines mentions citent « < 10% CPU » tandis que les règles constitutionnelles `AGENTS.md` et `decision-log.md` fixent la contrainte cible à « < 15% CPU » sur le matériel HP T620.
+- **Solution** : Aligner tous les documents sur la spécification officielle : CPU < 15%, RAM < 150 Mo.
+- **Critère d'acceptation** : Cohérence parfaite des chiffres cités dans toute la documentation.

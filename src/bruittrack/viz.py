@@ -8,6 +8,8 @@ from __future__ import annotations
 import http.server
 import io
 import json
+import logging
+import time
 import urllib.parse
 import wave
 from pathlib import Path
@@ -17,6 +19,12 @@ import numpy as np
 
 from bruittrack.config import Config
 from bruittrack.store import EventStore
+
+logger = logging.getLogger("bruittrack.viz")
+
+# Garde-fous réseau et mémoire (P0)
+MAX_POST_BODY = 64 * 1024  # 64 Ko max pour les corps de requêtes POST
+MAX_API_LIMIT = 50_000  # Plafond strict pour les requêtes paginées
 
 
 def create_wav_from_raw(raw_path: Path, sample_rate: int = 1000) -> bytes:
@@ -43,14 +51,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>BruitTrack — Traqueur d'Événements Sonores</title>
 <style>
   :root {
-    --bg-dark: #0f141c;
-    --bg-card: #18202c;
-    --bg-card-hover: #222d3d;
-    --border: #2a384c;
+    --bg-dark: #0b0f17;
+    --bg-card: #151d2a;
+    --bg-card-hover: #1e293b;
+    --border: #233144;
     --primary: #38bdf8;
     --accent: #f59e0b;
     --danger: #ef4444;
@@ -59,10 +67,13 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     --text-muted: #94a3b8;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; }
-  body { background: var(--bg-dark); color: var(--text); padding: 16px; font-size: 14px; }
-  header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 16px; }
-  h1 { font-size: 20px; color: var(--primary); display: flex; align-items: center; gap: 8px; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+  body { background: var(--bg-dark); color: var(--text); padding: 12px; font-size: 13px; max-width: 1440px; margin: 0 auto; min-height: 100vh; }
+  
+  header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
+  h1 { font-size: 18px; color: var(--primary); display: flex; align-items: center; gap: 8px; font-weight: 700; }
+  .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  
+  .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; }
   .badge-live { background: rgba(16, 185, 129, 0.2); color: var(--success); border: 1px solid var(--success); }
   .badge-cluster { background: rgba(56, 189, 248, 0.2); color: var(--primary); }
   .badge-over { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
@@ -70,45 +81,65 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   .badge-ch-r { background: #ec4899; color: white; }
   .badge-ch-b { background: #8b5cf6; color: white; }
   
-  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
-  .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 12px; }
-  .stat-val { font-size: 22px; font-weight: bold; color: var(--primary); margin-top: 4px; }
-  .stat-lbl { color: var(--text-muted); font-size: 12px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
+  .stat-val { font-size: 20px; font-weight: bold; color: var(--primary); margin-top: 2px; }
+  .stat-lbl { color: var(--text-muted); font-size: 11px; }
 
-  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-bottom: 16px; }
-  .card-title { font-size: 15px; font-weight: bold; margin-bottom: 12px; color: var(--text); display: flex; justify-content: space-between; }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+  .card-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; color: var(--text); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; }
 
-  #timelineCanvas { width: 100%; height: 260px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); cursor: crosshair; }
-  #specCanvas { width: 100%; height: 150px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); margin-top: 6px; display: none; }
+  .toolbar { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; flex-wrap: wrap; }
+  .btn-group { display: inline-flex; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 4px; padding: 2px; gap: 2px; }
 
-  table { width: 100%; border-collapse: collapse; text-align: left; }
+  #timelineCanvas { width: 100%; height: 260px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); cursor: crosshair; touch-action: none; display: block; }
+  #specCanvas { width: 100%; height: 220px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); margin-top: 6px; display: none; touch-action: none; }
+
+  .table-container { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { width: 100%; border-collapse: collapse; text-align: left; min-width: 460px; }
   tr[data-ev-id] { cursor: pointer; }
   tr.ev-row-selected { background: #312e8155; outline: 1px solid #6366f1; }
-  .flt { background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 4px; padding: 2px 6px; font-size: 13px; }
-  th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
-  th { color: var(--text-muted); font-size: 12px; text-transform: uppercase; background: rgba(0,0,0,0.15); }
+  .flt { background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 4px; padding: 3px 6px; font-size: 12px; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-muted); font-size: 11px; text-transform: uppercase; background: rgba(0,0,0,0.2); white-space: nowrap; }
   tr:hover { background: var(--bg-card-hover); }
 
-  .btn { background: var(--border); color: var(--text); border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; transition: 0.15s; }
+  .btn { background: var(--border); color: var(--text); border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; transition: 0.15s; touch-action: manipulation; }
   .btn:hover { background: var(--primary); color: #000; }
   .btn-sm { padding: 2px 6px; font-size: 11px; }
-  .btn-active { background: rgba(59, 130, 246, 0.25); color: #93c5fd; }
+  .btn-active { background: rgba(59, 130, 246, 0.3); color: #93c5fd; font-weight: bold; border: 1px solid #3b82f6; }
   .btn-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
   .btn-danger:hover { background: var(--danger); color: white; }
   .btn-success { background: rgba(16, 185, 129, 0.2); color: var(--success); }
   .btn-success:hover { background: var(--success); color: white; }
   
-  .layout-2col { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
-  @media (max-width: 900px) { .layout-2col { grid-template-columns: 1fr; } }
+  .layout-2col { display: grid; grid-template-columns: 3fr 2fr; gap: 12px; }
   
-  audio { height: 28px; vertical-align: middle; max-width: 140px; }
+  audio { height: 28px; vertical-align: middle; max-width: 130px; }
+
+  @media (max-width: 880px) {
+    .layout-2col { grid-template-columns: 1fr; }
+    .header-actions { width: 100%; justify-content: space-between; }
+    .header-actions button { flex: 1; }
+  }
+  @media (max-width: 580px) {
+    body { padding: 6px; font-size: 12px; }
+    .stats-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+    .stat-val { font-size: 17px; }
+    .stat-lbl { font-size: 10px; }
+    #timelineCanvas { height: 200px; }
+    #specCanvas { height: 160px; }
+    table { min-width: 380px; }
+    .btn { padding: 5px 8px; }
+  }
 </style>
 </head>
 <body>
 
 <header>
   <h1>🔊 BruitTrack <span class="badge badge-live">24/7 ACTIF</span></h1>
-  <div>
+  <div class="header-actions">
+    <button class="btn btn-danger" style="font-weight:bold; background:rgba(239,68,68,0.25); border:1px solid #ef4444; color:#fca5a5;" onclick="openDiscomfortModal()">🚨 Signaler une Gêne / Crise</button>
     <button class="btn" onclick="refreshAll()">🔄 Rafraîchir</button>
   </div>
 </header>
@@ -137,38 +168,47 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <span>Timeline Fréquence / Temps (0 – __FREQ_MAX__ Hz)</span>
     <span id="canvasTooltip" style="font-size:12px; color:var(--accent);">Survolez un point</span>
   </div>
-  <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
-    <button id="toggleChG" class="btn btn-sm" onclick="toggleChannel(0)">IN1 (Air)</button>
-    <button id="toggleChD" class="btn btn-sm" onclick="toggleChannel(1)">IN2 (Struct)</button>
-    <button id="toggleSpec" class="btn btn-sm" onclick="toggleSpectrum()" title="I63 : heatmap de l'historique spectre (signaux quasi permanents, invisibles dans les événements)">Spectre</button>
-    <span style="opacity:.4">|</span>
-    <button id="winBtn1h" class="btn btn-sm" onclick="setTimeWin(3600,this)">1h</button>
-    <button id="winBtn6h" class="btn btn-sm" onclick="setTimeWin(21600,this)">6h</button>
-    <button id="winBtn24h" class="btn btn-sm btn-active" onclick="setTimeWin(86400,this)">24h</button>
-    <button id="winBtnTout" class="btn btn-sm" onclick="setTimeWin(null,this)">Tout</button>
-    <span style="opacity:.4; font-size:12px; font-family:monospace">glisser = zoom temps · double-clic / Échap = réinit</span>
+  <div class="toolbar">
+    <div class="btn-group">
+      <button id="toggleChG" class="btn btn-sm" onclick="toggleChannel(0)">IN1 (Air)</button>
+      <button id="toggleChD" class="btn btn-sm" onclick="toggleChannel(1)">IN2 (Struct)</button>
+      <button id="toggleSpec" class="btn btn-sm" onclick="toggleSpectrum()" title="I63 : heatmap de l'historique spectre (signaux quasi permanents, invisibles dans les événements)">Spectre</button>
+    </div>
+    <div class="btn-group">
+      <button id="fFocusAll" class="btn btn-sm btn-active" onclick="setFreqFocus(null,null,this)" title="Bande complète 2–150 Hz">Tout (0-150Hz)</button>
+      <button id="fFocusInfra" class="btn btn-sm" onclick="setFreqFocus(2.0,35.0,this)" title="Focus Infrasons & Battements lents 2-35 Hz">🔍 Infrasons (2–35 Hz)</button>
+      <button id="fFocusHum" class="btn btn-sm" onclick="setFreqFocus(35.0,70.0,this)" title="Focus Hum / 50Hz & Résonance 53.7Hz">🔍 Hum (35–70 Hz)</button>
+      <button id="fFocusHigh" class="btn btn-sm" onclick="setFreqFocus(70.0,150.0,this)" title="Focus Harmoniques & Machines 70-150Hz">🔍 Haut (70–150 Hz)</button>
+    </div>
+    <div class="btn-group">
+      <button id="winBtn1h" class="btn btn-sm" onclick="setTimeWin(3600,this)">1h</button>
+      <button id="winBtn6h" class="btn btn-sm" onclick="setTimeWin(21600,this)">6h</button>
+      <button id="winBtn24h" class="btn btn-sm btn-active" onclick="setTimeWin(86400,this)">24h</button>
+      <button id="winBtnTout" class="btn btn-sm" onclick="setTimeWin(null,this)">Tout</button>
+    </div>
+    <span style="opacity:.4; font-size:11px; font-family:monospace">glisser = zoom temps · Échap = réinit</span>
     <span id="evtTip" style="font-family:monospace; font-size:12px; color:#e2e8f0; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
     <span id="freqTip" title="I49 : fréquence sous le curseur" style="font-family:monospace; font-size:12px; color:#93c5fd; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
     <span id="zoomBadge" onclick="resetFviews()" title="I54 : reset zoom X+Y (double-clic ou Échap)" style="display:none; cursor:pointer; color:#94a3b8; font-size:12px;"></span>
     <span id="majBadge" title="I53/I56 : dernière MAJ réussie" style="margin-left:10px; font-family:monospace; font-size:12px; color:#94a3b8;"></span>
   </div>
   <canvas id="timelineCanvas" width="1000" height="260"></canvas>
-  <div id="specBar" style="display:none; text-align:right; font-size:11px; color:#64748b; margin:4px 2px 0 0;">Spectre — contraste auto par bande (p5–p95), niveau relatif par bande</div>
+  <div id="specBar" style="display:none; text-align:right; font-size:11px; color:#64748b; margin:4px 2px 0 0;">Spectre Continu — Échelle globale calibrée en énergie (foncé = plancher calme, clair/jaune = fortes énergies)</div>
   <canvas id="specCanvas"></canvas>
 </div>
 
 <div class="layout-2col">
   <div class="card">
     <div class="card-title">Derniers Événements</div>
-    <div style="max-height: 480px; overflow-y: auto;">
-      <div style="margin: 0 0 8px 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-        <input type="checkbox" id="onlyLegal" style="accent-color: #ef4444;" onchange="applyFilters()" />
-        <label for="onlyLegal" style="font-size: 13px; cursor: pointer; color: #fca5a5;">Légaux uniquement (▲)</label>
-        <select id="chanFilter" class="flt" onchange="applyFilters()"><option value="">Tous canaux</option><option value="l">IN1 (Air)</option><option value="d">IN2 (Struct)</option><option value="b">Les 2</option></select>
-        <label for="minLvlFilter" style="font-size: 13px; color:#94a3b8;">Ém. ≥</label>
-        <input type="number" id="minLvlFilter" class="flt" value="0" min="0" step="1" onchange="applyFilters()" /><span style="font-size:12px;color:#94a3b8;">dB</span>
-        <select id="clusterFilter" class="flt" onchange="applyFilters()"><option value="">Tous clusters</option></select>
-      </div>
+    <div style="margin: 0 0 8px 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+      <input type="checkbox" id="onlyLegal" style="accent-color: #ef4444;" onchange="applyFilters()" />
+      <label for="onlyLegal" style="font-size: 12px; cursor: pointer; color: #fca5a5;" title="Filtrer uniquement les événements dépassant le seuil d'émergence légal autorisé (CSP Art. R1336-7)">Infractions / Dépassements légaux (▲)</label>
+      <select id="chanFilter" class="flt" onchange="applyFilters()"><option value="">Tous canaux</option><option value="l">IN1 (Air)</option><option value="d">IN2 (Struct)</option><option value="b">Les 2</option></select>
+      <label for="minLvlFilter" style="font-size: 12px; color:#94a3b8;">Ém. ≥</label>
+      <input type="number" id="minLvlFilter" class="flt" style="width:48px;" value="0" min="0" step="1" onchange="applyFilters()" /><span style="font-size:11px;color:#94a3b8;">dB</span>
+      <select id="clusterFilter" class="flt" onchange="applyFilters()"><option value="">Tous clusters</option></select>
+    </div>
+    <div class="table-container" style="max-height: 480px; overflow-y: auto;">
       <table>
         <thead>
           <tr>
@@ -189,7 +229,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
   <div class="card">
     <div class="card-title">Groupes Récurrents (Clusters)</div>
-    <div style="max-height: 480px; overflow-y: auto;">
+    <div class="table-container" style="max-height: 480px; overflow-y: auto;">
       <table>
         <thead>
           <tr>
@@ -208,9 +248,324 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   </div>
 </div>
 
+<div class="card" style="margin-top: 12px;">
+  <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+    <span>🚨 Journal des Gênes & Corrélations Psychoacoustiques</span>
+    <button class="btn btn-danger btn-sm" onclick="openDiscomfortModal()">+ Nouvelle Gêne</button>
+  </div>
+  <div class="table-container" style="max-height: 240px; overflow-y: auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Horodatage</th>
+          <th>Intensité</th>
+          <th>Symptômes / Notes</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="discomfortTableBody">
+        <tr><td colspan="4" style="text-align:center; color:#64748b;">Aucun signalement de gêne enregistré.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="discomfortModal" style="display:none; position:fixed; z-index:9999; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); backdrop-filter:blur(3px); align-items:center; justify-content:center; padding:12px;">
+  <div style="background:#18202c; border:1px solid #ef4444; border-radius:8px; width:480px; max-width:100%; max-height:90vh; overflow-y:auto; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,0.6);">
+    <h3 style="color:#fca5a5; font-size:15px; margin-bottom:8px; display:flex; align-items:center; gap:8px;">🚨 Enregistrer une Gêne / Crise Ressentie</h3>
+    <p style="color:#94a3b8; font-size:11px; margin-bottom:12px;">Marque l'instant précis sur la timeline et le spectrogramme pour corréler votre ressenti avec les relevés acoustiques.</p>
+    
+    <label style="display:block; font-size:11px; color:#cbd5e1; margin-bottom:6px; font-weight:bold;">Niveau d'intensité :</label>
+    <div style="display:flex; gap:4px; margin-bottom:12px; flex-wrap:wrap;">
+      <label style="flex:1; min-width:60px; background:#0f172a; border:1px solid #334155; padding:6px 2px; border-radius:4px; text-align:center; cursor:pointer; font-size:11px;"><input type="radio" name="discLevel" value="1"> 1 Légère</label>
+      <label style="flex:1; min-width:36px; background:#0f172a; border:1px solid #334155; padding:6px 2px; border-radius:4px; text-align:center; cursor:pointer; font-size:11px;"><input type="radio" name="discLevel" value="2"> 2</label>
+      <label style="flex:1; min-width:60px; background:#0f172a; border:1px solid #38bdf8; padding:6px 2px; border-radius:4px; text-align:center; cursor:pointer; font-size:11px;"><input type="radio" name="discLevel" value="3" checked> 3 Gênant</label>
+      <label style="flex:1; min-width:36px; background:#0f172a; border:1px solid #334155; padding:6px 2px; border-radius:4px; text-align:center; cursor:pointer; font-size:11px;"><input type="radio" name="discLevel" value="4"> 4</label>
+      <label style="flex:1; min-width:60px; background:#0f172a; border:1px solid #ef4444; padding:6px 2px; border-radius:4px; text-align:center; cursor:pointer; font-size:11px; color:#fca5a5;"><input type="radio" name="discLevel" value="5"> 5 Crise</label>
+    </div>
+    
+    <label style="display:block; font-size:11px; color:#cbd5e1; margin-bottom:6px; font-weight:bold;">Symptômes rapides :</label>
+    <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:12px;">
+      <button type="button" class="btn btn-sm" onclick="addDiscTag('Nausées')">+ Nausées</button>
+      <button type="button" class="btn btn-sm" onclick="addDiscTag('Cerveau qui vibre')">+ Cerveau qui vibre</button>
+      <button type="button" class="btn btn-sm" onclick="addDiscTag('Bourdonnement / Hum')">+ Bourdonnement</button>
+      <button type="button" class="btn btn-sm" onclick="addDiscTag('Battements 0.5-3s')">+ Battements 0.5-3s</button>
+      <button type="button" class="btn btn-sm" onclick="addDiscTag('Pression tympans')">+ Pression oreilles</button>
+      <button type="button" class="btn btn-sm" onclick="addDiscTag('Stress / Oppression')">+ Stress / Oppression</button>
+    </div>
+
+    <label style="display:block; font-size:11px; color:#cbd5e1; margin-bottom:6px; font-weight:bold;">Description / Notes :</label>
+    <input type="text" id="discNote" class="flt" style="width:100%; padding:6px 8px; margin-bottom:14px;" placeholder="Ex: Vrombissement sourd intermittent avec nausées..." />
+
+    <div style="display:flex; justify-content:flex-end; gap:8px;">
+      <button type="button" class="btn" onclick="closeDiscomfortModal()">Annuler</button>
+      <button type="button" class="btn btn-danger" style="font-weight:bold;" onclick="submitDiscomfort()">✅ Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div id="snapshotModal" style="display:none; position:fixed; z-index:9999; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); backdrop-filter:blur(4px); align-items:center; justify-content:center; padding:12px;">
+  <div style="background:#131b26; border:1px solid #38bdf8; border-radius:8px; width:920px; max-width:100%; max-height:90vh; overflow-y:auto; padding:16px; box-shadow:0 12px 40px rgba(0,0,0,0.8);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+      <h3 id="snapModalTitle" style="color:#38bdf8; font-size:15px; display:flex; align-items:center; gap:8px;">🔬 Cliché Haute Définition (30 s / 100 ms / 0.49 Hz)</h3>
+      <button class="btn btn-sm" onclick="closeSnapshotModal()">✕ Fermer</button>
+    </div>
+    
+    <div id="snapMetricsBar" style="background:#0b1118; border:1px solid #1e293b; border-radius:6px; padding:8px 12px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; font-size:11px; font-family:monospace;">
+      <div><span style="color:#94a3b8;">Battements Infrasons (2–35 Hz) :</span> <span id="snapModInfra" style="color:#38bdf8; font-weight:bold;">--</span></div>
+      <div><span style="color:#94a3b8;">Battements Hum (35–70 Hz) :</span> <span id="snapModHum" style="color:#f59e0b; font-weight:bold;">--</span></div>
+      <div><span style="color:#94a3b8;">Période dominante :</span> <span id="snapModPeriod" style="color:#4ade80; font-weight:bold;">--</span></div>
+    </div>
+
+    <div style="display:flex; gap:6px; margin-bottom:8px; align-items:center; flex-wrap:wrap;">
+      <span style="font-size:11px; color:#94a3b8;">Zoom Fréq :</span>
+      <button id="snapFocusAll" class="btn btn-sm btn-active" onclick="setSnapFocus(null,null,this)">Tout (0-150Hz)</button>
+      <button id="snapFocusInfra" class="btn btn-sm" onclick="setSnapFocus(2.0,35.0,this)">🔍 Infrasons (2–35 Hz)</button>
+      <button id="snapFocusHum" class="btn btn-sm" onclick="setSnapFocus(35.0,70.0,this)">🔍 Hum (35–70 Hz)</button>
+    </div>
+
+    <canvas id="snapCanvas" width="880" height="240" style="width:100%; height:220px; background:#080c12; border-radius:4px; display:block;"></canvas>
+
+    <div style="margin-top:10px; display:flex; align-items:center; gap:8px; background:#0b1118; padding:8px 10px; border-radius:6px; border:1px solid #1e293b; flex-wrap:wrap;">
+      <span style="font-size:11px; color:#cbd5e1; white-space:nowrap;">🎧 Écoute 1 kHz :</span>
+      <audio id="snapAudioPlayer" controls style="flex:1; min-width:140px; height:32px;"></audio>
+      <div style="display:flex; gap:4px;">
+        <button class="btn btn-sm" onclick="setAudioSpeed(0.5)">0.5x</button>
+        <button class="btn btn-sm" onclick="setAudioSpeed(1.0)">1x</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 let eventsData = [];
 let clustersData = [];
+let discomfortLogs = [];
+let currentSnapshotData = null;
+let currentSnapFreqView = null;
+
+function openDiscomfortModal() {
+  const m = document.getElementById('discomfortModal');
+  if (m) m.style.display = 'flex';
+}
+
+function closeDiscomfortModal() {
+  const m = document.getElementById('discomfortModal');
+  if (m) m.style.display = 'none';
+}
+
+async function openSnapshotModal(discomfortId) {
+  const m = document.getElementById('snapshotModal');
+  if (m) m.style.display = 'flex';
+  const title = document.getElementById('snapModalTitle');
+  if (title) title.textContent = `🔬 Cliché Haute Définition — Signalement #${discomfortId} (30s / 100ms / 0.49Hz)`;
+  
+  const audio = document.getElementById('snapAudioPlayer');
+  if (audio) {
+    audio.src = `/api/discomfort/${discomfortId}/audio`;
+    audio.load();
+  }
+
+  const data = await fetchJson(`/api/discomfort/${discomfortId}/snapshot`);
+  if (data) {
+    currentSnapshotData = data;
+    document.getElementById('snapModInfra').textContent = (data.mod_infra_pct || 0) + '%';
+    document.getElementById('snapModHum').textContent = (data.mod_hum_pct || 0) + '%';
+    document.getElementById('snapModPeriod').textContent = (data.mod_period_s ? data.mod_period_s + ' s' : 'Non périodique');
+    currentSnapFreqView = null;
+    requestAnimationFrame(drawSnapshotSpectrogram);
+  }
+}
+
+function closeSnapshotModal() {
+  const m = document.getElementById('snapshotModal');
+  if (m) m.style.display = 'none';
+  const audio = document.getElementById('snapAudioPlayer');
+  if (audio) { audio.pause(); audio.src = ''; }
+  currentSnapshotData = null;
+}
+
+function setAudioSpeed(rate) {
+  const audio = document.getElementById('snapAudioPlayer');
+  if (audio) audio.playbackRate = rate;
+}
+
+function setSnapFocus(fLo, fHi, btn) {
+  document.querySelectorAll('#snapFocusAll, #snapFocusInfra, #snapFocusHum').forEach(b => b.classList.remove('btn-active'));
+  if (btn) btn.classList.add('btn-active');
+  if (fLo === null || fHi === null) currentSnapFreqView = null;
+  else currentSnapFreqView = { fLo, fHi };
+  drawSnapshotSpectrogram();
+}
+
+function drawSnapshotSpectrogram() {
+  const cv = document.getElementById('snapCanvas');
+  if (!cv || !currentSnapshotData) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = cv.getBoundingClientRect();
+  const wCss = Math.max(320, rect.width || 880);
+  const hCss = 240;
+  cv.width = Math.round(wCss * dpr);
+  cv.height = Math.round(hCss * dpr);
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, wCss, hCss);
+  ctx.fillStyle = '#080c12';
+  ctx.fillRect(0, 0, wCss, hCss);
+
+  const psd1 = currentSnapshotData.psd_ch1;
+  const psd2 = currentSnapshotData.psd_ch2;
+  const freqs = currentSnapshotData.freqs;
+  const nTicks = psd1 ? psd1.length : 0;
+  const nBins = freqs ? freqs.length : 0;
+  if (!nTicks || !nBins) return;
+
+  const fLo = currentSnapFreqView ? currentSnapFreqView.fLo : freqs[0];
+  const fHi = currentSnapFreqView ? currentSnapFreqView.fHi : freqs[nBins - 1];
+  const x0 = 40, x1 = wCss - 10;
+  const yOfHz = (f) => 4 + (fHi - Math.min(Math.max(f, fLo), fHi)) / Math.max(0.1, fHi - fLo) * (hCss - 8);
+
+  const colW = Math.max(1, (x1 - x0) / nTicks);
+  const binStep = freqs.length > 1 ? freqs[1] - freqs[0] : 0.488;
+
+  for (let t = 0; t < nTicks; t++) {
+    const xa = x0 + (t / nTicks) * (x1 - x0);
+    const r1 = psd1[t], r2 = psd2[t];
+    for (let b = 0; b < nBins; b++) {
+      const f = freqs[b];
+      if (f + binStep < fLo || f > fHi) continue;
+      const v1 = r1 ? r1[b] : -100, v2 = r2 ? r2[b] : -100;
+      let val = showCh.l && showCh.d ? Math.max(v1, v2) : (showCh.l ? v1 : v2);
+      const tNorm = Math.max(0, Math.min(1, (val - (-40)) / 70));
+      ctx.fillStyle = specColor(tNorm);
+      const yA = yOfHz(f), yB = yOfHz(f + binStep);
+      const yT = Math.min(yA, yB), hh = Math.max(1, Math.abs(yB - yA));
+      ctx.fillRect(xa, yT, Math.ceil(colW), hh);
+    }
+  }
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'right';
+  const hzStep = niceHzStep((fHi - fLo) / 4);
+  for (let f = Math.ceil(fLo / hzStep) * hzStep; f <= fHi + 1e-6; f += hzStep)
+    ctx.fillText(Math.round(f) + ' Hz', 36, Math.min(hCss - 2, yOfHz(f) + 4));
+
+  ctx.textAlign = 'center';
+  for (let sec = -30; sec <= 0; sec += 5) {
+    const xp = x0 + ((sec + 30) / 30) * (x1 - x0);
+    ctx.fillText(sec + 's', xp, hCss - 2);
+  }
+  ctx.textAlign = 'left';
+}
+
+function addDiscTag(tag) {
+  const input = document.getElementById('discNote');
+  if (!input) return;
+  const cur = input.value.trim();
+  if (cur.length === 0) input.value = tag;
+  else if (!cur.includes(tag)) input.value = cur + ', ' + tag;
+  input.focus();
+}
+
+async function submitDiscomfort() {
+  const radios = document.getElementsByName('discLevel');
+  let level = 3;
+  for (const r of radios) { if (r.checked) { level = parseInt(r.value, 10); break; } }
+  const note = (document.getElementById('discNote').value || '').trim();
+  
+  try {
+    const res = await fetch('/api/discomfort', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level: level, note: note, t0: Date.now() / 1000 })
+    });
+    if (res.ok) {
+      closeDiscomfortModal();
+      document.getElementById('discNote').value = '';
+      await fetchDiscomfortLogs();
+      drawTimelineFull(false);
+    } else {
+      alert('Erreur lors de l’enregistrement de la gêne');
+    }
+  } catch (e) {
+    console.error('Erreur submitDiscomfort', e);
+    alert('Erreur réseau');
+  }
+}
+
+async function deleteDiscomfort(id) {
+  if (!confirm('Supprimer ce signalement de gêne ?')) return;
+  try {
+    const res = await fetch('/api/discomfort/' + id + '/delete', { method: 'POST' });
+    if (res.ok) {
+      await fetchDiscomfortLogs();
+      drawTimelineFull(false);
+    }
+  } catch(e) {
+    console.error('Erreur deleteDiscomfort', e);
+  }
+}
+
+function zoomOnDiscomfort(t0) {
+  tlMode = { minT: t0 - 300, span: 600 }; // 10 min window around the event
+  syncTlButtons();
+  refreshWindowed();
+}
+
+async function fetchDiscomfortLogs() {
+  const got = await fetchJson('/api/discomfort?limit=500');
+  if (Array.isArray(got)) {
+    discomfortLogs = got;
+    renderDiscomfortTable();
+  }
+}
+
+function renderDiscomfortTable() {
+  const tbody = document.getElementById('discomfortTableBody');
+  if (!tbody) return;
+  if (!discomfortLogs.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#64748b;">Aucun signalement de gêne enregistré.</td></tr>';
+    return;
+  }
+  const levelBadges = {
+    1: '<span class="badge" style="background:#0284c7; color:white;">1 Légère</span>',
+    2: '<span class="badge" style="background:#3b82f6; color:white;">2 Modérée</span>',
+    3: '<span class="badge" style="background:#eab308; color:black; font-weight:bold;">3 Gênant</span>',
+    4: '<span class="badge" style="background:#f97316; color:white; font-weight:bold;">4 Pénible</span>',
+    5: '<span class="badge" style="background:#ef4444; color:white; font-weight:bold;">5 Crise</span>'
+  };
+  tbody.innerHTML = discomfortLogs.map(l => {
+    const dt = formatDate(l.t0);
+    const b = levelBadges[l.level] || ('Niv. ' + l.level);
+    const noteEsc = (l.note || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const snapBtn = l.has_snapshot
+      ? `<button class="btn btn-sm" style="background:#0284c7; color:white; font-weight:bold;" onclick="openSnapshotModal(${l.id})" title="Ouvrir le Cliché Spectrogramme HD (100ms / 0.49Hz)">🔬 Cliché HD</button>`
+      : '';
+    return `<tr>
+      <td style="font-family:monospace;">${dt}</td>
+      <td>${b}</td>
+      <td>${noteEsc || '<em style="color:#64748b;">Sans note</em>'}</td>
+      <td style="display:flex; gap:4px; flex-wrap:wrap;">
+        <button class="btn btn-sm" onclick="zoomOnDiscomfort(${l.t0})" title="Zoomer sur cet instant (±5 min)">🔍 Zoomer</button>
+        ${snapBtn}
+        <button class="btn btn-danger btn-sm" onclick="deleteDiscomfort(${l.id})" title="Supprimer">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function setFreqFocus(fLo, fHi, btn) {
+  document.querySelectorAll('#fFocusAll, #fFocusInfra, #fFocusHum, #fFocusHigh').forEach(b => b.classList.remove('btn-active'));
+  if (btn) btn.classList.add('btn-active');
+  if (fLo === null || fHi === null) {
+    freqView = null;
+  } else {
+    freqView = { fLo: Math.max(0, fLo), fHi: Math.min(FREQ_MAX, fHi) };
+  }
+  specCache.key = null;
+  drawTimelineFull(false);
+}
 
 async function fetchJson(url) {
   try {
@@ -327,6 +682,7 @@ async function refreshAll() {
     fetchJson('/api/clusters')
   ]);
   fetchSpectrum(); // I63 : heatmap spectre (async, non bloquant)
+  fetchDiscomfortLogs(); // Journal des gênes
 
   if (stats) {
     document.getElementById('statEvents').innerText = stats.total_events || 0;
@@ -401,12 +757,17 @@ function renderTableRow(e) { // I54 : une ligne d'événement (plafond 500 ligne
     if (e.lvl_d > e.lvl_g + 2) chBadge = '<span class="badge badge-ch-r">IN2 (Struct)</span>';
     else if (Math.abs(e.lvl_g - e.lvl_d) <= 2) chBadge = '<span class="badge badge-ch-b">Les 2</span>';
 
-    const olBadge = e.over_legal ? ' <span class="badge badge-over">▲ legal</span>' : '';
+    let olBadge = '';
+    if (e.over_legal) {
+      olBadge = ' <span class="badge badge-over" title="Dépassement de l&#39;émergence maximale autorisée (CSP Art. R1336-7)">▲ Infraction</span>';
+    } else if (e.is_invalid) {
+      olBadge = ' <span class="badge" style="background:#64748b;color:#f8fafc;" title="Relevé non conforme aux contraintes de mesure (< 10s)">? Invalide</span>';
+    }
     return `<tr data-ev-id="${e.id}"${e.id === selectedEvId ? ' class="ev-row-selected"' : ''} onclick="selectEv(${e.id})">
       <td>${formatDate(e.t0)}</td>
       <td><strong>${e.freq.toFixed(1)} Hz</strong></td>
       <td>${chBadge}</td>
-      <td>+${e.lvl_g.toFixed(1)} / +${e.lvl_d.toFixed(1)} dB</td>${olBadge}
+      <td>+${e.lvl_g.toFixed(1)} / +${e.lvl_d.toFixed(1)} dB${olBadge}</td>
       <td>${e.dur.toFixed(1)} s</td>
       <td><span class="badge badge-cluster" style="background:${getClusterColor(e.cluster)}22; color:${getClusterColor(e.cluster)}">#${e.cluster || '-'}</span></td>
     </tr>`;
@@ -825,6 +1186,29 @@ function drawTimeline(events) {
     }
   }
 
+  // Lignes verticales et badges des signalements de gêne (Journal de gêne)
+  discomfortLogs.forEach(dl => {
+    if (dl.t0 >= minT - 1e-9 && dl.t0 <= minT + timeSpan + 1e-9) {
+      const x = 40 + ((dl.t0 - minT) / timeSpan) * (w - 50);
+      if (x >= 40 && x <= w - 10) {
+        ctx.save();
+        ctx.strokeStyle = dl.level >= 4 ? '#ef4444' : '#f59e0b';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(x, 20);
+        ctx.lineTo(x, h - 20);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        ctx.fillStyle = dl.level >= 4 ? '#ef4444' : '#f59e0b';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText('🚨 Niv.' + dl.level, Math.min(w - 95, x + 3), 32);
+        ctx.restore();
+      }
+    }
+  });
+
   if (tlBrushPx) { // rect de sélection du brushing → relâcher verrouille la plage
     const bx0 = Math.max(40, tlBrushPx.x0);
     const bx1 = Math.min(w - 10, tlBrushPx.x1);
@@ -870,21 +1254,18 @@ async function fetchSpectrum() {
   if (got && Array.isArray(got.rows)) specRows = got.rows;
 }
 
-function specBandEdge(i) { // bords linéaires identiques au serveur (SpectrumAggregator.band_edges)
-  return MIN_EVENT_HZ + (FREQ_MAX - MIN_EVENT_HZ) * (i / SPEC.bands);
+function specBandEdge(i, nb) { // bords linéaires identiques au serveur (SpectrumAggregator.band_edges)
+  return MIN_EVENT_HZ + (FREQ_MAX - MIN_EVENT_HZ) * (i / (nb || SPEC.bands));
 }
 
-function specColor(t) { // noir -> bleu -> cyan -> jaune
-  if (t < 1 / 3) { const k = t * 3; return 'rgb(' + Math.round(8 + k * 30) + ',' + Math.round(12 + k * 60) + ',' + Math.round(18 + k * 140) + ')'; }
-  if (t < 2 / 3) { const k = t * 3 - 1; return 'rgb(' + Math.round(38 + k * 40) + ',' + Math.round(72 + k * 110) + ',' + Math.round(158 + k * 90) + ')'; }
-  const k = t * 3 - 2; return 'rgb(' + Math.round(78 + k * 177) + ',' + Math.round(182 + k * 73) + ',' + Math.round(248 - k * 184) + ')';
+function specColor(t) { // noir -> bleu -> cyan -> jaune -> rouge
+  if (t < 0.25) { const k = t * 4; return 'rgb(' + Math.round(8 + k * 20) + ',' + Math.round(12 + k * 45) + ',' + Math.round(18 + k * 120) + ')'; }
+  if (t < 0.5) { const k = (t - 0.25) * 4; return 'rgb(' + Math.round(28 + k * 30) + ',' + Math.round(57 + k * 95) + ',' + Math.round(138 + k * 105) + ')'; }
+  if (t < 0.75) { const k = (t - 0.5) * 4; return 'rgb(' + Math.round(58 + k * 180) + ',' + Math.round(152 + k * 70) + ',' + Math.round(243 - k * 180) + ')'; }
+  const k = (t - 0.75) * 4; return 'rgb(' + Math.round(238 + k * 17) + ',' + Math.round(222 - k * 150) + ',' + Math.round(63 - k * 63) + ')';
 }
 
-// Cache du rendu heatmap : le redraw de survol de la timeline (rAF par mousemove)
-// appelle drawSpecPanel à chaque frame — décoder des milliers de blobs + retracer
-// ~500k rects par frame rendait le tooltip d'événement inutilisable (I63e).
-// Cellules peintes UNE fois hors-écran, blittées en 1 drawImage tant que
-// (vue, données, canaux, dpr) ne changent pas ; seuls labels/dash redessinent.
+// Cache du rendu heatmap
 let specCache = { key: null, cv: null };
 
 function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale (même axe X)
@@ -895,7 +1276,8 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   if (bar) bar.style.display = specShow ? 'block' : 'none';
   if (!specShow) return;
   const dpr = window.devicePixelRatio || 1;
-  const wCss = TL_CKWW, hCss = 150;
+  const isSmall = window.innerWidth <= 580;
+  const wCss = TL_CKWW, hCss = isSmall ? 160 : 220;
   const bw = Math.round(wCss * dpr), bh = Math.round(hCss * dpr);
   if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
   const ctx = cv.getContext('2d');
@@ -903,7 +1285,8 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
 
   const minT = tlScale.minT, span = tlScale.span;
   const lastT = specRows.length ? specRows[specRows.length - 1].t0 : 0;
-  const key = [minT, span, wCss, hCss, dpr, specRows.length, lastT, showCh.l, showCh.d].join('|');
+  const fb = freqBounds(); // Y-axis bounds from current frequency zoom
+  const key = [minT, span, wCss, hCss, dpr, specRows.length, lastT, showCh.l, showCh.d, fb[0].toFixed(1), fb[1].toFixed(1)].join('|');
 
   if (specCache.key !== key) { // recompute complet UNIQUEMENT sur changement réel
     if (!specCache.cv) specCache.cv = document.createElement('canvas');
@@ -915,8 +1298,8 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
     octx.fillStyle = '#080c12'; octx.fillRect(0, 0, wCss, hCss);
 
     const x0 = 40, x1 = wCss - 10;
-    // I64c : axe Y linéaire, même échelle que la timeline
-    const yOfHz = (f) => 4 + (FREQ_MAX - Math.min(Math.max(f, MIN_EVENT_HZ), FREQ_MAX)) / (FREQ_MAX - MIN_EVENT_HZ) * (hCss - 8);
+    // Axe Y aligné avec la vue zoomée dynamique freqBounds()
+    const yOfHz = (f) => 4 + (fb[1] - Math.min(Math.max(f, fb[0]), fb[1])) / Math.max(0.1, fb[1] - fb[0]) * (hCss - 8);
 
     if (!specRows.length) { // état vide
       octx.fillStyle = '#64748b'; octx.font = '12px monospace'; octx.textAlign = 'center';
@@ -924,114 +1307,151 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
       octx.textAlign = 'left';
     }
 
-  const qOf = (raw, b) => { // max des canaux visibles pour la bande b
-    if (showCh.l && showCh.d) return Math.max(raw.charCodeAt(b * 4 + 1), raw.charCodeAt(b * 4 + 3));
-    if (showCh.l) return raw.charCodeAt(b * 4 + 1);
-    return raw.charCodeAt(b * 4 + 3);
-  };
+    const qOf = (raw, b) => { // max des canaux visibles pour la bande b
+      if (showCh.l && showCh.d) return Math.max(raw.charCodeAt(b * 4 + 1), raw.charCodeAt(b * 4 + 3));
+      if (showCh.l) return raw.charCodeAt(b * 4 + 1);
+      return raw.charCodeAt(b * 4 + 3);
+    };
 
-  // Contraste AUTO PAR BANDE : chaque bande est étirée sur sa propre plage
-  // p5..p95 visibles. Une normalisation globale écrase les bandes calmes au noir
-  // (pente spectrale naturelle ~20 dB entre bandes — retour terrain I63d).
-  const vis = [];
-  const qsPerBand = Array.from({ length: SPEC.bands }, () => []);
-  for (const r of specRows) {
-    const tEnd = r.t0 + r.dur;
-    if (tEnd < minT || r.t0 > minT + span) continue;
-    if (!r._raw) r._raw = atob(r.data); // décodage mémoïsé par ligne
-    vis.push(r);
-    for (let b = 0; b < r.n_bands; b++) { const q = qOf(r._raw, b); if (q > 0) qsPerBand[b].push(q); }
-  }
-  const bandRange = qsPerBand.map(function (qs) {
-    if (!qs.length) return null;
-    qs.sort(function (a, b) { return a - b; });
-    const pk = function (k) { return qs[Math.min(qs.length - 1, Math.floor(k * qs.length))]; };
-    let lo = Math.max(1, pk(0.05)), hi = pk(0.95);
-    if (hi <= lo + 2) { lo = Math.max(0, hi - 8); } // bande plate : garde minimale
-    return [lo, hi];
-  });
-
-  // Bords Y précalculés (indépendants des données)
-  const yEdges = [];
-  for (let b = 0; b <= SPEC.bands; b++) yEdges.push(Math.round(yOfHz(specBandEdge(b))));
-
-  for (const r of vis) {
-    const tEnd = r.t0 + r.dur;
-    let xa = Math.max(x0, x0 + ((r.t0 - minT) / span) * (x1 - x0));
-    const xb = Math.min(x1, x0 + ((tEnd - minT) / span) * (x1 - x0));
-    if (xb <= xa) continue;
-    const colW = Math.max(1, xb - xa);
-    for (let b = 0; b < r.n_bands; b++) {
-      const q = qOf(r._raw, b);
-      const yT = Math.min(yEdges[b], yEdges[b + 1]), hh = Math.max(1, Math.abs(yEdges[b + 1] - yEdges[b]));
-      const rng = bandRange[b];
-      // Bande sans donnée ou plate : teinte neutre discrète (pas de faux signal)
-      const t = !rng ? 0 : Math.max(0, Math.min(1, (q - rng[0]) / (rng[1] - rng[0])));
-      octx.fillStyle = specColor(t);
-      octx.fillRect(xa, yT, colW, hh);
+    const vis = [];
+    const allQs = [];
+    for (const r of specRows) {
+      const tEnd = r.t0 + r.dur;
+      if (tEnd < minT || r.t0 > minT + span) continue;
+      if (!r._raw) r._raw = atob(r.data); // décodage mémoïsé par ligne
+      vis.push(r);
+      for (let b = 0; b < r.n_bands; b++) {
+        const eLo = specBandEdge(b, r.n_bands), eHi = specBandEdge(b + 1, r.n_bands);
+        if (eHi < fb[0] || eLo > fb[1]) continue;
+        const q = qOf(r._raw, b);
+        if (q > 0) allQs.push(q);
+      }
     }
-  }
-  specCache.key = key;
+
+    // Contraste global réaliste (p5..p98) sur toute la vue visible
+    let qLo = 20, qHi = 100;
+    if (allQs.length > 30) {
+      allQs.sort(function (a, b) { return a - b; });
+      qLo = allQs[Math.floor(0.05 * (allQs.length - 1))];
+      qHi = allQs[Math.floor(0.98 * (allQs.length - 1))];
+      if (qHi <= qLo + 6) qHi = qLo + 25;
+    }
+
+    for (const r of vis) {
+      const tEnd = r.t0 + r.dur;
+      let xa = Math.max(x0, x0 + ((r.t0 - minT) / span) * (x1 - x0));
+      const xb = Math.min(x1, x0 + ((tEnd - minT) / span) * (x1 - x0));
+      if (xb <= xa) continue;
+      const colW = Math.max(1, xb - xa);
+      for (let b = 0; b < r.n_bands; b++) {
+        const eLo = specBandEdge(b, r.n_bands), eHi = specBandEdge(b + 1, r.n_bands);
+        if (eHi < fb[0] || eLo > fb[1]) continue; // bande hors de la vue Y zoomée
+        const q = qOf(r._raw, b);
+        const yA = yOfHz(eLo), yB = yOfHz(eHi);
+        const yT = Math.min(yA, yB), hh = Math.max(1, Math.abs(yB - yA));
+        const t = Math.max(0, Math.min(1, (q - qLo) / Math.max(1, qHi - qLo)));
+        octx.fillStyle = specColor(t);
+        octx.fillRect(xa, yT, colW, hh);
+      }
+    }
+    specCache.key = key;
   }
 
   // Blit 1:1 du cache + habillage léger (labels, dash) à chaque frame
   ctx.clearRect(0, 0, wCss, hCss);
   ctx.drawImage(specCache.cv, 0, 0, wCss, hCss);
 
-  // I64c : idem yOfHz mais hors du bloc cache (portée différente)
-  const yOfHz2 = (f) => 4 + (FREQ_MAX - Math.min(Math.max(f, MIN_EVENT_HZ), FREQ_MAX)) / (FREQ_MAX - MIN_EVENT_HZ) * (hCss - 8);
+  const yOfHz2 = (f) => 4 + (fb[1] - Math.min(Math.max(f, fb[0]), fb[1])) / Math.max(0.1, fb[1] - fb[0]) * (hCss - 8);
 
-  // Limite f_min (même repère pointillé que la timeline) — au-dessus des cellules
-  const yMin = Math.round(yOfHz2(MIN_EVENT_HZ));
-  ctx.strokeStyle = 'rgba(245,158,11,.5)';
-  ctx.setLineDash([4, 4]);
-  ctx.beginPath(); ctx.moveTo(40, yMin + 0.5); ctx.lineTo(wCss - 10, yMin + 0.5); ctx.stroke();
-  ctx.setLineDash([]);
+  // Marqueurs de gêne sur le spectrogramme
+  discomfortLogs.forEach(dl => {
+    if (dl.t0 >= minT - 1e-9 && dl.t0 <= minT + span + 1e-9) {
+      const x = 40 + ((dl.t0 - minT) / span) * (wCss - 50);
+      if (x >= 40 && x <= wCss - 10) {
+        ctx.save();
+        ctx.strokeStyle = dl.level >= 4 ? '#ef4444' : '#f59e0b';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(x, 4);
+        ctx.lineTo(x, hCss - 4);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  });
 
-  // Étiquettes Hz sur pas « nice » (échelle linéaire I64c) — y borné au canvas
+  // Limite f_min (si dans la vue)
+  if (MIN_EVENT_HZ >= fb[0] && MIN_EVENT_HZ <= fb[1]) {
+    const yMin = Math.round(yOfHz2(MIN_EVENT_HZ));
+    ctx.strokeStyle = 'rgba(245,158,11,.5)';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(40, yMin + 0.5); ctx.lineTo(wCss - 10, yMin + 0.5); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Étiquettes Hz sur pas « nice »
   ctx.fillStyle = '#94a3b8'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
-  const hzStep = niceHzStep((FREQ_MAX - MIN_EVENT_HZ) / 4);
-  for (let f = Math.ceil(MIN_EVENT_HZ / hzStep) * hzStep; f <= FREQ_MAX + 1e-6; f += hzStep)
-    ctx.fillText(f + ' Hz', 36, Math.min(hCss - 2, yOfHz2(f) + 4));
+  const hzStep = niceHzStep((fb[1] - fb[0]) / 4);
+  for (let f = Math.ceil(fb[0] / hzStep) * hzStep; f <= fb[1] + 1e-6; f += hzStep)
+    ctx.fillText(Math.round(f) + ' Hz', 36, Math.min(hCss - 2, yOfHz2(f) + 4));
   ctx.textAlign = 'left';
 }
 
-// ===== Zoom par brushing sur la timeline (I39) : glisser = plage temps, double-clic/Esc = réinit =====
+// ===== Zoom par brushing sur la timeline (I39) : glisser / touch = plage temps, double-clic/Esc = réinit =====
 (function () {
   const canvas = document.getElementById('timelineCanvas');
   if (!canvas) return;
   let dragX0 = null;
   let raf = 0;
-  const drawSoon = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => drawTimelineFull(false)); }; // I59 : brush en cours = dessin seul ; sync au mouseup (refreshWindowed)
-  const toCanvasX = (e) => { // espace logique = px CSS (setTransform hi-DPI actif)
+  const drawSoon = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => drawTimelineFull(false)); };
+  const toCanvasX = (e) => {
     const r = canvas.getBoundingClientRect();
-    return e.clientX - r.left;
+    return (e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0)) - r.left;
   };
-  canvas.addEventListener('mousedown', (e) => { // I59 : Ctrl+glisser = pan fréquence, boutons droit/milieu = rien — jamais un brush temps parasite
+  canvas.addEventListener('mousedown', (e) => {
     if (e.ctrlKey || e.button !== 0) return;
     dragX0 = toCanvasX(e); tlBrushPx = null;
   });
   canvas.addEventListener('mousemove', (e) => {
     if (dragX0 === null) return;
     const x1 = toCanvasX(e);
-    if (Math.abs(x1 - dragX0) > 6) { // seuil px pour distinguer glisser de clic
+    if (Math.abs(x1 - dragX0) > 6) {
       tlBrushPx = {x0: Math.min(dragX0, x1), x1: Math.max(dragX0, x1)};
       drawSoon();
     }
   });
-  document.addEventListener('mouseup', () => {
+  const finishDrag = () => {
     if (dragX0 === null) return;
     dragX0 = null;
     if (tlBrushPx && tlScale) {
-      const toTime = (xp) => tlScale.minT + ((xp - 40) / (TL_CKWW - 50)) * tlScale.span; // I55 fix: canvas.width = px device (HiDPI), brush en px CSS
+      const toTime = (xp) => tlScale.minT + ((xp - 40) / (TL_CKWW - 50)) * tlScale.span;
       const t0 = toTime(tlBrushPx.x0), t1 = toTime(tlBrushPx.x1);
       if (t1 - t0 >= 60) { tlMode = {minT: t0, span: Math.max(120, (t1 - t0) * 1.1)}; syncTlButtons(); }
     }
     tlBrushPx = null;
-    refreshWindowed(); // I54 : fenêtre dynamique si le zoom brushing est actif
-  });
-  canvas.addEventListener('dblclick', resetFviews); // I54 : double-clic réinitialise X + Y
-  window.addEventListener('keydown', (e) => { // Échap : réinitialise les vues I54
+    refreshWindowed();
+  };
+  document.addEventListener('mouseup', finishDrag);
+
+  // Support tactile mobile / tablette
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    dragX0 = toCanvasX(e);
+    tlBrushPx = null;
+  }, { passive: true });
+  canvas.addEventListener('touchmove', (e) => {
+    if (dragX0 === null || e.touches.length !== 1) return;
+    const x1 = toCanvasX(e);
+    if (Math.abs(x1 - dragX0) > 8) {
+      tlBrushPx = {x0: Math.min(dragX0, x1), x1: Math.max(dragX0, x1)};
+      drawSoon();
+    }
+  }, { passive: true });
+  canvas.addEventListener('touchend', finishDrag, { passive: true });
+
+  canvas.addEventListener('dblclick', resetFviews);
+  window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') resetFviews();
   });
 })();
@@ -1040,12 +1460,12 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
 (function () {
   const canvas = document.getElementById('timelineCanvas');
   if (!canvas) return;
-  canvas.addEventListener('wheel', axZoom, { passive: false }); // I59 : preventDefault possible dans axZoom (pas de scroll/zoom page concurrent)
+  canvas.addEventListener('wheel', axZoom, { passive: false });
 })();
 
-// ===== Hi-DPI : le backing store suit la largeur réelle et devicePixelRatio =====
-const TL_CSS_H = 260;
-let TL_CKWW = 1000;      // largeur logique (px CSS), init = fallback canvas
+// ===== Hi-DPI & Responsive : le backing store suit la largeur réelle et devicePixelRatio =====
+let TL_CSS_H = 260;
+let TL_CKWW = 1000;
 let TL_CKVH = 260;
 
 function fitCanvas() {
@@ -1053,14 +1473,45 @@ function fitCanvas() {
   if (!canvas) return;
   const dpr = window.devicePixelRatio || 1;
   const r = canvas.getBoundingClientRect();
-  const cw = Math.max(320, r.width || 0);
-  canvas.width = Math.round(cw * dpr);   // backing store natif (net sur écrans rétina)
+  const cw = Math.max(300, r.width || 0);
+  const isSmall = window.innerWidth <= 580;
+  TL_CSS_H = isSmall ? 200 : 260;
+  canvas.width = Math.round(cw * dpr);
   canvas.height = Math.round(TL_CSS_H * dpr);
   TL_CKWW = cw;
   TL_CKVH = TL_CSS_H;
   drawTimelineFull();
 }
 window.addEventListener('resize', () => requestAnimationFrame(fitCanvas));
+window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 150));
+
+(function () {
+  const canvas = document.getElementById('specCanvas');
+  if (!canvas) return;
+  const tip = document.getElementById('freqTip');
+  const updateSpecTip = (clientX, clientY) => {
+    if (!tlScale || !tip) return;
+    const r = canvas.getBoundingClientRect();
+    const x = clientX - r.left;
+    const y = clientY - r.top;
+    const fb = freqBounds();
+    const h = r.height || 220;
+    const f = fb[1] - ((y - 4) / Math.max(1, h - 8)) * (fb[1] - fb[0]);
+    const fClamped = Math.max(fb[0], Math.min(fb[1], f));
+    const t = tlScale.minT + ((x - 40) / Math.max(1, (TL_CKWW - 50))) * tlScale.span;
+    const tStr = new Date(t * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: TZ_VIZ });
+    tip.textContent = `Spectre · ${fClamped.toFixed(1)} Hz · ${tStr}`;
+    tip.style.display = 'inline';
+  };
+  canvas.addEventListener('mousemove', (e) => updateSpecTip(e.clientX, e.clientY));
+  canvas.addEventListener('mouseleave', () => { if (tip) tip.style.display = 'none'; });
+
+  // Touch sur le spectrogramme
+  canvas.addEventListener('touchmove', (e) => {
+    if (e.touches && e.touches[0]) updateSpecTip(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: true });
+  canvas.addEventListener('touchend', () => { if (tip) tip.style.display = 'none'; }, { passive: true });
+})();
 
 // Initial : fit hi-DPI puis fetch + poll every 10s
 // Exemplaires désactivés : on retire aussi la colonne Audio du tableau
@@ -1078,6 +1529,28 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
 
     store: EventStore
     config: Config
+
+    def _check_auth(self) -> bool:
+        """Vérifie le jeton d'authentification si configuré pour les actions d'écriture."""
+        expected_token = (
+            getattr(self.config.viz, "auth_token", None)
+            if hasattr(self, "config") and self.config
+            else None
+        )
+        if not expected_token:
+            return True
+        # Check Authorization: Bearer <token>
+        auth_header = self.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+            if token == expected_token:
+                return True
+        # Check X-API-Key: <token>
+        api_key_header = self.headers.get("X-API-Key", "").strip()
+        if api_key_header == expected_token:
+            return True
+        self._send_json({"error": "Non autorisé (authentification requise)"}, status=401)
+        return False
 
     def _send_json(self, data: Any, status: int = 200) -> None:
         payload = json.dumps(data).encode("utf-8")
@@ -1119,7 +1592,8 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
                 total = self.store.get_stats()["total_events"]
                 self._send_json({"ok": True, "events_db_rows": total})
             except Exception as e:
-                self._send_json({"ok": False, "error": str(e)}, status=500)
+                logger.error("Health check failed: %s", e)
+                self._send_json({"ok": False, "error": "Erreur interne"}, status=500)
             return
 
         if path == "/api/stats":
@@ -1129,7 +1603,7 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
 
         if path == "/api/events":
             try:
-                limit = int(qs.get("limit", [100])[0])
+                raw_limit = int(qs.get("limit", [100])[0])
                 offset = int(qs.get("offset", [0])[0])
                 since = float(qs["since"][0]) if "since" in qs else None
                 cluster = int(qs["cluster"][0]) if "cluster" in qs else None
@@ -1137,12 +1611,13 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
             except (ValueError, IndexError):
                 self.send_error(400, "Paramètre de requête invalide")
                 return
-            if limit <= 0 or offset < 0:
+            if raw_limit <= 0 or offset < 0:
                 self.send_error(400, "limit doit > 0 et offset >= 0")
                 return
             if order not in ("asc", "desc"):
                 self.send_error(400, "order doit valoir 'asc' ou 'desc'")
                 return
+            limit = min(raw_limit, MAX_API_LIMIT)
             events = self.store.get_events(
                 limit=limit, offset=offset, since=since, cluster=cluster, order=order
             )
@@ -1154,17 +1629,32 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
             self._send_json(clusters)
             return
 
+        if path == "/api/reports/legal":
+            try:
+                since_rep = float(qs["since"][0]) if "since" in qs else None
+                until_rep = float(qs["until"][0]) if "until" in qs else None
+            except (ValueError, IndexError):
+                self.send_error(400, "Paramètre de date invalide")
+                return
+            from bruittrack.legal import generate_legal_report
+
+            events = self.store.get_events(since=since_rep, limit=MAX_API_LIMIT, order="asc")
+            report = generate_legal_report(events, start_time=since_rep, end_time=until_rep)
+            self._send_json(report)
+            return
+
         if path == "/api/spectrum":
             try:
                 since_spec = float(qs["since"][0]) if "since" in qs else None
                 until_spec = float(qs["until"][0]) if "until" in qs else None
-                limit_spec = int(qs.get("limit", [20000])[0])
+                raw_limit_spec = int(qs.get("limit", [20000])[0])
             except (ValueError, IndexError):
                 self.send_error(400, "Paramètre de requête invalide")
                 return
-            if limit_spec <= 0:
+            if raw_limit_spec <= 0:
                 self.send_error(400, "limit doit > 0")
                 return
+            limit_spec = min(raw_limit_spec, MAX_API_LIMIT)
             # Bords linéaires identiques à SpectrumAggregator.band_edges (I64c)
             min_hz_f = self.config.dsp.min_event_hz
             max_hz_f = self.config.dsp.freq_max
@@ -1181,10 +1671,73 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/discomfort":
+            try:
+                since_disc = float(qs["since"][0]) if "since" in qs else None
+                until_disc = float(qs["until"][0]) if "until" in qs else None
+                raw_limit_disc = int(qs.get("limit", [1000])[0])
+            except (ValueError, IndexError):
+                self.send_error(400, "Paramètre de requête invalide")
+                return
+            limit_disc = min(max(1, raw_limit_disc), MAX_API_LIMIT)
+            logs = self.store.get_discomfort_logs(
+                since=since_disc,
+                until=until_disc,
+                limit=limit_disc,
+                snapshots_dir=self.config.storage.snapshots_dir,
+            )
+            self._send_json(logs)
+            return
+
+        if path.startswith("/api/discomfort/") and path.endswith("/snapshot"):
+            try:
+                parts = path.strip("/").split("/")
+                log_id = int(parts[2])
+                snap = self.store.get_discomfort_snapshot(
+                    log_id, snapshots_dir=self.config.storage.snapshots_dir
+                )
+                if snap is None:
+                    self.send_error(404, "Snapshot not found")
+                    return
+                self._send_json(snap)
+                return
+            except Exception as e:
+                logger.error("Error retrieving snapshot for %s: %s", path, e)
+                self.send_error(500, "Error retrieving snapshot")
+                return
+
+        if path.startswith("/api/discomfort/") and path.endswith("/audio"):
+            try:
+                parts = path.strip("/").split("/")
+                log_id = int(parts[2])
+                wav_path = Path(self.config.storage.snapshots_dir) / f"snap_{log_id}.wav"
+                if wav_path.is_file():
+                    with open(wav_path, "rb") as wf:
+                        wav_bytes = wf.read()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "audio/wav")
+                    self.send_header("Content-Length", str(len(wav_bytes)))
+                    self.end_headers()
+                    self.wfile.write(wav_bytes)
+                    return
+                else:
+                    self.send_error(404, "Snapshot audio not found")
+                    return
+            except Exception as e:
+                logger.error("Error serving audio snapshot %s: %s", path, e)
+                self.send_error(500, "Error serving audio")
+                return
+
         if path.startswith("/api/exemplar/"):
             # Format: /api/exemplar/<cluster_id>
+            raw_id = path.split("/")[-1].split(".")[0]
             try:
-                cluster_id = int(path.split("/")[-1])
+                cluster_id = int(raw_id)
+            except (ValueError, IndexError):
+                self.send_error(400, "Identifiant d'exemplaire invalide")
+                return
+
+            try:
                 raw_file = Path(self.config.storage.exemplars_dir) / f"ex_{cluster_id}.raw"
                 if raw_file.is_file():
                     wav_bytes = create_wav_from_raw(raw_file, sample_rate=1000)
@@ -1198,7 +1751,8 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
                     self.send_error(404, "Exemplar audio not found")
                     return
             except Exception as e:
-                self.send_error(500, f"Error generating WAV: {e}")
+                logger.error("Error generating WAV for exemplar %s: %s", cluster_id, e)
+                self.send_error(500, "Error generating WAV")
                 return
 
         self.send_error(404, "Not Found")
@@ -1207,12 +1761,92 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
-        if path.startswith("/api/clusters/") and path.endswith("/triage"):
+        if path == "/api/discomfort":
+            content_length_hdr = self.headers.get("Content-Length")
+            if content_length_hdr is None:
+                self.send_error(411, "Length Required")
+                return
+            try:
+                content_length = int(content_length_hdr)
+                if content_length < 0 or content_length > MAX_POST_BODY:
+                    self.send_error(400, "Invalid Content-Length")
+                    return
+                body = self.rfile.read(content_length).decode("utf-8-sig")
+                payload = json.loads(body)
+                level = int(payload.get("level", 3))
+                note = str(payload.get("note", ""))
+                t0 = float(payload.get("t0", time.time()))
+                log_id = self.store.log_discomfort(t0=t0, level=level, note=note)
+
+                # Capture snapshot if engine is attached or payload has snapshot
+                snapshot_data = payload.get("snapshot")
+                if snapshot_data:
+                    self.store.save_discomfort_snapshot(
+                        log_id, snapshot_data, snapshots_dir=self.config.storage.snapshots_dir
+                    )
+                elif hasattr(self.server, "engine") and getattr(self.server, "engine", None):
+                    try:
+                        self.server.engine.capture_discomfort_snapshot(log_id)
+                    except Exception as e:
+                        logger.warning(
+                            "Could not capture live snapshot for discomfort %s: %s", log_id, e
+                        )
+
+                has_snap = (
+                    Path(self.config.storage.snapshots_dir) / f"snap_{log_id}.npz"
+                ).is_file()
+                self._send_json({"ok": True, "id": log_id, "has_snapshot": has_snap})
+                return
+            except Exception as e:
+                logger.error("Error creating discomfort log: %s", e)
+                self._send_json({"error": "Erreur enregistrement gêne"}, status=400)
+                return
+
+        if path.startswith("/api/discomfort/") and path.endswith("/delete"):
             try:
                 parts = path.strip("/").split("/")
+                log_id = int(parts[2])
+                ok = self.store.delete_discomfort_log(
+                    log_id, snapshots_dir=self.config.storage.snapshots_dir
+                )
+                self._send_json({"ok": ok})
+                return
+            except Exception as e:
+                logger.error("Error deleting discomfort log: %s", e)
+                self._send_json({"error": "Erreur suppression gêne"}, status=400)
+                return
+
+        if path.startswith("/api/clusters/") and path.endswith("/triage"):
+            if not self._check_auth():
+                return
+            try:
+                parts = path.strip("/").split("/")
+                if (
+                    len(parts) != 4
+                    or parts[0] != "api"
+                    or parts[1] != "clusters"
+                    or parts[3] != "triage"
+                ):
+                    self.send_error(404, "Not Found")
+                    return
                 cluster_id = int(parts[2])
-                content_length = int(self.headers.get("Content-Length", 0))
-                body = self.rfile.read(content_length).decode("utf-8")
+                content_length_hdr = self.headers.get("Content-Length")
+                if content_length_hdr is None:
+                    self.send_error(411, "Length Required")
+                    return
+                try:
+                    content_length = int(content_length_hdr)
+                except (ValueError, TypeError):
+                    self.send_error(400, "Invalid Content-Length")
+                    return
+                if content_length < 0:
+                    self.send_error(400, "Invalid Content-Length")
+                    return
+                if content_length > MAX_POST_BODY:
+                    self.send_error(413, "Payload Too Large")
+                    return
+
+                body = self.rfile.read(content_length).decode("utf-8-sig")
                 payload = json.loads(body)
 
                 flags = int(payload.get("flags", 0))
@@ -1221,8 +1855,12 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
                 success = self.store.set_cluster_triage(cluster_id, flags, label)
                 self._send_json({"success": success, "cluster_id": cluster_id})
                 return
+            except (json.JSONDecodeError, ValueError, KeyError):
+                self._send_json({"error": "Corps de requête invalide"}, status=400)
+                return
             except Exception as e:
-                self._send_json({"error": str(e)}, status=400)
+                logger.error("Error processing triage for cluster %s: %s", cluster_id, e)
+                self._send_json({"error": "Erreur interne du serveur"}, status=500)
                 return
 
         self.send_error(404, "Not Found")

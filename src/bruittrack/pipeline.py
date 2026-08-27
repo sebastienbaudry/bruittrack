@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -175,10 +176,15 @@ class Engine:
 
         # Periodic retention check (daily)
         now_wall = time.time()
-        if (
+        has_retention = (
             self.config.storage.retention_days is not None
-            and now_wall - self._last_retention_check >= self._retention_interval_s
-        ):
+            and self.config.storage.retention_days > 0
+        ) or (
+            self.config.spectrum.enabled
+            and self.config.spectrum.retention_days is not None
+            and self.config.spectrum.retention_days > 0
+        )
+        if has_retention and now_wall - self._last_retention_check >= self._retention_interval_s:
             self.store.apply_retention(
                 self.config.storage.retention_days,
                 exemplars_dir=self.config.storage.exemplars_dir,
@@ -232,6 +238,15 @@ class Engine:
                     )
         finally:
             self.stop()
+
+    def capture_discomfort_snapshot(self, discomfort_id: int) -> Path:
+        """Capture and save current 30s rolling buffer snapshot for a discomfort event."""
+        snapshot = self.dsp.get_snapshot()
+        return self.store.save_discomfort_snapshot(
+            discomfort_id=discomfort_id,
+            snapshot_data=snapshot,
+            snapshots_dir=self.config.storage.snapshots_dir,
+        )
 
     def stop(self) -> None:
         """Stop capture and flush storage."""

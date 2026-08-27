@@ -40,3 +40,4 @@ tmp/
 .idea/
 .DS_Store
 .pi-loop-log.jsonl
+/improvements

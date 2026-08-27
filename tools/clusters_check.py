@@ -33,10 +33,26 @@ def demo() -> int:
     spec[80:85] = [3.0, 6.0, 12.0, 6.0, 3.0]
     idx = ClusterIndex(max_bin_delta=4)
     cases = [
-        ("air,    delai +2ms", {"bin_peak": 82, "dominant_ch": 0, "off_ms": 2}, "(1er cluster, normal)"),
-        ("piezo,  delai +2ms (canal !=)", {"bin_peak": 82, "dominant_ch": 1, "off_ms": 2}, "(separation legitime)"),
-        ("air,    delai -5ms (delai !=)", {"bin_peak": 82, "dominant_ch": 0, "off_ms": -5}, "(separation legitime)"),
-        ("air,    delai +2ms, pic bin 83", {"bin_peak": 83, "dominant_ch": 0, "off_ms": 2}, "(I59 : expectation = match)"),
+        (
+            "air,    delai +2ms",
+            {"bin_peak": 82, "dominant_ch": 0, "off_ms": 2},
+            "(1er cluster, normal)",
+        ),
+        (
+            "piezo,  delai +2ms (canal !=)",
+            {"bin_peak": 82, "dominant_ch": 1, "off_ms": 2},
+            "(separation legitime)",
+        ),
+        (
+            "air,    delai -5ms (delai !=)",
+            {"bin_peak": 82, "dominant_ch": 0, "off_ms": -5},
+            "(separation legitime)",
+        ),
+        (
+            "air,    delai +2ms, pic bin 83",
+            {"bin_peak": 83, "dominant_ch": 0, "off_ms": 2},
+            "(I59 : expectation = match)",
+        ),
     ]
     print("Demo fragmentation (spectre identique, tolerance ±4 bins) :")
     for label, kw, verdict in cases:
@@ -77,13 +93,15 @@ def scan(db_path: str, freq_tol_hz: float = 1.0) -> int:
     pairs = 0
     print(f"{len(rows)} clusters — paires |Δavg_freq| <= {freq_tol_hz} Hz :\n")
     for i, a in enumerate(rows):
-        for b in rows[i + 1:]:
+        for b in rows[i + 1 :]:
             if abs(a["avg_freq"] - b["avg_freq"]) > freq_tol_hz:
                 continue
             pairs += 1
             reason = _separation_reason(a["fp"], b["fp"], max_bin_delta)
-            print(f"  #{a['cluster']} ({a['n']} evt, {a['avg_freq']} Hz) <-> "
-                  f"#{b['cluster']} ({b['n']} evt, {b['avg_freq']} Hz) : séparés par {reason}")
+            print(
+                f"  #{a['cluster']} ({a['n']} evt, {a['avg_freq']} Hz) <-> "
+                f"#{b['cluster']} ({b['n']} evt, {b['avg_freq']} Hz) : séparés par {reason}"
+            )
     if pairs == 0:
         print("  aucune — pas de fragmentation visible sur cette base.")
     else:

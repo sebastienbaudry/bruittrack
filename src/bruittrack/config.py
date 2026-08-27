@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -53,6 +54,7 @@ class DetectorConfig:
 class StorageConfig:
     db_path: str = "data/bruittrack.db"
     exemplars_dir: str = "exemplars"
+    snapshots_dir: str = "snapshots"
     batch_size: int = 50
     batch_timeout_s: float = 30.0
     retention_days: int | None = 365
@@ -61,20 +63,21 @@ class StorageConfig:
 
 @dataclass
 class SpectrumConfig:
-    """Historique spectre basse fréquence (bandes log, cf. docs/decision-log.md)."""
+    """Historique spectre basse fréquence (bandes linéaires, cf. docs/decision-log.md)."""
 
     enabled: bool = True
-    interval_s: float = 60.0
-    n_bands: int = 24
+    interval_s: float = 5.0
+    n_bands: int = 150
     db_min: float = -60.0
     db_range: float = 120.0
-    retention_days: int | None = None
+    retention_days: int | None = 100
 
 
 @dataclass
 class VizConfig:
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = 8760
+    auth_token: str | None = None
 
 
 @dataclass
@@ -235,6 +238,7 @@ def load_config(config_path: str | Path | None = None) -> Config:
     store_cfg = StorageConfig(
         db_path=resolve_rel(store_dict.get("db_path", "data/bruittrack.db")),
         exemplars_dir=resolve_rel(store_dict.get("exemplars_dir", "exemplars")),
+        snapshots_dir=resolve_rel(store_dict.get("snapshots_dir", "snapshots")),
         batch_size=int(store_dict.get("batch_size", 50)),
         batch_timeout_s=float(store_dict.get("batch_timeout_s", 30.0)),
         record_exemplars=bool(store_dict.get("record_exemplars", True)),
@@ -248,8 +252,8 @@ def load_config(config_path: str | Path | None = None) -> Config:
     spec_dict = raw_data.get("spectrum", {})
     spec_cfg = SpectrumConfig(
         enabled=bool(spec_dict.get("enabled", True)),
-        interval_s=float(spec_dict.get("interval_s", 60.0)),
-        n_bands=int(spec_dict.get("n_bands", 24)),
+        interval_s=float(spec_dict.get("interval_s", 10.0)),
+        n_bands=int(spec_dict.get("n_bands", 48)),
         db_min=float(spec_dict.get("db_min", -60.0)),
         db_range=float(spec_dict.get("db_range", 120.0)),
     )
@@ -260,9 +264,11 @@ def load_config(config_path: str | Path | None = None) -> Config:
 
     # Viz
     viz_dict = raw_data.get("viz", {})
+    token_val = viz_dict.get("auth_token") or os.environ.get("BRUITTRACK_AUTH_TOKEN")
     viz_cfg = VizConfig(
-        host=str(viz_dict.get("host", "0.0.0.0")),
+        host=str(viz_dict.get("host", "127.0.0.1")),
         port=int(viz_dict.get("port", 8760)),
+        auth_token=str(token_val).strip() if token_val else None,
     )
 
     config = Config(

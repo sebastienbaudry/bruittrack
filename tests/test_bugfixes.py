@@ -477,7 +477,7 @@ def test_cli_help_subcommands() -> None:
     import subprocess
     import sys
 
-    for cmd in ("devices", "test", "start", "viz", "stats"):
+    for cmd in ("devices", "test", "start", "viz", "stats", "report", "perf", "prune"):
         result = subprocess.run(
             [sys.executable, "-m", "bruittrack", cmd, "--help"],
             capture_output=True,
@@ -486,3 +486,39 @@ def test_cli_help_subcommands() -> None:
             check=False,
         )
         assert result.returncode == 0, f"{cmd} --help échoué : {result.stderr[-500:]}"
+
+
+def test_report_cli_json(tmp_path, monkeypatch) -> None:
+    """P1-3 : La commande CLI `report --json` produit un rapport de conformité valide."""
+    import io
+    import json as _json
+    import sys as _sys
+
+    from bruittrack.__main__ import main
+
+    store = _make_store(tmp_path)
+    ev = SoundEvent(
+        t0=1_700_000_000.0,
+        dur=1.5,
+        bin_i=18,
+        freq=18 * 0.49,
+        lvl_g=14.0,
+        lvl_d=3.0,
+        off_ms=-1.2,
+        fp=b"\x01" * 16,
+        flags=1 << 3,
+    )
+    store.add_event(ev)
+    store.flush()
+    cfg = tmp_path / "cfg.toml"
+    db_p = (tmp_path / "t.db").as_posix()
+    ex_p = (tmp_path / "ex").as_posix()
+    cfg.write_text(f'[storage]\ndb_path = "{db_p}"\nexemplars_dir = "{ex_p}"\n')
+    buf = io.StringIO()
+    monkeypatch.setattr(_sys, "argv", ["bruittrack", "--config", str(cfg), "report", "--json"])
+    with contextlib.redirect_stdout(buf):
+        rc = main()
+    assert rc == 0
+    data = _json.loads(buf.getvalue())
+    assert data["total_events"] >= 1
+    assert "verdict" in data and "infractions" in data

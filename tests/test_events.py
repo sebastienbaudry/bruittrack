@@ -6,6 +6,8 @@ import numpy as np
 import pytest
 
 from bruittrack.events import (
+    FLAG_INVALID,
+    FLAG_OVER_LEGAL,
     ClusterIndex,
     EventDetector,
     decode_fingerprint,
@@ -360,3 +362,21 @@ def test_i59_peak_wobble_shift_invariance() -> None:
     c1, new1 = idx.match_or_create(fp_a)
     c2, new2 = idx.match_or_create(fp_b)
     assert new1 and not new2 and c1 == c2
+
+
+def test_flag_invalid_for_short_recording() -> None:
+    """P1-2 : Relevé < 10 s avec mesure ambiante < 10 s reçoit FLAG_INVALID."""
+    det = EventDetector(threshold_db=10.0, debounce_ticks=2)
+    det.t0_unix = 1700000000.0
+    det.peak_lvl_g = 15.0
+    det.peak_lvl_d = 5.0
+    det.cum_duration_s = 0.0
+
+    # Nuisance 5s, ambiance 5s (< 10s) -> FLAG_INVALID
+    flags_inv = det._compute_flags(duration_s=5.0, ambiant_recording_s=5.0)
+    assert bool(flags_inv & FLAG_INVALID) is True
+    assert bool(flags_inv & FLAG_OVER_LEGAL) is False
+
+    # Nuisance 5s, ambiance 30s (>= 10s) -> valide, évalue émergence légale
+    flags_val = det._compute_flags(duration_s=5.0, ambiant_recording_s=30.0)
+    assert bool(flags_val & FLAG_INVALID) is False

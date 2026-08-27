@@ -17,13 +17,16 @@ import re
 import sqlite3
 import threading
 import time
+import wave
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
 
-from bruittrack.events import FLAG_EXEMPLAR, FLAG_OVER_LEGAL, SoundEvent
+import numpy as np
+
+from bruittrack.events import FLAG_EXEMPLAR, FLAG_INVALID, FLAG_OVER_LEGAL, SoundEvent
 
 
 @contextmanager
@@ -172,6 +175,16 @@ class EventStore:
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_spectrum_t0 ON spectrum(t0);
+
+                CREATE TABLE IF NOT EXISTS discomfort_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    t0 REAL NOT NULL,
+                    level INTEGER NOT NULL DEFAULT 3,
+                    note TEXT NOT NULL DEFAULT '',
+                    created_at REAL NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_discomfort_t0 ON discomfort_log(t0);
                 """
             )
             conn.commit()
@@ -346,9 +359,7 @@ class EventStore:
             ).fetchall()
             fps: dict[int, bytes] = {}
             for g in groups:
-                row = conn.execute(
-                    "SELECT fp FROM events WHERE id = ?", (g["fid"],)
-                ).fetchone()
+                row = conn.execute("SELECT fp FROM events WHERE id = ?", (g["fid"],)).fetchone()
                 if row is not None and row["fp"]:
                     fps[g["cluster"]] = bytes(row["fp"])
             cids = sorted(fps)
@@ -367,13 +378,11 @@ class EventStore:
                 a = cids[i]
                 ra = _find(a)
                 fp_a = fps[a]  # membre (absorbe ou non) : laisse la chaine a~b~c fonctionner
-                for b in cids[i + 1:]:
+                for b in cids[i + 1 :]:
                     if _find(b) != b:
                         continue  # deja absorbe dans une classe
                     try:
-                        compatible = fingerprints_match(
-                            fp_a, fps[b], max_bin_delta
-                        )
+                        compatible = fingerprints_match(fp_a, fps[b], max_bin_delta)
                     except Exception as exc:  # corruption fp tollerale
                         logger.debug(f"I59: paire ({ra},{b}) inanalysable: {exc}")
                         continue
@@ -391,9 +400,7 @@ class EventStore:
                 if cur.rowcount:
                     merged += 1
                     merges.append((a, b))
-                    logger.info(
-                        f"I59: fusion cluster {b} -> {a} ({cur.rowcount} evts)"
-                    )
+                    logger.info(f"I59: fusion cluster {b} -> {a} ({cur.rowcount} evts)")
             if merged:
                 conn.commit()
         if merged and exemplars_dir is not None:
@@ -415,8 +422,7 @@ class EventStore:
             try:
                 with self._db(readonly=True) as conn:
                     rows = conn.execute(
-                        "SELECT id FROM events "
-                        "WHERE cluster = ? AND (flags & ?) != 0",
+                        "SELECT id FROM events WHERE cluster = ? AND (flags & ?) != 0",
                         (canon, FLAG_EXEMPLAR),
                     ).fetchall()
             except sqlite3.Error:
@@ -458,6 +464,8 @@ class EventStore:
         """
         if order not in ("asc", "desc"):
             raise ValueError("order doit valoir 'asc' ou 'desc'")
+        limit = max(1, min(int(limit), 50_000))
+        offset = max(0, int(offset))
         self.flush()
         query = "SELECT * FROM events WHERE 1=1"
         params: list[Any] = []
@@ -477,7 +485,9 @@ class EventStore:
             results = []
             for row in conn.execute(query, params).fetchall():
                 d = dict(row)
-                d["over_legal"] = bool(int(d.get("flags") or 0) & FLAG_OVER_LEGAL)
+                flags_val = int(d.get("flags") or 0)
+                d["over_legal"] = bool(flags_val & FLAG_OVER_LEGAL)
+                d["is_invalid"] = bool(flags_val & FLAG_INVALID)
                 if isinstance(d.get("fp"), (bytes, memoryview)):
                     d["fp_hex"] = bytes(d["fp"]).hex()
                     del d["fp"]
@@ -496,6 +506,7 @@ class EventStore:
         n_bands×[min_g, max_g, min_d, max_d]).
         """
         self.flush()
+        limit = max(1, min(int(limit), 50_000))
         query = "SELECT t0, dur, n_bands, data FROM spectrum WHERE 1=1"
         params: list[Any] = []
         if since is not None:
@@ -619,30 +630,33 @@ class EventStore:
 
     def apply_retention(
         self,
-        retention_days: int,
+        retention_days: float | None = None,
         exemplars_dir: str | Path | None = None,
-        spectrum_days: int | None = None,
+        spectrum_days: float | None = None,
     ) -> int:
-        """Delete events older than retention period.
+        """Delete events and/or spectrum rows older than retention periods.
 
         When ``exemplars_dir`` is given, orphaned exemplar files (clusters
         no longer present in DB) are pruned after the delete (I52).
         ``spectrum_days`` : rétention dédiée de la table spectrum (indépendante
-        de celle des événements ; None = pas de purge spectre).
+        de celle des événements ; None ou <= 0 = pas de purge spectre).
         """
-        if retention_days <= 0:
-            return 0
-
-        cutoff = time.time() - (retention_days * 86400.0)
+        deleted_events = 0
+        deleted_spectrum = 0
         with self._db() as conn:
-            deleted = conn.execute("DELETE FROM events WHERE t0 < ?", (cutoff,)).rowcount
+            if retention_days is not None and retention_days > 0:
+                cutoff = time.time() - (retention_days * 86400.0)
+                deleted_events = conn.execute("DELETE FROM events WHERE t0 < ?", (cutoff,)).rowcount
             if spectrum_days is not None and spectrum_days > 0:
                 cutoff_spec = time.time() - (spectrum_days * 86400.0)
-                conn.execute("DELETE FROM spectrum WHERE t0 < ?", (cutoff_spec,))
-            conn.commit()
-        if deleted > 0 and exemplars_dir is not None:
+                deleted_spectrum = conn.execute(
+                    "DELETE FROM spectrum WHERE t0 < ?", (cutoff_spec,)
+                ).rowcount
+            if deleted_events > 0 or deleted_spectrum > 0:
+                conn.commit()
+        if deleted_events > 0 and exemplars_dir is not None:
             self.prune_orphaned_exemplars(exemplars_dir)
-        return deleted
+        return deleted_events + deleted_spectrum
 
     def prune_orphaned_exemplars(self, exemplars_dir: str | Path) -> int:
         """Delete `ex_<cluster>.raw` files whose cluster no longer exists in DB.
@@ -668,6 +682,127 @@ class EventStore:
                 f.unlink(missing_ok=True)
                 removed += 1
         return removed
+
+    def log_discomfort(
+        self,
+        t0: float | None = None,
+        level: int = 3,
+        note: str = "",
+    ) -> int:
+        """Record a human sensation / discomfort event (t0 defaults to now)."""
+        now = time.time()
+        event_t0 = now if t0 is None else float(t0)
+        level_clamped = max(1, min(int(level), 5))
+        note_clean = str(note).strip()
+        with self._db() as conn:
+            cur = conn.execute(
+                "INSERT INTO discomfort_log (t0, level, note, created_at) VALUES (?, ?, ?, ?)",
+                (event_t0, level_clamped, note_clean, now),
+            )
+            conn.commit()
+            return int(cur.lastrowid)
+
+    def get_discomfort_logs(
+        self,
+        since: float | None = None,
+        until: float | None = None,
+        limit: int = 1000,
+        snapshots_dir: str | Path | None = "snapshots",
+    ) -> list[dict[str, Any]]:
+        """Fetch discomfort log entries, newest first by default."""
+        limit = max(1, min(int(limit), 50_000))
+        query = "SELECT id, t0, level, note, created_at FROM discomfort_log WHERE 1=1"
+        params: list[Any] = []
+        if since is not None:
+            query += " AND t0 >= ?"
+            params.append(since)
+        if until is not None:
+            query += " AND t0 <= ?"
+            params.append(until)
+        query += " ORDER BY t0 DESC LIMIT ?"
+        params.append(limit)
+        sdir = Path(snapshots_dir) if snapshots_dir else None
+        with self._db(readonly=True) as conn:
+            rows = [dict(row) for row in conn.execute(query, params).fetchall()]
+            if sdir and sdir.is_dir():
+                for r in rows:
+                    r["has_snapshot"] = (sdir / f"snap_{r['id']}.npz").is_file()
+            else:
+                for r in rows:
+                    r["has_snapshot"] = False
+            return rows
+
+    def save_discomfort_snapshot(
+        self,
+        discomfort_id: int,
+        snapshot_data: dict[str, Any],
+        snapshots_dir: str | Path = "snapshots",
+    ) -> Path:
+        """Save high-definition snapshot (audio & PSD matrix) for a discomfort event."""
+        sdir = Path(snapshots_dir)
+        sdir.mkdir(parents=True, exist_ok=True)
+        npz_path = sdir / f"snap_{discomfort_id}.npz"
+        wav_path = sdir / f"snap_{discomfort_id}.wav"
+
+        # 1. Save NPZ with matrices
+        np.savez_compressed(
+            npz_path,
+            freqs=np.asarray(snapshot_data["freqs"], dtype=np.float32),
+            psd_ch1=np.asarray(snapshot_data["psd_ch1"], dtype=np.float32),
+            psd_ch2=np.asarray(snapshot_data["psd_ch2"], dtype=np.float32),
+            mod_infra_pct=float(snapshot_data.get("mod_infra_pct", 0.0)),
+            mod_hum_pct=float(snapshot_data.get("mod_hum_pct", 0.0)),
+            mod_period_s=float(snapshot_data.get("mod_period_s", 0.0)),
+        )
+
+        # 2. Save 16-bit WAV (stéréo 1000 Hz)
+        audio = np.asarray(snapshot_data["audio"], dtype=np.float32)  # shape (N, 2)
+        pcm16 = np.clip(audio * 32767.0, -32768.0, 32767.0).astype(np.int16)
+        with wave.open(str(wav_path), "wb") as wf:
+            wf.setnchannels(2)
+            wf.setsampwidth(2)
+            wf.setframerate(int(snapshot_data.get("fs", 1000)))
+            wf.writeframes(pcm16.tobytes())
+
+        return npz_path
+
+    def get_discomfort_snapshot(
+        self,
+        discomfort_id: int,
+        snapshots_dir: str | Path = "snapshots",
+    ) -> dict[str, Any] | None:
+        """Load high-definition snapshot for a discomfort event."""
+        sdir = Path(snapshots_dir)
+        npz_path = sdir / f"snap_{discomfort_id}.npz"
+        if not npz_path.is_file():
+            return None
+        with np.load(npz_path) as data:
+            return {
+                "freqs": data["freqs"].tolist(),
+                "psd_ch1": data["psd_ch1"].tolist(),
+                "psd_ch2": data["psd_ch2"].tolist(),
+                "mod_infra_pct": float(data.get("mod_infra_pct", 0.0)),
+                "mod_hum_pct": float(data.get("mod_hum_pct", 0.0)),
+                "mod_period_s": float(data.get("mod_period_s", 0.0)),
+            }
+
+    def delete_discomfort_log(
+        self, log_id: int, snapshots_dir: str | Path | None = "snapshots"
+    ) -> bool:
+        """Delete a discomfort log entry by ID and clean associated snapshot files."""
+        if snapshots_dir is not None:
+            sdir = Path(snapshots_dir)
+            for ext in (".npz", ".wav"):
+                p = sdir / f"snap_{log_id}{ext}"
+                if p.is_file():
+                    try:
+                        p.unlink()
+                    except OSError:
+                        pass
+        with self._db() as conn:
+            cur = conn.execute("DELETE FROM discomfort_log WHERE id = ?", (int(log_id),))
+            conn.commit()
+            return cur.rowcount > 0
 
     def close(self) -> None:
         """Flush pending buffer, then release the persistent :memory: connection."""

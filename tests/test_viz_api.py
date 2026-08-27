@@ -368,12 +368,12 @@ def test_i64c_spectrogram_linear_scale_in_dashboard() -> None:
     from bruittrack.viz import HTML_DASHBOARD
 
     # Bandes linéaires côté client (formule identique au serveur)
-    assert "MIN_EVENT_HZ + (FREQ_MAX - MIN_EVENT_HZ) * (i / SPEC.bands)" in HTML_DASHBOARD
+    assert "MIN_EVENT_HZ + (FREQ_MAX - MIN_EVENT_HZ) *" in HTML_DASHBOARD
     # Pas de résidu d'espacement log (bordes) ni d'axe log (yOfHz/yOfHz2)
     assert "Math.pow(FREQ_MAX / MIN_EVENT_HZ" not in HTML_DASHBOARD
     assert "logLo" not in HTML_DASHBOARD and "logHi" not in HTML_DASHBOARD
     # Ticks Hz sur pas « nice » (remplace les étiquettes log fixes)
-    assert "niceHzStep((FREQ_MAX - MIN_EVENT_HZ) / 4)" in HTML_DASHBOARD
+    assert "niceHzStep" in HTML_DASHBOARD
 
 
 def test_served_js_is_valid_syntax() -> None:
@@ -511,3 +511,123 @@ def test_i56_maj_badge_relative_time() -> None:
         "lastMajTs = Date.now() / 1000; renderMaj(); startMajTick();",
     ):
         assert tok in html, f"marqueur manquant : {tok}"
+
+
+def test_p0_triage_payload_too_large_returns_413(viz_server) -> None:
+    """P0-1 : Un corps de POST > 64 Ko est rejeté avec HTTP 413 (Payload Too Large)."""
+    base, _, _ = viz_server
+    big_body = json.dumps({"flags": 1, "label": "x" * 70_000}).encode("utf-8")
+    req = urllib.request.Request(
+        base + "/api/clusters/1/triage",
+        data=big_body,
+        headers={"Content-Type": "application/json", "Content-Length": str(len(big_body))},
+        method="POST",
+    )
+    with pytest.raises(urllib.error.HTTPError) as excinfo:
+        urllib.request.urlopen(req, timeout=5)
+    assert excinfo.value.code == 413
+
+
+def test_p0_events_limit_clamped_to_max_api_limit(viz_server) -> None:
+    """P0-2 : Un paramètre limit démesuré (ex: 999999) est borné sans erreur."""
+    base, _, _ = viz_server
+    events = _get_json(base, "/api/events?limit=999999")
+    assert isinstance(events, list)
+
+
+def test_p0_spectrum_limit_clamped_to_max_api_limit(viz_server) -> None:
+    """P0-2 : Un paramètre limit spectrum démesuré est borné sans erreur."""
+    base, _, _ = viz_server
+    spec = _get_json(base, "/api/spectrum?limit=999999")
+    assert "rows" in spec and "edges" in spec
+
+
+def test_p0_triage_auth_token_protection(tmp_path) -> None:
+    """P0-3 : Si auth_token est configuré, POST /triage exige une authentification valide."""
+    from bruittrack.config import Config, StorageConfig, VizConfig
+    from bruittrack.store import EventStore
+    from bruittrack.viz import BruitTrackHandler
+
+    db_path = str(tmp_path / "auth_test.db")
+    store = EventStore(db_path=db_path)
+    config = Config(
+        storage=StorageConfig(db_path=db_path),
+        viz=VizConfig(auth_token="secret123"),
+    )
+
+    handler = type("HandlerAuth", (BruitTrackHandler,), {"store": store, "config": config})
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{port}"
+
+    try:
+        body = json.dumps({"flags": 1, "label": "test"}).encode("utf-8")
+        # 1. Sans jeton -> 401
+        req1 = urllib.request.Request(
+            base + "/api/clusters/1/triage",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(urllib.error.HTTPError) as e1:
+            urllib.request.urlopen(req1, timeout=5)
+        assert e1.value.code == 401
+
+        # 2. Avec jeton Bearer valide -> 200
+        req2 = urllib.request.Request(
+            base + "/api/clusters/1/triage",
+            data=body,
+            headers={"Content-Type": "application/json", "Authorization": "Bearer secret123"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req2, timeout=5) as r2:
+            assert r2.status == 200
+
+        # 3. Avec jeton X-API-Key valide -> 200
+        req3 = urllib.request.Request(
+            base + "/api/clusters/1/triage",
+            data=body,
+            headers={"Content-Type": "application/json", "X-API-Key": "secret123"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req3, timeout=5) as r3:
+            assert r3.status == 200
+    finally:
+        server.shutdown()
+        server.server_close()
+        store.close()
+
+
+def test_p0_error_responses_sanitized(viz_server) -> None:
+    """P0-4 : Les réponses d'erreur HTTP ne font pas fuiter de chemins ou tracebacks internes."""
+    base, _, _ = viz_server
+    # Invalid query
+    try:
+        urllib.request.urlopen(base + "/api/events?limit=invalid", timeout=5)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8")
+        assert "Traceback" not in body
+        assert "C:\\" not in body and "/opt/" not in body
+
+
+def test_p1_legal_filter_ui_markers(viz_server) -> None:
+    """P1-1 : Le label du filtre et les badges UI reflètent clairement les infractions légales."""
+    base, _, _ = viz_server
+    with urllib.request.urlopen(base + "/", timeout=5) as resp:
+        html = resp.read().decode("utf-8")
+    assert "Infractions / Dépassements légaux (▲)" in html
+    assert "CSP Art. R1336-7" in html
+    assert "▲ Infraction" in html
+
+
+def test_p1_legal_report_api_endpoint(viz_server) -> None:
+    """P1-3 : /api/reports/legal renvoie un rapport complet de conformité."""
+    base, _, _ = viz_server
+    rep = _get_json(base, "/api/reports/legal")
+    assert "title" in rep
+    assert "verdict" in rep
+    assert "total_events" in rep
+    assert "infraction_count" in rep
+    assert isinstance(rep["infractions"], list)

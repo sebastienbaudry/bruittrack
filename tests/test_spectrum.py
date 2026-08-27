@@ -177,9 +177,9 @@ class TestConfigSpectrum:
     def test_defaults(self):
         cfg = Config()
         assert cfg.spectrum.enabled is True
-        assert cfg.spectrum.interval_s == 60.0
-        assert cfg.spectrum.n_bands == 24
-        assert cfg.spectrum.retention_days is None
+        assert cfg.spectrum.interval_s == 5.0
+        assert cfg.spectrum.n_bands == 150
+        assert cfg.spectrum.retention_days == 100
 
     def test_load_from_toml(self, tmp_path):
         p = tmp_path / "config.toml"
@@ -251,3 +251,20 @@ class TestVizApiSpectrum:
         finally:
             server.shutdown()
             server.server_close()
+
+    def test_apply_retention_spectrum_only_with_none_events(self, tmp_path):
+        """Purge spectrum sans purger les événements (retention_days=None)."""
+        store = EventStore(db_path=str(tmp_path / "spec_ret.db"))
+        now = 1_700_000_000.0
+        store.add_spectrum(now - 100 * 86400, 5.0, 150, b"\x01" * 600)
+        store.add_spectrum(now - 5 * 86400, 5.0, 150, b"\x02" * 600)
+        store.flush()
+
+        with mock.patch("bruittrack.store.time.time", return_value=now):
+            deleted = store.apply_retention(retention_days=None, spectrum_days=30)
+
+        assert deleted == 1
+        rows = store.get_spectrum()
+        assert len(rows) == 1
+        assert rows[0]["t0"] == pytest.approx(now - 5 * 86400)
+        store.close()

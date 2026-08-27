@@ -151,8 +151,16 @@ def test_engine_startup_merges_before_cluster_index(tmp_path) -> None:
     for cid, fp in [(1, fpa), (2, fpb)]:
         store.add_event(
             SoundEvent(
-                t0=1700000000.0 + cid, dur=1.0, bin_i=82, freq=40.04,
-                lvl_g=10, lvl_d=9, off_ms=0.0, fp=fp, flags=0, cluster=cid,
+                t0=1700000000.0 + cid,
+                dur=1.0,
+                bin_i=82,
+                freq=40.04,
+                lvl_g=10,
+                lvl_d=9,
+                off_ms=0.0,
+                fp=fp,
+                flags=0,
+                cluster=cid,
             )
         )
     store.flush()

@@ -1,4 +1,5 @@
 """I77 : separation du palette de clusters (coquille Py du JS getClusterColor)."""
+
 from __future__ import annotations
 
 import colorsys

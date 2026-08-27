@@ -12,6 +12,7 @@ Pure NumPy implementation:
 from __future__ import annotations
 
 import warnings
+from typing import Any
 
 import numpy as np
 
@@ -178,10 +179,37 @@ class DspPipeline:
         self.psd_smooth1: np.ndarray | None = None
         self.psd_smooth2: np.ndarray | None = None
 
+        # Rolling ring buffer for HD Snapshots (30 seconds @ fs_low, e.g. 30000 samples)
+        self.snapshot_samples = int(30.0 * self.fs_low)
+        self.audio_ring_30s = np.zeros((self.snapshot_samples, 2), dtype=np.float32)
+
+        # Rolling ring buffer for HD Spectrogram (300 ticks of 100 ms)
+        self.snapshot_ticks = 300
+        self.psd_ring_30s_ch1 = np.zeros((self.snapshot_ticks, self.n_bins), dtype=np.float32)
+        self.psd_ring_30s_ch2 = np.zeros((self.snapshot_ticks, self.n_bins), dtype=np.float32)
+        self.ring_tick_count = 0
+
+        # AM / Beating detector buffers (last 30 ticks = 3.0 s)
+        self.beating_history_len = 30
+        self.rms_infra_hist = np.zeros(self.beating_history_len, dtype=np.float32)
+        self.rms_hum_hist = np.zeros(self.beating_history_len, dtype=np.float32)
+        self.rms_full_hist = np.zeros(self.beating_history_len, dtype=np.float32)
+
+        # Sub-band bin masks
+        self.infra_mask = (self.freqs >= 2.0) & (self.freqs <= 35.0)
+        self.hum_mask = (self.freqs > 35.0) & (self.freqs <= 70.0)
+
     def reset(self) -> None:
         """Reset internal buffers and filter states."""
         self.filter.reset()
         self.audio_buffer_low.fill(0.0)
+        self.audio_ring_30s.fill(0.0)
+        self.psd_ring_30s_ch1.fill(0.0)
+        self.psd_ring_30s_ch2.fill(0.0)
+        self.ring_tick_count = 0
+        self.rms_infra_hist.fill(0.0)
+        self.rms_hum_hist.fill(0.0)
+        self.rms_full_hist.fill(0.0)
         self.psd_smooth1 = None
         self.psd_smooth2 = None
 
@@ -241,7 +269,92 @@ class DspPipeline:
             self.psd_smooth1 = self.ema_alpha * db1 + (1.0 - self.ema_alpha) * self.psd_smooth1
             self.psd_smooth2 = self.ema_alpha * db2 + (1.0 - self.ema_alpha) * self.psd_smooth2
 
+        # 6. Update HD snapshot ring buffers
+        if n_low > 0:
+            self.audio_ring_30s = np.roll(self.audio_ring_30s, -n_low, axis=0)
+            self.audio_ring_30s[-n_low:, :] = decimated
+
+        self.psd_ring_30s_ch1 = np.roll(self.psd_ring_30s_ch1, -1, axis=0)
+        self.psd_ring_30s_ch2 = np.roll(self.psd_ring_30s_ch2, -1, axis=0)
+        self.psd_ring_30s_ch1[-1, :] = self.psd_smooth1
+        self.psd_ring_30s_ch2[-1, :] = self.psd_smooth2
+        self.ring_tick_count += 1
+
+        # 7. Update Beating & Modulation metrics (3.0 s window)
+        power1 = 10.0 ** (self.psd_smooth1 / 10.0)
+        power2 = 10.0 ** (self.psd_smooth2 / 10.0)
+        tot_power = power1 + power2
+
+        rms_infra = (
+            float(np.sqrt(np.mean(tot_power[self.infra_mask]) + 1e-12))
+            if np.any(self.infra_mask)
+            else 0.0
+        )
+        rms_hum = (
+            float(np.sqrt(np.mean(tot_power[self.hum_mask]) + 1e-12))
+            if np.any(self.hum_mask)
+            else 0.0
+        )
+        rms_full = float(np.sqrt(np.mean(tot_power) + 1e-12))
+
+        self.rms_infra_hist = np.roll(self.rms_infra_hist, -1)
+        self.rms_hum_hist = np.roll(self.rms_hum_hist, -1)
+        self.rms_full_hist = np.roll(self.rms_full_hist, -1)
+        self.rms_infra_hist[-1] = rms_infra
+        self.rms_hum_hist[-1] = rms_hum
+        self.rms_full_hist[-1] = rms_full
+
         return self.psd_smooth1.copy(), self.psd_smooth2.copy()
+
+    def compute_beating_metrics(self) -> dict[str, float]:
+        """Calculer les indices d'instabilité / battements d'amplitude (0.5–3 s)."""
+        valid_len = min(self.ring_tick_count, self.beating_history_len)
+        if valid_len < 10:
+            return {"mod_infra_pct": 0.0, "mod_hum_pct": 0.0, "mod_period_s": 0.0}
+
+        def calc_depth(hist: np.ndarray) -> float:
+            sub = hist[-valid_len:]
+            mn = float(np.mean(sub))
+            if mn <= 1e-9:
+                return 0.0
+            depth = (float(np.max(sub)) - float(np.min(sub))) / mn * 100.0
+            return float(np.clip(depth, 0.0, 100.0))
+
+        mod_infra = calc_depth(self.rms_infra_hist)
+        mod_hum = calc_depth(self.rms_hum_hist)
+
+        # Estimation de la période de battement dominante via autocorrélation
+        sub_env = self.rms_infra_hist[-valid_len:] - float(
+            np.mean(self.rms_infra_hist[-valid_len:])
+        )
+        autocorr = np.correlate(sub_env, sub_env, mode="full")
+        half = autocorr[len(sub_env) - 1 :]
+        period_s = 0.0
+        if len(half) > 6:
+            peak_lag = 5 + int(np.argmax(half[5:])) if len(half) > 5 else 0
+            if peak_lag > 0 and half[peak_lag] > 0.3 * (half[0] + 1e-9):
+                period_s = round(peak_lag * 0.1, 2)
+
+        return {
+            "mod_infra_pct": round(mod_infra, 1),
+            "mod_hum_pct": round(mod_hum, 1),
+            "mod_period_s": period_s,
+        }
+
+    def get_snapshot(self) -> dict[str, Any]:
+        """Obtenir un instantané haute définition (30s audio @ 1kHz + 300 PSD ticks @ 0.49 Hz)."""
+        beating = self.compute_beating_metrics()
+        return {
+            "fs": int(self.fs_low),
+            "n_bins": self.n_bins,
+            "freqs": self.freqs.copy(),
+            "audio": self.audio_ring_30s.copy(),
+            "psd_ch1": self.psd_ring_30s_ch1.copy(),
+            "psd_ch2": self.psd_ring_30s_ch2.copy(),
+            "mod_infra_pct": beating["mod_infra_pct"],
+            "mod_hum_pct": beating["mod_hum_pct"],
+            "mod_period_s": beating["mod_period_s"],
+        }
 
 
 class SpectrumAggregator:
@@ -268,12 +381,12 @@ class SpectrumAggregator:
     def __init__(
         self,
         freqs_hz: np.ndarray,
-        n_bands: int = 24,
+        n_bands: int = 150,
         min_hz: float = 2.0,
         max_hz: float = 150.0,
-        db_min: float = -140.0,
-        db_range: float = 160.0,
-        interval_s: float = 60.0,
+        db_min: float = -60.0,
+        db_range: float = 120.0,
+        interval_s: float = 5.0,
     ) -> None:
         if n_bands < 1:
             raise ValueError(f"n_bands must be >= 1 (got {n_bands})")

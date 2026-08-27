@@ -21,13 +21,14 @@ from typing import Literal
 
 import numpy as np
 
-from .legal import emergence_limit
+from .legal import evaluate_conformity
 
 # Flags
-FLAG_KNOWN = 1 << 0  # bit 0: validÃ© / connu
-FLAG_IGNORED = 1 << 1  # bit 1: ignorÃ© (triage)
-FLAG_EXEMPLAR = 1 << 2  # bit 2: extrait audio stockÃ©
-FLAG_OVER_LEGAL = 1 << 3  # bit 3: exceeds legal emergence (CSP R1336-7)
+FLAG_KNOWN = 1 << 0  # bit 0: validé / connu
+FLAG_IGNORED = 1 << 1  # bit 1: ignoré (triage)
+FLAG_EXEMPLAR = 1 << 2  # bit 2: extrait audio stocké
+FLAG_OVER_LEGAL = 1 << 3  # bit 3: dépassement de l'émergence légale (CSP R1336-7)
+FLAG_INVALID = 1 << 4  # bit 4: relevé invalide (CSP R1336-7: durée < 10s et ambiance < 10s)
 
 
 @dataclass
@@ -170,15 +171,11 @@ def fingerprints_match(
     best = None
     for shift in (-1, 0, 1):
         terms = [
-            (a, b)
-            for i, (a, b) in enumerate(zip(d1.neighbors, d2.neighbors))
-            if 0 <= i + shift < 5
+            (a, b) for i, (a, b) in enumerate(zip(d1.neighbors, d2.neighbors)) if 0 <= i + shift < 5
         ]
         if len(terms) < 3:
             continue
-        dist = sum(
-            abs(a - b) / max(1.0, float(max(a, b))) for a, b in terms
-        )
+        dist = sum(abs(a - b) / max(1.0, float(max(a, b))) for a, b in terms)
         if best is None or dist < best:
             best = dist
     return best is not None and best <= 2.0
@@ -389,18 +386,28 @@ class EventDetector:
         if audio_buffer_low.shape[0] >= window_size:
             self.audio_sample_at_peak = audio_buffer_low[-window_size:, :].copy()
 
-    def _compute_flags(self, duration_s: float) -> int:
-        """FLAGS_EXEMPLAR si 1e exemplaire; bit3 exceeds legal limit (CSP R1336-7)."""
+    def _compute_flags(self, duration_s: float, ambiant_recording_s: float = 30.0) -> int:
+        """Flags légaux (CSP R1336-7) : bit3 dépassement légal, bit4 mesure invalide."""
         # Détection : limites légales évaluées sur l'heure locale de début d'événement.
-        # legal limit uses local civil time (intentionally tz-naive)
         t = datetime.fromtimestamp(self.t0_unix)  # noqa: DTZ006
         peak_db = max(self.peak_lvl_g, self.peak_lvl_d)
         # I58 : la durée du segment seul saturerait le correctif à +6 dB ;
         # on évalue avec la durée cumulée de l'épisode (segments chaînés).
         duree_cumulee = self.cum_duration_s + duration_s
-        limite = emergence_limit(t.hour, t.minute, duree_cumulee)
-        # Le bit exemplar est ajouté ensuite si cluster neuf.
-        return FLAG_OVER_LEGAL if peak_db > limite else 0
+        conf = evaluate_conformity(
+            bruit_ambiant_db=peak_db,
+            bruit_residuel_db=0.0,
+            hh=t.hour,
+            mm=t.minute,
+            ambiant_recording_s=ambiant_recording_s,
+            duree_cumulee_s=duree_cumulee,
+        )
+        flags = 0
+        if conf == "NON_CONFORME":
+            flags |= FLAG_OVER_LEGAL
+        elif conf == "INVALIDE":
+            flags |= FLAG_INVALID
+        return flags
 
     def _build_and_emit_event(self, duration_s: float) -> SoundEvent:
         """Construct SoundEvent with fingerprint, cluster assignment, and exemplar saving."""

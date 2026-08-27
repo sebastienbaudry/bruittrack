@@ -71,6 +71,9 @@ db_path = "data/bruittrack.db"
 # Répertoire de stockage des extraits audio exemplaires (256 ms @ 1kHz)
 exemplars_dir = "exemplars"
 
+# Répertoire de stockage des clichés HD lors de signalements de gêne (30 s @ 1kHz)
+snapshots_dir = "snapshots"
+
 # Nombre d'événements à accumuler en mémoire avant écriture SQLite
 batch_size = 50
 
@@ -85,7 +88,7 @@ record_exemplars = true
 retention_days = 365
 
 [spectrum]
-# Historique spectre basse fréquence : bandes log-spacées sur
+# Historique spectre basse fréquence : bandes linéaires sur
 # [min_event_hz .. freq_max], 1 ligne/interval_s avec min/max quantifiés uint8
 # par bande et canal (cf. docs/decision-log.md). Rend visible un signal infra
 # quasi permanent, absorbé par le plancher et donc jamais détecté en événement.
@@ -93,24 +96,26 @@ retention_days = 365
 # Activer la collecte et la table spectrum
 enabled = true
 
-# Durée d'agrégation par ligne (60 s ≈ 40 Mo/an sur le SSD T620)
-interval_s = 60.0
+# Durée d'agrégation par ligne (5 s ≈ 10 Mo/jour sur le SSD T620)
+interval_s = 5.0
 
-# Nombre de bandes log-spacées (24 ≈ 20% de largeur par bande)
-n_bands = 24
+# Nombre de bandes linéaires (150 bandes ≈ 1.0 Hz exact par bande)
+n_bands = 150
 
 # Fenêtre de quantification uint8 des niveaux PSD en dB :
 # q = clip(round((db - db_min) / db_range * 255), 0, 255)
 db_min = -60.0
 db_range = 120.0
 
-# Rétention dédiée de la table spectrum en jours (0 = infinie ; la table suit
-# sinon sa propre durée de conservation, indépendante des événements)
-retention_days = 0
+# Rétention dédiée de la table spectrum en jours (100 jours ≈ 1.14 Go stabilisés sur SSD ; 0 = illimité)
+retention_days = 100
 
 [viz]
-# Adresse IP d'écoute du serveur web léger
-host = "0.0.0.0"
+# Adresse IP d'écoute du serveur web léger (défaut 127.0.0.1 pour la sécurité locale ; 0.0.0.0 pour exposer sur le LAN)
+host = "127.0.0.1"
 
 # Port d'écoute du serveur web
 port = 8760
+
+# Jeton d'authentification optionnel pour sécuriser les modifications (POST /triage)
+# auth_token = "mon-jeton-secret"

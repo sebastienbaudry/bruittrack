@@ -293,6 +293,67 @@ def cmd_stats(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_report(args: argparse.Namespace) -> int:
+    """Générer un rapport de conformité acoustique légale (CSP Art. R1336-7)."""
+    from bruittrack.legal import generate_legal_report
+
+    config = load_config(args.config)
+    store = EventStore(db_path=config.storage.db_path)
+    try:
+        events = store.get_events(since=args.since, limit=50000, order="asc")
+    finally:
+        store.close()
+
+    report = generate_legal_report(events, start_time=args.since)
+
+    if args.json:
+        output_str = json.dumps(report, indent=2, ensure_ascii=False)
+        if args.output:
+            Path(args.output).write_text(output_str, encoding="utf-8")
+            print(f"Rapport JSON enregistré dans {args.output}")
+        else:
+            print(output_str)
+        return 0
+
+    lines = [
+        "=" * 70,
+        "   RAPPORT DE CONFORMITÉ ACOUSTIQUE — CSP Art. R1336-7",
+        "=" * 70,
+        f"Période analysée : {report['period_start_iso'] or 'Début'} -> {report['period_end_iso'] or 'Fin'}",
+        f"Événements totaux : {report['total_events']}",
+        f"Conformes : {report['conforming_count']}",
+        f"Infractions (dépassements) : {report['infraction_count']} (Diurne: {report['diurne_infractions']} / Nocturne: {report['nocturne_infractions']})",
+        f"Relevés invalides (<10s) : {report['invalid_count']}",
+        f"Durée totale cumulée : {report['total_duration_s']:.1f} s",
+        f"Émergence max enregistrée : +{report['max_emergence_db']:.1f} dB",
+        "-" * 70,
+        f"VERDICT GLOBAL : {report['verdict']}",
+        "-" * 70,
+    ]
+
+    if report["infractions"]:
+        lines.append("\n--- Détail des infractions ---")
+        lines.append(
+            " Date / Heure        | Période  | Fréq (Hz) | Émergence | Limite  | Dépassement"
+        )
+        lines.append("-" * 75)
+        for inf in report["infractions"][:50]:
+            lines.append(
+                f" {inf['datetime']} | {inf['periode']:8s} | {inf['freq_hz']:8.1f} | +{inf['emergence_db']:5.1f} dB | +{inf['limite_db']:4.1f} dB | +{inf['depassement_db']:4.1f} dB"
+            )
+        if len(report["infractions"]) > 50:
+            lines.append(f"... et {len(report['infractions']) - 50} autre(s) infraction(s)")
+
+    output_str = "\n".join(lines)
+    if args.output:
+        Path(args.output).write_text(output_str, encoding="utf-8")
+        print(f"Rapport enregistré dans {args.output}")
+    else:
+        print(output_str)
+
+    return 0
+
+
 def cmd_perf(args: argparse.Namespace) -> int:
     """Échantillonner le CPU/RSS d'un PID et les comparer aux budgets M9."""
     import os as _os
@@ -305,9 +366,11 @@ def cmd_perf(args: argparse.Namespace) -> int:
 
         try:
             out = _sp.run(
-                ["systemctl", "show", "-p", "MainPID", "--value",
-                 "bruittrack"],
-                capture_output=True, text=True, timeout=5,
+                ["systemctl", "show", "-p", "MainPID", "--value", "bruittrack"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
             ).stdout.strip()
             if out.isdigit() and int(out) > 1:
                 pid = int(out)
@@ -352,6 +415,63 @@ def cmd_prune(args: argparse.Namespace) -> int:
     )
     removed = store.prune_orphaned_exemplars(config.storage.exemplars_dir)
     print(f"Exemplaires orphelins supprimés : {removed}")
+    store.close()
+    return 0
+
+
+def cmd_log_discomfort(args: argparse.Namespace) -> int:
+    """Enregistrer un signalement de gêne / crise ressentie."""
+    import datetime
+
+    config = load_config(args.config)
+    store = EventStore(
+        db_path=config.storage.db_path,
+        batch_size=config.storage.batch_size,
+    )
+    t0 = float(args.time) if args.time is not None else time.time()
+    log_id = store.log_discomfort(t0=t0, level=args.level, note=args.note)
+    dt = datetime.datetime.fromtimestamp(t0).strftime("%Y-%m-%d %H:%M:%S")  # noqa: DTZ006
+    print(
+        f"Gêne enregistrée avec succès (ID #{log_id}) à {dt} | Niveau: {args.level}/5 | Note: {args.note or 'Aucune'}"
+    )
+    store.close()
+    return 0
+
+
+def cmd_discomfort_logs(args: argparse.Namespace) -> int:
+    """Lister les signalements de gêne enregistrés."""
+    import datetime
+
+    config = load_config(args.config)
+    store = EventStore(
+        db_path=config.storage.db_path,
+        batch_size=config.storage.batch_size,
+    )
+    logs = store.get_discomfort_logs(since=args.since, limit=args.limit)
+    if args.json:
+        print(json.dumps(logs, indent=2))
+    else:
+        if not logs:
+            print("Aucun signalement de gêne enregistré.")
+        else:
+            print(f"Signalements de gêne enregistrés ({len(logs)}) :")
+            print("-" * 65)
+            for r in logs:
+                dt = datetime.datetime.fromtimestamp(r["t0"]).strftime("%Y-%m-%d %H:%M:%S")  # noqa: DTZ006
+                print(f"#{r['id']:3d} | {dt} | Niveau {r['level']}/5 | {r['note'] or 'Sans note'}")
+    store.close()
+    return 0
+
+
+def cmd_purge_spectrum(args: argparse.Namespace) -> int:
+    """Purger l'historique du spectrogramme plus ancien que N jours."""
+    config = load_config(args.config)
+    store = EventStore(db_path=config.storage.db_path)
+    days = args.days if args.days is not None else (config.spectrum.retention_days or 30)
+    deleted = store.apply_retention(retention_days=None, spectrum_days=days)
+    print(
+        f"Purge du spectrogramme effectuée : {deleted} trames de plus de {days:.1f} jours supprimées."
+    )
     store.close()
     return 0
 
@@ -420,6 +540,94 @@ def main() -> int:
         help="Supprimer les exemplaires audio orphelins (cluster non présent en base)",
     )
 
+    # report
+    report_p = subparsers.add_parser(
+        "report",
+        help="Générer un rapport de conformité acoustique légale (CSP Art. R1336-7)",
+    )
+    report_p.add_argument(
+        "--since",
+        type=float,
+        default=None,
+        help="Timestamp Unix de début d'analyse (ex: 1700000000)",
+    )
+    report_p.add_argument(
+        "--json",
+        action="store_true",
+        help="Sortie au format JSON structuré",
+    )
+    report_p.add_argument(
+        "--output",
+        "-o",
+        type=str,
+        default=None,
+        help="Fichier de sortie (ex: rapport.json ou rapport.txt)",
+    )
+
+    # log-discomfort
+    disc_p = subparsers.add_parser(
+        "log-discomfort",
+        help="Enregistrer un signalement de gêne / nausée / crise",
+    )
+    disc_p.add_argument(
+        "--level",
+        "-l",
+        type=int,
+        default=3,
+        choices=[1, 2, 3, 4, 5],
+        help="Niveau d'intensité de la gêne (1=Léger à 5=Crise, défaut: 3)",
+    )
+    disc_p.add_argument(
+        "--note",
+        "-n",
+        type=str,
+        default="",
+        help="Description des symptômes ou notes (ex: 'Nausée et battement')",
+    )
+    disc_p.add_argument(
+        "--time",
+        "-t",
+        type=float,
+        default=None,
+        help="Timestamp Unix optionnel (défaut: instant présent)",
+    )
+
+    # discomfort-logs
+    disc_list_p = subparsers.add_parser(
+        "discomfort-logs",
+        help="Lister l'historique des signalements de gêne enregistrés",
+    )
+    disc_list_p.add_argument(
+        "--since",
+        type=float,
+        default=None,
+        help="Timestamp Unix de début de recherche",
+    )
+    disc_list_p.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+        help="Nombre maximal de signalements à afficher (défaut: 100)",
+    )
+    disc_list_p.add_argument(
+        "--json",
+        action="store_true",
+        help="Sortie au format JSON",
+    )
+
+    # purge-spectrum
+    purge_spec_p = subparsers.add_parser(
+        "purge-spectrum",
+        help="Purger les données du spectrogramme plus anciennes que N jours",
+    )
+    purge_spec_p.add_argument(
+        "--days",
+        "-d",
+        type=float,
+        default=None,
+        help="Nombre de jours de rétention à conserver (défaut: 30 jours)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "devices":
@@ -432,6 +640,14 @@ def main() -> int:
         return cmd_viz(args)
     elif args.command == "stats":
         return cmd_stats(args)
+    elif args.command == "report":
+        return cmd_report(args)
+    elif args.command == "log-discomfort":
+        return cmd_log_discomfort(args)
+    elif args.command == "discomfort-logs":
+        return cmd_discomfort_logs(args)
+    elif args.command == "purge-spectrum":
+        return cmd_purge_spectrum(args)
     elif args.command == "perf":
         return cmd_perf(args)
     elif args.command == "prune":

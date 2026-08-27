@@ -125,3 +125,25 @@ def test_load_config_invalid_threshold_raises(tmp_path) -> None:
     bad_path.write_text(toml_body, encoding="utf-8")
     with pytest.raises(ValueError, match="threshold_db must be > 0"):
         load_config(bad_path)
+
+
+def test_viz_config_defaults_and_auth(tmp_path) -> None:
+    """P0-3 : VizConfig a pour host 127.0.0.1 par défaut et charge auth_token."""
+    cfg = Config()
+    cfg.validate()
+    assert cfg.viz.host == "127.0.0.1"
+    assert cfg.viz.port == 8760
+    assert cfg.viz.auth_token is None
+
+    toml_body = """
+    [viz]
+    host = "0.0.0.0"
+    port = 9000
+    auth_token = "mon_secret"
+    """
+    p = tmp_path / "viz_cfg.toml"
+    p.write_text(toml_body, encoding="utf-8")
+    loaded = load_config(p)
+    assert loaded.viz.host == "0.0.0.0"
+    assert loaded.viz.port == 9000
+    assert loaded.viz.auth_token == "mon_secret"

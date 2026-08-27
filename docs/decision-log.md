@@ -240,3 +240,46 @@ que l'empreinte de la racine de classe, ce qui cassait les chaines a~b~c (finger
 non transitive). Correction : union-find dont la racine reste l'id minimal ; chaque membre
 a (absorbe ou pas) compare son propre fp aux candidats plus grands ; une seule passe d'UPDATE
 par id absorbe en fin de boucle. Garantit : le cluster canonique final est l'id minimal.
+
+## [2026-08-27] Durcissement Sécurité & Robustesse Viz (P0-1 à P0-4)
+- **P0-1 (Anti-DoS Content-Length)** : Plafonnement des requêtes POST à `MAX_POST_BODY = 64 Ko` avec rejet HTTP 413 (*Payload Too Large*) et 411 si absent.
+- **P0-2 (Plafonnement pagination)** : Limitation stricte de `limit` à `MAX_API_LIMIT = 50 000` sur `/api/events` et `/api/spectrum` (dans `viz.py` et `store.py`) pour préserver la RAM du thin client HP T620.
+- **P0-3 (Écoute réseau et auth)** : `VizConfig.host = "127.0.0.1"` par défaut ; support de `auth_token` dans `config.toml` ou variable `BRUITTRACK_AUTH_TOKEN` protégeant les actions de modification (`POST /triage`) via en-têtes `Authorization: Bearer` ou `X-API-Key` (HTTP 401 si non autorisé).
+- **P0-4 (Assainissement des erreurs)** : Masquage des exceptions internes et chemins système dans les réponses HTTP, journalisation sécurisée via `logging`. Validation Ruff `PLW1510` avec `check=False` explicite. Suite locale étendue à 165 tests verts.
+
+## [2026-08-27] Conformité Réglementaire CSP Art. R1336-7 & Rapport Légal (P1-1 à P1-3)
+- **P1-1 (Sémantique du filtre UI)** : Renommage du filtre en `"Infractions / Dépassements légaux (▲)"` avec rappel de la formule légale en infobulle et badge inline explicite `▲ Infraction` / `? Invalide`.
+- **P1-2 (Règle des 10 secondes)** : Ajout de `FLAG_INVALID = 1 << 4` (bit 4) ; intégration de `evaluate_conformity` dans `EventDetector._compute_flags` pour qualifier et marquer invalides les mesures transitoires < 10 s sans historique ambiant suffisant.
+- **P1-3 (Rapport acoustique légal)** : Ajout de `generate_legal_report()` dans `legal.py`, de la commande CLI `bruittrack report [--since ...] [--json] [--output ...]` et de l'endpoint `GET /api/reports/legal`. Suite étendue à 171 tests verts.
+
+## [2026-08-27] Zoom Spectrographique Haute Définition & Journal de Gêne Psychoacoustique
+- **Contexte & Objectif** : Investigation des nuisances sonores récurrentes à composante tonale / infrasonore (bruits sourds, battements lents 0.5–3 s, vibrations crâniennes, nausées). Nécessité de corréler précisément l'instant du ressenti subjectif de l'habitant avec les mesures physiques (spectrogramme, timeline d'émergence) et d'isoler visuellement les bandes spectrales cibles.
+- **Journal de Gêne (`discomfort_log`)** :
+  - Table SQLite `discomfort_log` (`id`, `t0`, `level` 1–5, `note`, `created_at`) avec index `idx_discomfort_t0`.
+  - API Web : `GET /api/discomfort`, `POST /api/discomfort`, `POST /api/discomfort/<id>/delete`.
+  - CLI : `bruittrack log-discomfort --level 1..5 --note "..."` et `bruittrack discomfort-logs [--since ...] [--limit ...] [--json]`.
+  - Dashboard UI : Modal d'enregistrement rapide avec tags de symptômes prédéfinis (*Nausées*, *Cerveau qui vibre*, *Bourdonnement*, *Battements 0.5–3s*, *Pression oreilles*, *Stress*), tableau des signalements avec bouton de zoom direct `[🔍 Zoomer ±5 min]` sur l'instant de crise, et tracé de marqueurs verticaux pointillés + badges sur la timeline et le spectrogramme.
+- **Zoom Spectrographique HD (Focus Fréquentiel)** :
+  - Ajout de boutons de focus 1-clic : `[Tout (0–150 Hz)]`, `[🔍 Infrasons (2–35 Hz)]`, `[🔍 Hum (35–70 Hz)]`, `[🔍 Haut (70–150 Hz)]`.
+  - Synchronisation stricte de l'axe Y du spectrogramme (`drawSpecPanel`) avec les bornes `freqBounds()` : étirement dynamique des bandes visibles sur toute la hauteur du canvas avec étiquettes de pas « nice » recalculées.
+  - Tests unitaires et d'intégration dédiés (`tests/test_discomfort.py`). Suite complète à 174 tests 100% verts.
+
+## [2026-08-27] Résolution Haute Définition (A), Clichés de Crise 100ms/0.49Hz (B) et Détection de Battements AM (C)
+- **Option A (Spectrogramme Continu 24/7 HD Ultra)** :
+  - Configuration passée à `n_bands = 150` (résolution exacte de 1.0 Hz / bande au lieu de 3.08 Hz) et `interval_s = 5.0 s` (tranches temporelles de 5 secondes au lieu de 60 s).
+  - Élargissement vertical du canvas à `hCss = 220 px` dans l'interface web pour une lisibilité accrue des lignes de résonance.
+  - Normalisation globale en dB basée sur l'énergie physique au lieu d'un contraste par bande artificiel.
+  - Empreinte disque maîtrisée : ~10 Mo/jour sur SSD T620 (supportée avec la politique de rétention).
+- **Option B (Cliché HD / Crisis Snapshot)** :
+  - Tampon tournant circulaire de 30 secondes en RAM : 30 000 échantillons audio 1000 Hz stéréo + 300 trames de PSD à résolution FFT native (0.49 Hz / 100 ms).
+  - Persistance dans `snapshots/snap_<id>.npz` (matrices) et `snapshots/snap_<id>.wav` (audio stéréo 1 kHz 16 bits).
+  - Endpoints d'API : `GET /api/discomfort/<id>/snapshot` et `GET /api/discomfort/<id>/audio`.
+  - Modalité d'affichage UI : Modal d'analyse HD avec spectrogramme matriciel complet, sélecteur de vitesse de lecture (0.5x, 1x) et zoom fréquentiel 1-clic.
+- **Option C (Détecteur de Battements & Modulation AM)** :
+  - Mesure continue de l'instabilité d'amplitude (0.5–3 s) dans les sous-bandes Infrasons (2–35 Hz) et Hum (35–70 Hz).
+  - Calcul de la profondeur de modulation relative (%) et estimation de la période de battement dominante via autocorrélation d'enveloppe.
+  - Affichage instantané dans le bandeau de métriques du cliché HD.
+  - Suite de tests complète portée à 176 tests 100% verts.
+
+
+

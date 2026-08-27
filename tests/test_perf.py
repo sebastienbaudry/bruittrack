@@ -79,6 +79,7 @@ def test_perf_pid_gone_returns_1(monkeypatch):
     assert rc == 1
     assert "Impossible de mesurer" in out
 
+
 def test_perf_auto_resolves_service_mainpid(monkeypatch):
     """Sans --pid sur Linux, le MainPID du service bruittrack est utilise."""
 
