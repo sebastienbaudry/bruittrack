@@ -117,11 +117,16 @@ def test_dashboard_contains_discomfort_and_focus_controls() -> None:
     assert "fFocusHigh" in HTML_DASHBOARD
     assert "setFreqFocus" in HTML_DASHBOARD
 
-    # HD Snapshot modal elements
+    # HD Snapshot modal & Analysis banner elements
     assert "snapshotModal" in HTML_DASHBOARD
     assert "snapCanvas" in HTML_DASHBOARD
+    assert "snapSpectrumCanvas" in HTML_DASHBOARD
+    assert "snapPeaksBar" in HTML_DASHBOARD
     assert "snapAudioPlayer" in HTML_DASHBOARD
     assert "openSnapshotModal" in HTML_DASHBOARD
+    assert "discomfortAnalysisBanner" in HTML_DASHBOARD
+    assert "closeDiscomfortBanner" in HTML_DASHBOARD
+    assert "copyCurrentDiscomfortReport" in HTML_DASHBOARD
 
     # Position : Le journal des gênes doit être placé AU-DESSUS des événements et clusters
     pos_disc = HTML_DASHBOARD.find("discomfortTableBody")
@@ -196,11 +201,14 @@ def test_discomfort_snapshot_store_and_api(tmp_path: Path) -> None:
     assert npz_file.is_file()
     wav_file = snap_dir / f"snap_{log_id}.wav"
     assert wav_file.is_file()
+    json_file = snap_dir / f"snap_{log_id}.json"
+    assert json_file.is_file()
 
-    # 2. Get discomfort logs with has_snapshot flag
+    # 2. Get discomfort logs with has_snapshot flag and metadata
     logs = store.get_discomfort_logs(snapshots_dir=snap_dir)
     assert len(logs) == 1
     assert logs[0]["has_snapshot"] is True
+    assert logs[0]["mod_infra_pct"] == 65.4
 
     # 3. GET /api/discomfort/<id>/snapshot
     handler_snap = MagicMock()
@@ -212,6 +220,8 @@ def test_discomfort_snapshot_store_and_api(tmp_path: Path) -> None:
     snap_res = handler_snap._send_json.call_args[0][0]
     assert snap_res["mod_infra_pct"] == 65.4
     assert len(snap_res["freqs"]) == n_bins
+    assert "mean_psd_ch1" in snap_res
+    assert "peaks" in snap_res
 
     # 4. GET /api/discomfort/<id>/audio
     handler_audio = MagicMock()
@@ -228,5 +238,6 @@ def test_discomfort_snapshot_store_and_api(tmp_path: Path) -> None:
     assert store.delete_discomfort_log(log_id, snapshots_dir=snap_dir) is True
     assert not npz_file.is_file()
     assert not wav_file.is_file()
+    assert not json_file.is_file()
 
     store.close()

@@ -900,7 +900,21 @@ class EventStore:
             rows = [dict(row) for row in conn.execute(query, params).fetchall()]
             if sdir and sdir.is_dir():
                 for r in rows:
-                    r["has_snapshot"] = (sdir / f"snap_{r['id']}.npz").is_file()
+                    meta_path = sdir / f"snap_{r['id']}.json"
+                    npz_path = sdir / f"snap_{r['id']}.npz"
+                    if meta_path.is_file():
+                        try:
+                            import json
+
+                            with open(meta_path, "r", encoding="utf-8") as f:
+                                meta = json.load(f)
+                            r.update(meta)
+                        except Exception:
+                            r["has_snapshot"] = True
+                    elif npz_path.is_file():
+                        r["has_snapshot"] = True
+                    else:
+                        r["has_snapshot"] = False
             else:
                 for r in rows:
                     r["has_snapshot"] = False
@@ -917,13 +931,17 @@ class EventStore:
         sdir.mkdir(parents=True, exist_ok=True)
         npz_path = sdir / f"snap_{discomfort_id}.npz"
         wav_path = sdir / f"snap_{discomfort_id}.wav"
+        json_path = sdir / f"snap_{discomfort_id}.json"
 
         # 1. Save NPZ with matrices
+        freqs_arr = np.asarray(snapshot_data["freqs"], dtype=np.float32)
+        psd1_arr = np.asarray(snapshot_data["psd_ch1"], dtype=np.float32)
+        psd2_arr = np.asarray(snapshot_data["psd_ch2"], dtype=np.float32)
         np.savez_compressed(
             npz_path,
-            freqs=np.asarray(snapshot_data["freqs"], dtype=np.float32),
-            psd_ch1=np.asarray(snapshot_data["psd_ch1"], dtype=np.float32),
-            psd_ch2=np.asarray(snapshot_data["psd_ch2"], dtype=np.float32),
+            freqs=freqs_arr,
+            psd_ch1=psd1_arr,
+            psd_ch2=psd2_arr,
             mod_infra_pct=float(snapshot_data.get("mod_infra_pct", 0.0)),
             mod_hum_pct=float(snapshot_data.get("mod_hum_pct", 0.0)),
             mod_period_s=float(snapshot_data.get("mod_period_s", 0.0)),
@@ -938,6 +956,36 @@ class EventStore:
             wf.setframerate(int(snapshot_data.get("fs", 1000)))
             wf.writeframes(pcm16.tobytes())
 
+        # 3. Save JSON metadata for instant dashboard access
+        mean_p1 = float(np.mean(psd1_arr)) if psd1_arr.size else 0.0
+        mean_p2 = float(np.mean(psd2_arr)) if psd2_arr.size else 0.0
+        mean_spec_max = np.maximum(
+            np.mean(psd1_arr, axis=0) if psd1_arr.ndim == 2 else 0,
+            np.mean(psd2_arr, axis=0) if psd2_arr.ndim == 2 else 0,
+        )
+        top_idx = int(np.argmax(mean_spec_max)) if mean_spec_max.size > 0 else 0
+        peak_freq = float(freqs_arr[top_idx]) if freqs_arr.size > top_idx else 0.0
+        meta = {
+            "has_snapshot": True,
+            "mod_infra_pct": float(snapshot_data.get("mod_infra_pct", 0.0)),
+            "mod_hum_pct": float(snapshot_data.get("mod_hum_pct", 0.0)),
+            "mod_period_s": float(snapshot_data.get("mod_period_s", 0.0)),
+            "dominant_ch": "air"
+            if mean_p1 > mean_p2 + 1.5
+            else ("struct" if mean_p2 > mean_p1 + 1.5 else "both"),
+            "peak_freq_hz": round(peak_freq, 1),
+            "peak_level_db": round(float(mean_spec_max[top_idx]), 1)
+            if mean_spec_max.size > top_idx
+            else 0.0,
+        }
+        try:
+            import json
+
+            with open(json_path, "w", encoding="utf-8") as jf:
+                json.dump(meta, jf)
+        except Exception:
+            pass
+
         return npz_path
 
     def get_discomfort_snapshot(
@@ -951,10 +999,46 @@ class EventStore:
         if not npz_path.is_file():
             return None
         with np.load(npz_path) as data:
+            freqs = data["freqs"]
+            p1 = data["psd_ch1"]
+            p2 = data["psd_ch2"]
+            mean1 = np.mean(p1, axis=0) if p1.ndim == 2 else np.zeros_like(freqs)
+            mean2 = np.mean(p2, axis=0) if p2.ndim == 2 else np.zeros_like(freqs)
+            rms1 = (
+                np.sqrt(np.mean(10.0 ** (p1 / 10.0), axis=1))
+                if p1.ndim == 2
+                else np.zeros(p1.shape[0])
+            )
+            rms2 = (
+                np.sqrt(np.mean(10.0 ** (p2 / 10.0), axis=1))
+                if p2.ndim == 2
+                else np.zeros(p2.shape[0])
+            )
+
+            # Find top 3 peaks in combined spectrum
+            comb_mean = np.maximum(mean1, mean2)
+            peak_indices = []
+            for i in range(1, len(comb_mean) - 1):
+                if comb_mean[i] > comb_mean[i - 1] and comb_mean[i] > comb_mean[i + 1]:
+                    peak_indices.append(i)
+            peak_indices.sort(key=lambda idx: comb_mean[idx], reverse=True)
+            top_peaks = [
+                {
+                    "freq_hz": round(float(freqs[idx]), 1),
+                    "level_db": round(float(comb_mean[idx]), 1),
+                }
+                for idx in peak_indices[:3]
+            ]
+
             return {
-                "freqs": data["freqs"].tolist(),
-                "psd_ch1": data["psd_ch1"].tolist(),
-                "psd_ch2": data["psd_ch2"].tolist(),
+                "freqs": freqs.tolist(),
+                "psd_ch1": p1.tolist(),
+                "psd_ch2": p2.tolist(),
+                "mean_psd_ch1": [round(float(v), 2) for v in mean1],
+                "mean_psd_ch2": [round(float(v), 2) for v in mean2],
+                "rms_env_ch1": [round(float(v), 4) for v in rms1],
+                "rms_env_ch2": [round(float(v), 4) for v in rms2],
+                "peaks": top_peaks,
                 "mod_infra_pct": float(data.get("mod_infra_pct", 0.0)),
                 "mod_hum_pct": float(data.get("mod_hum_pct", 0.0)),
                 "mod_period_s": float(data.get("mod_period_s", 0.0)),
@@ -966,7 +1050,7 @@ class EventStore:
         """Delete a discomfort log entry by ID and clean associated snapshot files."""
         if snapshots_dir is not None:
             sdir = Path(snapshots_dir)
-            for ext in (".npz", ".wav"):
+            for ext in (".npz", ".wav", ".json"):
                 p = sdir / f"snap_{log_id}{ext}"
                 if p.is_file():
                     try:

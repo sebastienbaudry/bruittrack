@@ -281,6 +281,47 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <span id="majBadge" title="I53/I56 : dernière MAJ réussie" style="font-family:monospace; font-size:11px; color:#94a3b8; white-space:nowrap;"></span>
     </div>
   </div>
+
+  <!-- Bandeau d'Analyse Psychoacoustique & Corrélation de Crise -->
+  <div id="discomfortAnalysisBanner" style="display:none; background:#0b1320; border:1px solid #ef4444; border-radius:8px; padding:12px 14px; margin-bottom:12px; box-shadow:0 4px 18px rgba(239,68,68,0.22);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span style="font-size:13px; font-weight:bold; color:#fca5a5;">🚨 Analyse Psychoacoustique & Corrélation de Crise</span>
+        <span id="bannerDiscTime" style="font-family:monospace; font-size:12px; color:#cbd5e1; background:#1e293b; padding:2px 8px; border-radius:4px;"></span>
+        <span id="bannerDiscLevel"></span>
+      </div>
+      <button class="btn btn-sm" onclick="closeDiscomfortBanner()" style="color:#94a3b8;">✕ Fermer l'analyse</button>
+    </div>
+    
+    <div id="bannerDiscNote" style="font-size:12px; color:#93c5fd; margin-bottom:10px; font-style:italic;"></div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:8px; margin-bottom:10px;">
+      <div style="background:#070b10; border:1px solid #1e293b; border-radius:6px; padding:8px 10px; font-size:11px; font-family:monospace;">
+        <div style="color:#94a3b8; margin-bottom:4px; font-weight:bold;">📊 Corrélation Événements (±5 min)</div>
+        <div id="bannerStatEvents" style="color:#f8fafc; line-height:1.4;">--</div>
+      </div>
+      <div style="background:#070b10; border:1px solid #1e293b; border-radius:6px; padding:8px 10px; font-size:11px; font-family:monospace;">
+        <div style="color:#94a3b8; margin-bottom:4px; font-weight:bold;">🌊 Profil Battements HD (30s)</div>
+        <div id="bannerStatBeating" style="color:#38bdf8; line-height:1.4;">--</div>
+      </div>
+      <div style="background:#070b10; border:1px solid #1e293b; border-radius:6px; padding:8px 10px; font-size:11px; font-family:monospace;">
+        <div style="color:#94a3b8; margin-bottom:4px; font-weight:bold;">🎧 Répartition Acoustique & Crête</div>
+        <div id="bannerStatChannel" style="color:#c4b5fd; line-height:1.4;">--</div>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+      <div id="bannerAudioContainer" style="display:flex; align-items:center; gap:8px; flex:1; min-width:240px;">
+        <span style="font-size:11px; color:#cbd5e1; white-space:nowrap;">🎧 Écoute 1 kHz (30s) :</span>
+        <audio id="bannerAudioPlayer" controls style="flex:1; height:30px;"></audio>
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button id="bannerSnapBtn" class="btn btn-sm" style="background:#0284c7; color:white; font-weight:bold;" onclick="openSelectedSnapshotModal()">🔬 Cliché HD</button>
+        <button class="btn btn-sm" onclick="copyCurrentDiscomfortReport()" title="Copier un compte-rendu textuel de la crise">📋 Copier la Fiche</button>
+      </div>
+    </div>
+  </div>
+
   <canvas id="timelineCanvas" width="1000" height="260"></canvas>
   <div id="specBar" style="display:none; justify-content:space-between; align-items:center; font-size:11px; color:#64748b; margin:6px 2px 2px 0;">
     <div id="specStatusBadge" style="display:none; align-items:center; gap:6px; color:#38bdf8; background:rgba(15,23,42,0.9); border:1px solid #0284c7; padding:2px 8px; border-radius:4px; font-family:monospace;">
@@ -305,18 +346,19 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <span>🚨 Journal des Gênes & Corrélations Psychoacoustiques</span>
     <button class="btn btn-danger btn-sm" onclick="openDiscomfortModal()">+ Nouvelle Gêne</button>
   </div>
-  <div class="table-container" style="max-height: 240px; overflow-y: auto;">
+  <div class="table-container" style="max-height: 260px; overflow-y: auto;">
     <table>
       <thead>
         <tr>
           <th>Horodatage</th>
           <th>Intensité</th>
           <th>Symptômes / Notes</th>
-          <th>Action</th>
+          <th>Profil Physique HD</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody id="discomfortTableBody">
-        <tr><td colspan="4" style="text-align:center; color:#64748b;">Aucun signalement de gêne enregistré.</td></tr>
+        <tr><td colspan="5" style="text-align:center; color:#64748b;">Aucun signalement de gêne enregistré.</td></tr>
       </tbody>
     </table>
   </div>
@@ -519,15 +561,28 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       </div>
     </div>
 
-    <canvas id="snapCanvas" width="880" height="240" style="width:100%; height:220px; background:#080c12; border-radius:4px; display:block;"></canvas>
+    <div id="snapPeaksBar" style="background:#0b1118; border:1px solid #1e293b; border-radius:6px; padding:6px 12px; margin-bottom:8px; font-size:11px; font-family:monospace; color:#cbd5e1; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+      <span style="color:#f59e0b; font-weight:bold;">🎯 Pics Spectraux Identifiés :</span>
+      <span id="snapPeaksList" style="color:#93c5fd;">Calcul en cours...</span>
+    </div>
 
-    <div style="margin-top:10px; display:flex; align-items:center; gap:8px; background:#0b1118; padding:8px 10px; border-radius:6px; border:1px solid #1e293b; flex-wrap:wrap;">
-      <span style="font-size:11px; color:#cbd5e1; white-space:nowrap;">🎧 Écoute 1 kHz :</span>
-      <audio id="snapAudioPlayer" controls style="flex:1; min-width:140px; height:32px;"></audio>
-      <div style="display:flex; gap:4px;">
-        <button class="btn btn-sm" onclick="setAudioSpeed(0.5)">0.5x</button>
-        <button class="btn btn-sm" onclick="setAudioSpeed(1.0)">1x</button>
+    <canvas id="snapCanvas" width="880" height="200" style="width:100%; height:190px; background:#080c12; border-radius:4px; display:block; margin-bottom:8px;"></canvas>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; font-size:11px; color:#94a3b8; font-family:monospace;">
+      <span>Profil Énergétique Moyen (FFT 1D) — Micro Aérien IN1 (Bleu) vs Structure Piézo IN2 (Orange)</span>
+    </div>
+    <canvas id="snapSpectrumCanvas" width="880" height="90" style="width:100%; height:90px; background:#080c12; border-radius:4px; display:block;"></canvas>
+
+    <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center; gap:8px; background:#0b1118; padding:8px 10px; border-radius:6px; border:1px solid #1e293b; flex-wrap:wrap;">
+      <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:200px;">
+        <span style="font-size:11px; color:#cbd5e1; white-space:nowrap;">🎧 Écoute 1 kHz (30s) :</span>
+        <audio id="snapAudioPlayer" controls style="flex:1; height:32px;"></audio>
+        <div style="display:flex; gap:4px;">
+          <button class="btn btn-sm" onclick="setAudioSpeed(0.5)">0.5x</button>
+          <button class="btn btn-sm" onclick="setAudioSpeed(1.0)">1x</button>
+        </div>
       </div>
+      <button class="btn btn-sm" onclick="copyCurrentSnapshotReport()" title="Copier un compte-rendu textuel complet">📋 Copier la Fiche d'Analyse</button>
     </div>
   </div>
 </div>
@@ -659,12 +714,14 @@ function closeDiscomfortModal() {
   if (m) m.style.display = 'none';
 }
 
+let selectedDiscomfort = null;
+
 async function openSnapshotModal(discomfortId) {
   const m = document.getElementById('snapshotModal');
   if (m) m.style.display = 'flex';
   const title = document.getElementById('snapModalTitle');
   if (title) title.textContent = `🔬 Cliché Haute Définition — Signalement #${discomfortId} (30s / 100ms / 0.49Hz)`;
-  
+
   const audio = document.getElementById('snapAudioPlayer');
   if (audio) {
     audio.src = `/api/discomfort/${discomfortId}/audio`;
@@ -674,9 +731,22 @@ async function openSnapshotModal(discomfortId) {
   const data = await fetchJson(`/api/discomfort/${discomfortId}/snapshot`);
   if (data) {
     currentSnapshotData = data;
+    currentSnapshotData.id = discomfortId;
     document.getElementById('snapModInfra').textContent = (data.mod_infra_pct || 0) + '%';
     document.getElementById('snapModHum').textContent = (data.mod_hum_pct || 0) + '%';
     document.getElementById('snapModPeriod').textContent = (data.mod_period_s ? data.mod_period_s + ' s' : 'Non périodique');
+
+    const peaksListEl = document.getElementById('snapPeaksList');
+    if (peaksListEl) {
+      if (data.peaks && data.peaks.length > 0) {
+        peaksListEl.innerHTML = data.peaks.map((p, idx) =>
+          `<span style="background:#1e293b; border:1px solid #334155; padding:2px 8px; border-radius:4px;"><b style="color:#fcd34d;">#${idx + 1}</b> ${p.freq_hz} Hz (${p.level_db} dB)</span>`
+        ).join(' ');
+      } else {
+        peaksListEl.textContent = 'Aucun pic spectral émergent marqué';
+      }
+    }
+
     currentSnapFreqView = null;
     snapShowCh = { l: showCh.l, d: showCh.d };
     if (!snapShowCh.l && !snapShowCh.d) snapShowCh = { l: true, d: true };
@@ -684,7 +754,16 @@ async function openSnapshotModal(discomfortId) {
     const sd = document.getElementById('snapToggleChD');
     if (sg) { sg.classList.toggle('btn-active', snapShowCh.l); sg.style.opacity = snapShowCh.l ? '1' : '.4'; }
     if (sd) { sd.classList.toggle('btn-active', snapShowCh.d); sd.style.opacity = snapShowCh.d ? '1' : '.4'; }
-    requestAnimationFrame(drawSnapshotSpectrogram);
+    requestAnimationFrame(() => {
+      drawSnapshotSpectrogram();
+      drawSnapshotSpectrumCurve();
+    });
+  }
+}
+
+function openSelectedSnapshotModal() {
+  if (selectedDiscomfort && selectedDiscomfort.id) {
+    openSnapshotModal(selectedDiscomfort.id);
   }
 }
 
@@ -707,6 +786,7 @@ function setSnapFocus(fLo, fHi, btn) {
   if (fLo === null || fHi === null) currentSnapFreqView = null;
   else currentSnapFreqView = { fLo, fHi };
   drawSnapshotSpectrogram();
+  drawSnapshotSpectrumCurve();
 }
 
 function toggleSnapChannel(idx) {
@@ -716,6 +796,7 @@ function toggleSnapChannel(idx) {
   if (sg) { sg.classList.toggle('btn-active', snapShowCh.l); sg.style.opacity = snapShowCh.l ? '1' : '.4'; }
   if (sd) { sd.classList.toggle('btn-active', snapShowCh.d); sd.style.opacity = snapShowCh.d ? '1' : '.4'; }
   drawSnapshotSpectrogram();
+  drawSnapshotSpectrumCurve();
 }
 
 function drawSnapshotSpectrogram() {
@@ -724,7 +805,7 @@ function drawSnapshotSpectrogram() {
   const dpr = window.devicePixelRatio || 1;
   const rect = cv.getBoundingClientRect();
   const wCss = Math.max(320, rect.width || 880);
-  const hCss = 240;
+  const hCss = 190;
   cv.width = Math.round(wCss * dpr);
   cv.height = Math.round(hCss * dpr);
   const ctx = cv.getContext('2d');
@@ -790,6 +871,124 @@ function drawSnapshotSpectrogram() {
   ctx.textAlign = 'left';
 }
 
+function drawSnapshotSpectrumCurve() {
+  const cv = document.getElementById('snapSpectrumCanvas');
+  if (!cv || !currentSnapshotData) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = cv.getBoundingClientRect();
+  const wCss = Math.max(320, rect.width || 880);
+  const hCss = 90;
+  cv.width = Math.round(wCss * dpr);
+  cv.height = Math.round(hCss * dpr);
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, wCss, hCss);
+  ctx.fillStyle = '#080c12';
+  ctx.fillRect(0, 0, wCss, hCss);
+
+  const freqs = currentSnapshotData.freqs;
+  const m1 = currentSnapshotData.mean_psd_ch1;
+  const m2 = currentSnapshotData.mean_psd_ch2;
+  if (!freqs || !freqs.length) return;
+
+  const fLo = currentSnapFreqView ? currentSnapFreqView.fLo : freqs[0];
+  const fHi = currentSnapFreqView ? currentSnapFreqView.fHi : freqs[freqs.length - 1];
+  const x0 = 40, x1 = wCss - 10;
+  const y0 = 6, y1 = hCss - 16;
+
+  const xOfHz = (f) => x0 + ((Math.min(Math.max(f, fLo), fHi) - fLo) / Math.max(0.1, fHi - fLo)) * (x1 - x0);
+  const yOfDb = (db) => y1 - ((Math.min(Math.max(db, -60), 20) - (-60)) / 80) * (y1 - y0);
+
+  // Grille horizontale dB
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
+  for (const db of [-40, -20, 0]) {
+    const y = yOfDb(db);
+    sharpLine(ctx, x0, y, x1, y);
+    ctx.fillStyle = '#64748b'; ctx.font = '9px monospace'; ctx.textAlign = 'right';
+    ctx.fillText(db + 'dB', 36, y + 3);
+  }
+
+  // Grille verticale Hz
+  const hzStep = niceHzStep((fHi - fLo) / 5);
+  for (let f = Math.ceil(fLo / hzStep) * hzStep; f <= fHi + 1e-6; f += hzStep) {
+    const x = xOfHz(f);
+    sharpLine(ctx, x, y0, x, y1);
+    ctx.fillStyle = '#64748b'; ctx.font = '9px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(Math.round(f) + 'Hz', x, hCss - 3);
+  }
+  ctx.textAlign = 'left';
+
+  // Courbe Canal 1 (Air - Bleu)
+  if (snapShowCh.l && m1 && m1.length) {
+    ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < freqs.length; i++) {
+      const f = freqs[i];
+      if (f < fLo || f > fHi) continue;
+      const x = xOfHz(f), y = yOfDb(m1[i]);
+      if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+    }
+    ctx.stroke();
+  }
+
+  // Courbe Canal 2 (Structure - Orange)
+  if (snapShowCh.d && m2 && m2.length) {
+    ctx.strokeStyle = '#f97316'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < freqs.length; i++) {
+      const f = freqs[i];
+      if (f < fLo || f > fHi) continue;
+      const x = xOfHz(f), y = yOfDb(m2[i]);
+      if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+    }
+    ctx.stroke();
+  }
+
+  // Repérage des crêtes
+  if (currentSnapshotData.peaks) {
+    currentSnapshotData.peaks.forEach((p, idx) => {
+      if (p.freq_hz >= fLo && p.freq_hz <= fHi) {
+        const x = xOfHz(p.freq_hz), y = yOfDb(p.level_db);
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.font = 'bold 9px monospace';
+        ctx.fillText(`P${idx + 1}:${p.freq_hz}Hz`, x + 4, Math.max(12, y - 4));
+      }
+    });
+  }
+}
+
+function copyCurrentSnapshotReport() {
+  if (!currentSnapshotData) return;
+  const d = currentSnapshotData;
+  const lines = [
+    `=== RAPPORT DE CLICHÉ SPECTRAL HAUTE DÉFINITION — BRUITTRACK ===`,
+    `Identifiant: Signalement #${d.id || '--'}`,
+    `Résolution: 30 secondes @ 100 ms / 0.49 Hz exact (FFT 2048)`,
+    `----------------------------------------`,
+    `INDICATEURS PHYSIQUES & PSYCHOACOUSTIQUES :`,
+    `- Taux de modulation Infrasons (2–35 Hz): ${d.mod_infra_pct || 0}%`,
+    `- Taux de modulation Hum (35–70 Hz): ${d.mod_hum_pct || 0}%`,
+    `- Période dominante de battement: ${d.mod_period_s ? d.mod_period_s + ' s' : 'Non périodique'}`,
+    `----------------------------------------`,
+    `PICS SPECTRAUX MAJEURS :`,
+  ];
+  if (d.peaks && d.peaks.length) {
+    d.peaks.forEach((p, i) => lines.push(`  #${i + 1} : ${p.freq_hz} Hz (${p.level_db} dB)`));
+  } else {
+    lines.push(`  Aucun pic distinct identifié.`);
+  }
+  lines.push(`========================================`);
+  const txt = lines.join('\n');
+  navigator.clipboard.writeText(txt).then(() => {
+    alert('✅ Rapport de cliché HD copié dans le presse-papier !');
+  }).catch(() => {
+    prompt('Copiez le texte ci-dessous :', txt);
+  });
+}
+
 function addDiscTag(tag) {
   const input = document.getElementById('discNote');
   if (!input) return;
@@ -804,7 +1003,7 @@ async function submitDiscomfort() {
   let level = 3;
   for (const r of radios) { if (r.checked) { level = parseInt(r.value, 10); break; } }
   const note = (document.getElementById('discNote').value || '').trim();
-  
+
   try {
     const res = await fetch('/api/discomfort', {
       method: 'POST',
@@ -830,6 +1029,7 @@ async function deleteDiscomfort(id) {
   try {
     const res = await fetch('/api/discomfort/' + id + '/delete', { method: 'POST' });
     if (res.ok) {
+      if (selectedDiscomfort && selectedDiscomfort.id === id) closeDiscomfortBanner();
       await fetchDiscomfortLogs();
       drawTimelineFull(false);
     }
@@ -838,10 +1038,127 @@ async function deleteDiscomfort(id) {
   }
 }
 
-function zoomOnDiscomfort(t0) {
-  tlMode = { minT: t0 - 300, span: 600 }; // 10 min window around the event
+function zoomOnDiscomfort(t0, id) {
+  const item = (discomfortLogs || []).find(x => (id && x.id === id) || Math.abs(x.t0 - t0) < 1.0);
+  selectedDiscomfort = item || { id, t0, level: 3, note: '' };
+
+  tlMode = { minT: t0 - 300, span: 600 }; // Fenêtre +/- 5 min
   syncTlButtons();
   refreshWindowed();
+  renderDiscomfortBanner(selectedDiscomfort);
+}
+
+function closeDiscomfortBanner() {
+  selectedDiscomfort = null;
+  const b = document.getElementById('discomfortAnalysisBanner');
+  if (b) b.style.display = 'none';
+  const audio = document.getElementById('bannerAudioPlayer');
+  if (audio) { audio.pause(); audio.src = ''; }
+  drawTimelineFull(false);
+}
+
+function renderDiscomfortBanner(d) {
+  const b = document.getElementById('discomfortAnalysisBanner');
+  if (!b || !d) return;
+  b.style.display = 'block';
+
+  document.getElementById('bannerDiscTime').textContent = formatDate(d.t0);
+  const levelBadges = {
+    1: '<span class="badge" style="background:#0284c7; color:white;">1 Légère</span>',
+    2: '<span class="badge" style="background:#3b82f6; color:white;">2 Modérée</span>',
+    3: '<span class="badge" style="background:#eab308; color:black; font-weight:bold;">3 Gênant</span>',
+    4: '<span class="badge" style="background:#f97316; color:white; font-weight:bold;">4 Pénible</span>',
+    5: '<span class="badge" style="background:#ef4444; color:white; font-weight:bold;">5 Crise</span>'
+  };
+  document.getElementById('bannerDiscLevel').innerHTML = levelBadges[d.level] || ('Niveau ' + d.level);
+  document.getElementById('bannerDiscNote').textContent = d.note ? `« ${d.note} »` : 'Aucun symptôme textuel spécifié';
+
+  // Corrélation avec les événements dans +/- 5 min
+  const t0 = d.t0;
+  const evNear = (eventsData || []).filter(e => e.t0 >= t0 - 300 && e.t0 <= t0 + 300);
+  const totalNear = evNear.length;
+  const legalNear = evNear.filter(e => e.over_legal).length;
+  let maxEmerg = 0, peakHz = 0;
+  evNear.forEach(e => {
+    const em = Math.max(e.lvl_g || 0, e.lvl_d || 0);
+    if (em > maxEmerg) { maxEmerg = em; peakHz = e.freq; }
+  });
+
+  const statEventsEl = document.getElementById('bannerStatEvents');
+  if (statEventsEl) {
+    statEventsEl.innerHTML = totalNear > 0
+      ? `<span style="color:#38bdf8; font-weight:bold;">${totalNear} événements</span> (dont <span style="color:${legalNear > 0 ? '#ef4444' : '#4ade80'}; font-weight:bold;">${legalNear} infractions</span>)<br/><span style="color:#fcd34d;">Émergence max: +${maxEmerg.toFixed(1)} dB @ ${peakHz.toFixed(1)} Hz</span>`
+      : `<span style="color:#94a3b8;">Aucune émergence ponctuelle au-dessus du plancher (nuisance continue ou infrason pur)</span>`;
+  }
+
+  const statBeatEl = document.getElementById('bannerStatBeating');
+  if (statBeatEl) {
+    if (d.has_snapshot) {
+      statBeatEl.innerHTML = `Infrasons (2-35Hz): <b>${d.mod_infra_pct || 0}%</b> · Hum (35-70Hz): <b>${d.mod_hum_pct || 0}%</b><br/>Rythme dominant: <span style="color:#4ade80; font-weight:bold;">${d.mod_period_s ? d.mod_period_s + 's' : 'Continu / Non pulsé'}</span>`;
+    } else {
+      statBeatEl.innerHTML = `<span style="color:#94a3b8;">Cliché HD non disponible pour ce signalement</span>`;
+    }
+  }
+
+  const statChanEl = document.getElementById('bannerStatChannel');
+  if (statChanEl) {
+    if (d.has_snapshot) {
+      const chStr = d.dominant_ch === 'air' ? '🎤 Principalement Aérien (Micro IN1)' : (d.dominant_ch === 'struct' ? '🧱 Principalement Structurel (Piézo IN2)' : '⚖️ Mixte Air & Structure');
+      const peakStr = d.peak_freq_hz ? ` · Crête: <b>${d.peak_freq_hz} Hz</b>` : '';
+      statChanEl.innerHTML = `<b>${chStr}</b>${peakStr}`;
+    } else {
+      statChanEl.innerHTML = `<span style="color:#94a3b8;">--</span>`;
+    }
+  }
+
+  const audio = document.getElementById('bannerAudioPlayer');
+  const audioCont = document.getElementById('bannerAudioContainer');
+  const snapBtn = document.getElementById('bannerSnapBtn');
+  if (d.has_snapshot) {
+    if (audio) { audio.src = `/api/discomfort/${d.id}/audio`; audio.load(); }
+    if (audioCont) audioCont.style.display = 'flex';
+    if (snapBtn) snapBtn.style.display = 'inline-block';
+  } else {
+    if (audio) { audio.pause(); audio.src = ''; }
+    if (audioCont) audioCont.style.display = 'none';
+    if (snapBtn) snapBtn.style.display = 'none';
+  }
+}
+
+function copyCurrentDiscomfortReport() {
+  if (!selectedDiscomfort) return;
+  const d = selectedDiscomfort;
+  const dt = formatDate(d.t0);
+  const evNear = (eventsData || []).filter(e => e.t0 >= d.t0 - 300 && e.t0 <= d.t0 + 300);
+  const legalCount = evNear.filter(e => e.over_legal).length;
+
+  const lines = [
+    `=== RAPPORT DE GÊNE ACOUSTIQUE — BRUITTRACK ===`,
+    `Horodatage: ${dt} (Unix: ${d.t0})`,
+    `Intensité ressentie: Niveau ${d.level}/5`,
+    `Symptômes / Notes: ${d.note || 'Non spécifiés'}`,
+    `----------------------------------------`,
+    `CORRÉLATION ACOUSTIQUE (Fenêtre ±5 min) :`,
+    `- Événements détectés: ${evNear.length}`,
+    `- Dépassements du seuil légal (CSP R1336-7): ${legalCount}`,
+  ];
+  if (d.has_snapshot) {
+    lines.push(`----------------------------------------`);
+    lines.push(`ANALYSE PHYSIQUE HAUTE DÉFINITION (30s @ 100ms / 0.49Hz) :`);
+    lines.push(`- Modulation Infrasons (2-35 Hz): ${d.mod_infra_pct || 0}%`);
+    lines.push(`- Modulation Hum (35-70 Hz): ${d.mod_hum_pct || 0}%`);
+    lines.push(`- Période des battements: ${d.mod_period_s ? d.mod_period_s + ' s' : 'Non pulsé'}`);
+    lines.push(`- Canal dominant: ${d.dominant_ch || 'Non déterminé'}`);
+    if (d.peak_freq_hz) lines.push(`- Fréquence dominante: ${d.peak_freq_hz} Hz`);
+  }
+  lines.push(`========================================`);
+
+  const txt = lines.join('\n');
+  navigator.clipboard.writeText(txt).then(() => {
+    alert('✅ Fiche d’analyse copiée dans le presse-papier !');
+  }).catch(() => {
+    prompt('Copiez le texte ci-dessous :', txt);
+  });
 }
 
 async function fetchDiscomfortLogs() {
@@ -849,6 +1166,10 @@ async function fetchDiscomfortLogs() {
   if (Array.isArray(got)) {
     discomfortLogs = got;
     renderDiscomfortTable();
+    if (selectedDiscomfort) {
+      const refreshed = discomfortLogs.find(x => x.id === selectedDiscomfort.id);
+      if (refreshed) { selectedDiscomfort = refreshed; renderDiscomfortBanner(selectedDiscomfort); }
+    }
   }
 }
 
@@ -856,7 +1177,7 @@ function renderDiscomfortTable() {
   const tbody = document.getElementById('discomfortTableBody');
   if (!tbody) return;
   if (!discomfortLogs.length) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#64748b;">Aucun signalement de gêne enregistré.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#64748b;">Aucun signalement de gêne enregistré.</td></tr>';
     return;
   }
   const levelBadges = {
@@ -870,6 +1191,23 @@ function renderDiscomfortTable() {
     const dt = formatDate(l.t0);
     const b = levelBadges[l.level] || ('Niv. ' + l.level);
     const noteEsc = (l.note || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // Badges de profil physique
+    let profileBadges = '';
+    if (l.has_snapshot) {
+      const badges = [];
+      if (l.mod_infra_pct > 15) badges.push(`<span class="badge" style="background:#0284c7; color:white;" title="Modulation Infrasons 2-35 Hz">🌊 Infra ${l.mod_infra_pct}%</span>`);
+      if (l.mod_hum_pct > 15) badges.push(`<span class="badge" style="background:#eab308; color:black; font-weight:bold;" title="Modulation Hum 35-70 Hz">⚡ Hum ${l.mod_hum_pct}%</span>`);
+      if (l.mod_period_s) badges.push(`<span class="badge" style="background:#10b981; color:black; font-weight:bold;" title="Période dominante">🥁 ${l.mod_period_s}s</span>`);
+      if (l.dominant_ch === 'air') badges.push(`<span class="badge" style="background:#8b5cf6; color:white;" title="Micro Aérien dominant">🎤 Air</span>`);
+      else if (l.dominant_ch === 'struct') badges.push(`<span class="badge" style="background:#f97316; color:white;" title="Capteur Piézo Structurel dominant">🧱 Struct</span>`);
+      if (l.peak_freq_hz) badges.push(`<span class="badge" style="background:#334155; color:#93c5fd;" title="Pic fréquentiel dominant">🎯 ${l.peak_freq_hz} Hz</span>`);
+      if (!badges.length) badges.push(`<span class="badge" style="background:#1e293b; color:#38bdf8;">HD 30s</span>`);
+      profileBadges = badges.join(' ');
+    } else {
+      profileBadges = '<span style="color:#64748b; font-size:11px;">Standard</span>';
+    }
+
     const snapBtn = l.has_snapshot
       ? `<button class="btn btn-sm" style="background:#0284c7; color:white; font-weight:bold;" onclick="openSnapshotModal(${l.id})" title="Ouvrir le Cliché Spectrogramme HD (100ms / 0.49Hz)">🔬 Cliché HD</button>`
       : '';
@@ -877,8 +1215,9 @@ function renderDiscomfortTable() {
       <td style="font-family:monospace;">${dt}</td>
       <td>${b}</td>
       <td>${noteEsc || '<em style="color:#64748b;">Sans note</em>'}</td>
+      <td style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">${profileBadges}</td>
       <td style="display:flex; gap:4px; flex-wrap:wrap;">
-        <button class="btn btn-sm" onclick="zoomOnDiscomfort(${l.t0})" title="Zoomer sur cet instant (±5 min)">🔍 Zoomer</button>
+        <button class="btn btn-sm" style="background:#334155; color:#f8fafc;" onclick="zoomOnDiscomfort(${l.t0}, ${l.id})" title="Zoomer et afficher l'analyse acoustique complète (±5 min)">🔍 Zoomer & Analyser</button>
         ${snapBtn}
         <button class="btn btn-danger btn-sm" onclick="deleteDiscomfort(${l.id})" title="Supprimer">🗑️</button>
       </td>
@@ -1677,8 +2016,17 @@ function drawTimeline(events) {
       const x = 40 + ((dl.t0 - minT) / timeSpan) * (w - 50);
       if (x >= 40 && x <= w - 10) {
         ctx.save();
+        // Si cette gêne est sélectionnée, surligner la fenêtre de 30s capturée
+        if (selectedDiscomfort && (selectedDiscomfort.id === dl.id || Math.abs(selectedDiscomfort.t0 - dl.t0) < 1.0)) {
+          const x0Snap = Math.max(40, 40 + ((dl.t0 - 30 - minT) / timeSpan) * (w - 50));
+          ctx.fillStyle = 'rgba(239,68,68,0.22)';
+          ctx.fillRect(x0Snap, 20, Math.max(3, x - x0Snap), h - 40);
+          ctx.strokeStyle = '#ef4444';
+          ctx.strokeRect(x0Snap, 20, Math.max(3, x - x0Snap), h - 40);
+        }
+
         ctx.strokeStyle = dl.level >= 4 ? '#ef4444' : '#f59e0b';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = (selectedDiscomfort && (selectedDiscomfort.id === dl.id || Math.abs(selectedDiscomfort.t0 - dl.t0) < 1.0)) ? 2.5 : 1.5;
         ctx.setLineDash([4, 3]);
         ctx.beginPath();
         ctx.moveTo(x, 20);
@@ -1877,13 +2225,23 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
         const x = x0 + ((dl.t0 - minT) / span) * (x1 - x0);
         if (x >= x0 && x <= x1) {
           ctx.save();
+          // Surlignage 30s si sélectionnée
+          if (selectedDiscomfort && (selectedDiscomfort.id === dl.id || Math.abs(selectedDiscomfort.t0 - dl.t0) < 1.0)) {
+            const x0Snap = Math.max(x0, x0 + ((dl.t0 - 30 - minT) / span) * (x1 - x0));
+            ctx.fillStyle = 'rgba(239,68,68,0.22)';
+            ctx.fillRect(x0Snap, y0, Math.max(3, x - x0Snap), y1 - y0);
+            ctx.strokeStyle = '#ef4444';
+            ctx.strokeRect(x0Snap, y0, Math.max(3, x - x0Snap), y1 - y0);
+          }
+
           ctx.strokeStyle = dl.level >= 4 ? '#ef4444' : '#f59e0b';
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = (selectedDiscomfort && (selectedDiscomfort.id === dl.id || Math.abs(selectedDiscomfort.t0 - dl.t0) < 1.0)) ? 2.5 : 1.5;
           ctx.setLineDash([4, 3]);
           ctx.beginPath();
           ctx.moveTo(x, y0);
           ctx.lineTo(x, y1);
           ctx.stroke();
+          ctx.setLineDash([]);
           ctx.restore();
         }
       }
