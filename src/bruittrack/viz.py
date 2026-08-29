@@ -195,40 +195,42 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   <div class="card-title">
     <span>Timeline Fréquence / Temps (0 – __FREQ_MAX__ Hz)</span>
   </div>
-  <div class="toolbar" style="display:flex; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap; background:rgba(15,23,42,0.6); padding:8px 12px; border-radius:6px; border:1px solid var(--border); min-height:42px;">
-    <div style="display:inline-flex; align-items:center; gap:5px;">
-      <span style="font-size:11px; color:var(--text-muted); font-weight:bold; text-transform:uppercase;">Canaux :</span>
-      <div class="btn-group">
-        <button id="toggleChG" class="btn btn-sm" onclick="toggleChannel(0)" title="Micro aérien IN1">IN1 (Air)</button>
-        <button id="toggleChD" class="btn btn-sm" onclick="toggleChannel(1)" title="Capteur structurel piézo IN2">IN2 (Struct)</button>
-        <button id="toggleSpec" class="btn btn-sm" onclick="toggleSpectrum()" title="Spectrogramme d'énergie continue">📈 Spectre</button>
+  <div class="toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; background:rgba(15,23,42,0.6); padding:8px 12px; border-radius:6px; border:1px solid var(--border); min-height:42px;">
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <div style="display:inline-flex; align-items:center; gap:5px;">
+        <span style="font-size:11px; color:var(--text-muted); font-weight:bold; text-transform:uppercase;">Canaux :</span>
+        <div class="btn-group">
+          <button id="toggleChG" class="btn btn-sm" onclick="toggleChannel(0)" title="Micro aérien IN1">IN1 (Air)</button>
+          <button id="toggleChD" class="btn btn-sm" onclick="toggleChannel(1)" title="Capteur structurel piézo IN2">IN2 (Struct)</button>
+          <button id="toggleSpec" class="btn btn-sm" onclick="toggleSpectrum()" title="Spectrogramme d'énergie continue">📈 Spectre</button>
+        </div>
+      </div>
+
+      <div style="display:inline-flex; align-items:center; gap:5px;">
+        <span style="font-size:11px; color:var(--text-muted); font-weight:bold; text-transform:uppercase;">Fréquence :</span>
+        <div class="btn-group">
+          <button id="fFocusAll" class="btn btn-sm btn-active" onclick="setFreqFocus(null,null,this)" title="Bande complète 2–150 Hz">Tout (0-150Hz)</button>
+          <button id="fFocusInfra" class="btn btn-sm" onclick="setFreqFocus(2.0,35.0,this)" title="Focus Infrasons & Battements lents 2-35 Hz">🔍 Infrasons (2–35 Hz)</button>
+          <button id="fFocusHum" class="btn btn-sm" onclick="setFreqFocus(35.0,70.0,this)" title="Focus Hum / 50Hz & Résonance 53.7Hz">🔍 Hum (35–70 Hz)</button>
+          <button id="fFocusHigh" class="btn btn-sm" onclick="setFreqFocus(70.0,150.0,this)" title="Focus Harmoniques & Machines 70-150Hz">🔍 Haut (70–150 Hz)</button>
+        </div>
+      </div>
+
+      <div style="display:inline-flex; align-items:center; gap:5px;">
+        <span style="font-size:11px; color:var(--text-muted); font-weight:bold; text-transform:uppercase;">Période :</span>
+        <div class="btn-group">
+          <button id="winBtn1h" class="btn btn-sm" onclick="setTimeWin(3600,this)">1h</button>
+          <button id="winBtn6h" class="btn btn-sm" onclick="setTimeWin(21600,this)">6h</button>
+          <button id="winBtn24h" class="btn btn-sm btn-active" onclick="setTimeWin(86400,this)">24h</button>
+          <button id="winBtnTout" class="btn btn-sm" onclick="setTimeWin(null,this)">Tout</button>
+          <button id="calBtn" class="btn btn-sm" onclick="openCalendarModal()" title="Sélectionner une date ou plage historique précise">📅 Calendrier</button>
+        </div>
       </div>
     </div>
 
-    <div style="display:inline-flex; align-items:center; gap:5px;">
-      <span style="font-size:11px; color:var(--text-muted); font-weight:bold; text-transform:uppercase;">Fréquence :</span>
-      <div class="btn-group">
-        <button id="fFocusAll" class="btn btn-sm btn-active" onclick="setFreqFocus(null,null,this)" title="Bande complète 2–150 Hz">Tout (0-150Hz)</button>
-        <button id="fFocusInfra" class="btn btn-sm" onclick="setFreqFocus(2.0,35.0,this)" title="Focus Infrasons & Battements lents 2-35 Hz">🔍 Infrasons (2–35 Hz)</button>
-        <button id="fFocusHum" class="btn btn-sm" onclick="setFreqFocus(35.0,70.0,this)" title="Focus Hum / 50Hz & Résonance 53.7Hz">🔍 Hum (35–70 Hz)</button>
-        <button id="fFocusHigh" class="btn btn-sm" onclick="setFreqFocus(70.0,150.0,this)" title="Focus Harmoniques & Machines 70-150Hz">🔍 Haut (70–150 Hz)</button>
-      </div>
-    </div>
-
-    <div style="display:inline-flex; align-items:center; gap:5px;">
-      <span style="font-size:11px; color:var(--text-muted); font-weight:bold; text-transform:uppercase;">Période :</span>
-      <div class="btn-group">
-        <button id="winBtn1h" class="btn btn-sm" onclick="setTimeWin(3600,this)">1h</button>
-        <button id="winBtn6h" class="btn btn-sm" onclick="setTimeWin(21600,this)">6h</button>
-        <button id="winBtn24h" class="btn btn-sm btn-active" onclick="setTimeWin(86400,this)">24h</button>
-        <button id="winBtnTout" class="btn btn-sm" onclick="setTimeWin(null,this)">Tout</button>
-        <button id="calBtn" class="btn btn-sm" onclick="openCalendarModal()" title="Sélectionner une date ou plage historique précise">📅 Calendrier</button>
-      </div>
-    </div>
-
-    <div style="margin-left:auto; display:flex; align-items:center; gap:6px; flex-wrap:nowrap;">
-      <span style="opacity:.5; font-size:10px; font-family:monospace; white-space:nowrap;">glisser = zoom · Échap = réinit</span>
-      <span id="freqTip" title="I49 : fréquence sous le curseur" style="font-family:monospace; font-size:11px; color:#93c5fd; background:#1e293b; border-radius:4px; padding:2px 8px; white-space:nowrap; display:none;"></span>
+    <div style="display:flex; align-items:center; gap:8px; margin-left:auto; min-height:26px;">
+      <span style="opacity:.5; font-size:10px; font-family:monospace; white-space:nowrap;">glisser = zoom</span>
+      <span id="freqTip" title="I49 : fréquence sous le curseur" style="font-family:monospace; font-size:11px; color:#93c5fd; background:#1e293b; border:1px solid #334155; border-radius:4px; padding:2px 8px; white-space:nowrap; min-width:85px; text-align:center; visibility:hidden; display:inline-flex; align-items:center; justify-content:center;">-- Hz</span>
       <span id="zoomBadge" onclick="resetFviews()" title="I54 : reset zoom X+Y (double-clic ou Échap)" style="display:none; cursor:pointer; color:#38bdf8; background:rgba(2,132,199,0.15); border:1px solid #0284c7; padding:2px 8px; border-radius:4px; font-size:11px; font-family:monospace; white-space:nowrap;"></span>
       <span id="majBadge" title="I53/I56 : dernière MAJ réussie" style="font-family:monospace; font-size:11px; color:#94a3b8; white-space:nowrap;"></span>
     </div>
@@ -1142,7 +1144,7 @@ function hideEvtTip() {
   const tip = document.getElementById('evtTip');
   if (tip) tip.style.display = 'none';
   const ft = document.getElementById('freqTip');
-  if (ft) ft.style.display = 'none';
+  if (ft) ft.style.visibility = 'hidden';
   // I50 : nettoyage du fil de repère sans boucle (redraw seulement si le fil était actif)
   if (hoverYpx !== null && tlLastEvts !== null) { hoverYpx = null; drawTimelineFull(false); } // I59 : idem, cosmétique uniquement
 }
@@ -1168,8 +1170,10 @@ function hideEvtTip() {
     if (mx >= 40 && mx <= TL_CKWW - 10 && my >= 20 && my <= hCSS - 20) {
       const fUnder = yToFreq(my); // I54 : la lecture Hz suit la vue Y zoomée (sinon 0..FREQ_MAX)
       ft.textContent = '≈ ' + fUnder.toFixed(1) + ' Hz';
-      ft.style.display = 'inline-flex';
-    } else { ft.style.display = 'none'; }
+      ft.style.visibility = 'visible';
+    } else {
+      if (ft) ft.style.visibility = 'hidden';
+    }
 
     // I50 : fil horizontal à la hauteur du curseur (redraw throttle rAF, saut si inchangé)
     const ly = my >= 20 && my <= TL_CSS_H - 20 ? Math.round(my) : null;
