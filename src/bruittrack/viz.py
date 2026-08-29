@@ -93,7 +93,20 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   .btn-group { display: inline-flex; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 4px; padding: 2px; gap: 2px; }
 
   #timelineCanvas { width: 100%; height: 260px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); cursor: crosshair; touch-action: none; display: block; }
-  #specCanvas { width: 100%; height: 220px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); margin-top: 6px; display: none; touch-action: none; }
+  #specCanvas { width: 100%; height: 220px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); display: none; touch-action: none; }
+
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  .spinner-inline {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border: 2px solid rgba(56, 189, 248, 0.3);
+    border-top-color: #38bdf8;
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+    vertical-align: middle;
+    margin-right: 5px;
+  }
 
   .table-container { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   table { width: 100%; border-collapse: collapse; text-align: left; min-width: 460px; }
@@ -193,8 +206,22 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <span id="majBadge" title="I53/I56 : dernière MAJ réussie" style="margin-left:10px; font-family:monospace; font-size:12px; color:#94a3b8;"></span>
   </div>
   <canvas id="timelineCanvas" width="1000" height="260"></canvas>
-  <div id="specBar" style="display:none; text-align:right; font-size:11px; color:#64748b; margin:4px 2px 0 0;">Spectre Continu — Échelle globale calibrée en énergie (foncé = plancher calme, clair/jaune = fortes énergies)</div>
-  <canvas id="specCanvas"></canvas>
+  <div id="specBar" style="display:none; justify-content:space-between; align-items:center; font-size:11px; color:#64748b; margin:6px 2px 2px 0;">
+    <div id="specStatusBadge" style="display:none; align-items:center; gap:6px; color:#38bdf8; background:rgba(15,23,42,0.9); border:1px solid #0284c7; padding:2px 8px; border-radius:4px; font-family:monospace;">
+      <span class="spinner-inline"></span> ⚙️ Génération de l'image en cours sur le serveur...
+    </div>
+    <div style="margin-left:auto;">Spectre Continu — Échelle globale calibrée en énergie (foncé = plancher calme, clair/jaune = fortes énergies)</div>
+  </div>
+  <div style="position:relative;">
+    <canvas id="specCanvas"></canvas>
+    <div id="specOverlay" style="display:none; position:absolute; top:0; left:40px; right:10px; bottom:0; background:rgba(8,12,18,0.78); align-items:center; justify-content:center; flex-direction:column; gap:6px; pointer-events:none; border-radius:4px; z-index:5;">
+      <div style="display:flex; align-items:center; gap:8px; background:rgba(15,23,42,0.95); border:1px solid #38bdf8; padding:8px 16px; border-radius:6px; box-shadow:0 4px 14px rgba(0,0,0,0.6);">
+        <span class="spinner-inline" style="width:16px; height:16px; border-width:2.5px;"></span>
+        <span style="font-size:13px; font-family:monospace; color:#38bdf8; font-weight:600;">⚙️ Génération de l'image en cours sur le serveur...</span>
+      </div>
+      <div style="font-size:11px; color:#94a3b8; font-family:monospace;">Calcul du Max-Pooling multi-tranches côté serveur (HP T620)</div>
+    </div>
+  </div>
 </div>
 
 <div class="layout-2col">
@@ -1279,6 +1306,10 @@ async function fetchSpectrum(force = false) {
   fetchingSpec = true;
   const specBtn = document.getElementById('toggleSpec');
   if (specBtn) specBtn.innerText = 'Spectre ⏳';
+  const overlay = document.getElementById('specOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  const statusBadge = document.getElementById('specStatusBadge');
+  if (statusBadge) statusBadge.style.display = 'inline-flex';
   drawSpecPanel();
 
   const url = `/api/spectrum.png?since=${minT}&until=${minT + span}&width=${specW}&f_lo=${fb[0]}&f_hi=${fb[1]}&ch=${ch}&_t=${Date.now()}`;
@@ -1288,11 +1319,15 @@ async function fetchSpectrum(force = false) {
     specImgKey = key;
     fetchingSpec = false;
     if (specBtn) specBtn.innerText = 'Spectre';
+    if (overlay) overlay.style.display = 'none';
+    if (statusBadge) statusBadge.style.display = 'none';
     drawSpecPanel();
   };
   img.onerror = () => {
     fetchingSpec = false;
     if (specBtn) specBtn.innerText = 'Spectre';
+    if (overlay) overlay.style.display = 'none';
+    if (statusBadge) statusBadge.style.display = 'none';
     drawSpecPanel();
   };
   img.src = url;
@@ -1307,7 +1342,7 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   if (!cv || !SPEC.enabled || !tlScale) return;
   cv.style.display = specShow ? 'block' : 'none';
   const bar = document.getElementById('specBar');
-  if (bar) bar.style.display = specShow ? 'block' : 'none';
+  if (bar) bar.style.display = specShow ? 'flex' : 'none';
   if (!specShow) return;
   const dpr = window.devicePixelRatio || 1;
   const isSmall = window.innerWidth <= 580;
