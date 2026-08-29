@@ -174,8 +174,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         <option value="1">1 s (Ultra-rapide)</option>
         <option value="2">2 s</option>
         <option value="5">5 s</option>
-        <option value="10" selected>10 s (Défaut)</option>
-        <option value="30">30 s</option>
+        <option value="10">10 s</option>
+        <option value="30" selected>30 s (Défaut)</option>
         <option value="60">1 min</option>
         <option value="0">Désactivé</option>
       </select>
@@ -1760,11 +1760,11 @@ window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 150));
 
 // Auto-rafraîchissement paramétrable avec mémorisation localStorage
 let autoRefreshTimer = null;
-let currentRefreshSec = 10;
+let currentRefreshSec = 30;
 
 function changeAutoRefresh(secondsVal) {
   const sec = parseInt(secondsVal, 10);
-  currentRefreshSec = isNaN(sec) ? 10 : sec;
+  currentRefreshSec = isNaN(sec) ? 30 : sec;
   try { localStorage.setItem('bruittrack_refresh_interval', String(currentRefreshSec)); } catch (e) {}
 
   if (autoRefreshTimer) {
