@@ -284,7 +284,9 @@ class DspPipeline:
         power1 = 10.0 ** (self.psd_smooth1 / 10.0)
         power2 = 10.0 ** (self.psd_smooth2 / 10.0)
         clean_power2 = power2.copy()
-        clean_power2[(self.freqs >= 49.0) & (self.freqs <= 51.0)] = 0.0  # Ignorer parasite 50 Hz piézo
+        clean_power2[(self.freqs >= 49.0) & (self.freqs <= 51.0)] = (
+            0.0  # Ignorer parasite 50 Hz piézo
+        )
         tot_power = power1 + clean_power2
 
         rms_infra = (
