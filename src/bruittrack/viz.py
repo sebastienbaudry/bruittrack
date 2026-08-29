@@ -93,7 +93,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   .btn-group { display: inline-flex; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 4px; padding: 2px; gap: 2px; }
 
   #timelineCanvas { width: 100%; height: 260px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); cursor: crosshair; touch-action: none; display: block; }
-  #specCanvas { width: 100%; height: 220px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); display: none; touch-action: none; }
+  #specCanvas { width: 100%; height: 220px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); display: none; touch-action: none; image-rendering: pixelated; }
   #evtTip {
     position: fixed;
     display: none;
@@ -1543,10 +1543,11 @@ function getSpecKey() {
   let ch = 'both';
   if (showCh.l && !showCh.d) ch = 'l';
   else if (!showCh.l && showCh.d) ch = 'd';
+  const dpr = window.devicePixelRatio || 1;
   const wCss = TL_CKWW || 1000;
-  const specW = Math.max(100, Math.round(wCss - 50));
-  const keyStr = [Math.round(minT), Math.round(span), specW, fb[0].toFixed(1), fb[1].toFixed(1), ch].join('|');
-  return { minT, span, specW, fb, ch, keyStr };
+  const specW = Math.max(100, Math.round((wCss - 50) * dpr));
+  const keyStr = [Math.round(minT), Math.round(span), specW, fb[0].toFixed(1), fb[1].toFixed(1), ch, dpr].join('|');
+  return { minT, span, specW, fb, ch, dpr, keyStr };
 }
 
 async function fetchSpectrum(force = false) {
@@ -1615,6 +1616,10 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   const bw = Math.round(wCss * dpr), bh = Math.round(hCss * dpr);
   if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
   const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  if ('mozImageSmoothingEnabled' in ctx) ctx.mozImageSmoothingEnabled = false;
+  if ('webkitImageSmoothingEnabled' in ctx) ctx.webkitImageSmoothingEnabled = false;
+  if ('msImageSmoothingEnabled' in ctx) ctx.msImageSmoothingEnabled = false;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   ctx.clearRect(0, 0, wCss, hCss);

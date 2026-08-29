@@ -659,10 +659,10 @@ class EventStore:
         total_span = max(1.0, t_end - t_base)
 
         x0s = np.clip(
-            np.floor((t0s - t_base) / total_span * target_width).astype(int), 0, target_width - 1
+            np.round((t0s - t_base) / total_span * target_width).astype(int), 0, target_width - 1
         )
         x1s = np.clip(
-            np.ceil((t0s + durs - t_base) / total_span * target_width).astype(int),
+            np.round((t0s + durs - t_base) / total_span * target_width).astype(int),
             x0s + 1,
             target_width,
         )
