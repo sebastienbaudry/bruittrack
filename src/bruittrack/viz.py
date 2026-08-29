@@ -836,6 +836,7 @@ function syncEventsToTable() {
 function drawTimelineFull(shouldSyncTable = true) { // I59 : la source est TOUJOURS eventsData (brut) — lastVisible n'est qu'une SORTIE de vue ;
   drawTimeline(filterEvents(eventsData)); // le réutiliser en entrée amputait définitivement les points hors de la vue précédente (zoom → dézoom vide)
   if (shouldSyncTable) syncEventsToTable(); // false pour redraws cosmetiques (survol, pan, brush en cours) sans rebuild du tableau
+  if (SPEC && SPEC.enabled && specShow) fetchSpectrum();
 }
 
 function setTimeWin(seconds) {
@@ -843,7 +844,6 @@ function setTimeWin(seconds) {
   tlMode = null; // les boutons de fenêtre annulent le zoom au pinceau
   syncTlButtons();
   drawTimelineFull();
-  fetchSpectrum();
 }
 
 // Synchronise la mise en surbrillance des boutons avec la plage active (I39)
