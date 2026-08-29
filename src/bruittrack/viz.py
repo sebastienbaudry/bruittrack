@@ -886,18 +886,6 @@ function renderDiscomfortTable() {
   }).join('');
 }
 
-function setFreqFocus(fLo, fHi, btn) {
-  document.querySelectorAll('#fFocusAll, #fFocusInfra, #fFocusHum, #fFocusHigh').forEach(b => b.classList.remove('btn-active'));
-  if (btn) btn.classList.add('btn-active');
-  if (fLo === null || fHi === null) {
-    freqView = null;
-  } else {
-    freqView = { fLo: Math.max(0, fLo), fHi: Math.min(FREQ_MAX, fHi) };
-  }
-  specCache.key = null;
-  drawTimelineFull(false);
-}
-
 async function fetchJson(url) {
   try {
     const res = await fetch(url);
@@ -958,6 +946,7 @@ function refreshWindowed() { // I54 : vue zoomée → fetch de la fenêtre puis 
       .then(() => (SPEC && SPEC.enabled && specShow ? fetchSpectrum(true) : Promise.resolve()))
       .then(() => drawTimelineFull());
   }
+  if (SPEC && SPEC.enabled && specShow) fetchSpectrum(true);
   drawTimelineFull();
 }
 
@@ -1044,15 +1033,25 @@ function resetFviews() { // I54 : double-clic / Échap / badge → vues par déf
 
 (function () { // I54 : Ctrl+glisser vertical = translate axe fréquence uniquement
   const cv = document.getElementById('timelineCanvas');
-  if (!cv) return;
+  const sc = document.getElementById('specCanvas');
   let startY = null, startFB = null;
-  cv.addEventListener('mousedown', (e) => { if (!e.ctrlKey || e.button !== 0) return; startY = e.clientY; startFB = freqBounds(); });
+  const onMDown = (e) => { if (!e.ctrlKey || e.button !== 0) return; startY = e.clientY; startFB = freqBounds(); };
+  if (cv) cv.addEventListener('mousedown', onMDown);
+  if (sc) sc.addEventListener('mousedown', onMDown);
   document.addEventListener('mousemove', (e) => {
     if (startY === null || !startFB) return;
     panFreqBy(e.clientY - startY, startFB[0], startFB[1]);
-    drawTimelineFull(false); // I59 : pendant le pan, pas de rebuild tableau (jank) — synchronisé au relâchement
+    drawTimelineFull(false, false); // I59 : pendant le pan, pas de rebuild tableau (jank)
   });
-  document.addEventListener('mouseup', () => { if (startY !== null) { startY = null; startFB = null; updateZoomBadge(); refreshWindowed(); } }); // I59 : sync finale graphe+tableau
+  document.addEventListener('mouseup', () => {
+    if (startY !== null) {
+      startY = null;
+      startFB = null;
+      updateZoomBadge();
+      if (SPEC && SPEC.enabled && specShow) fetchSpectrum(true);
+      refreshWindowed();
+    }
+  });
 })();
 
 async function refreshAll() {
@@ -1504,15 +1503,20 @@ function sharpLine(ctx, x0, y0, x1, y1) {
   ctx.stroke();
 }
 
+let axZoomTimeout = null;
 function axZoom(ev) { // I61 : molette = zoom/dézoom sur l'axe Y SEUL, centré sur la fréquence sous le curseur
   const r = ev.currentTarget.getBoundingClientRect();
   const mx = ev.clientX - r.left, my = ev.clientY - r.top;
-  if (my < 20 || my > TL_CKVH - 20 || mx < 40) return; // zone utile uniquement
+  const isSpec = ev.currentTarget.id === 'specCanvas';
+  const ckVH = isSpec ? (window.innerWidth <= 580 ? 160 : 220) : TL_CKVH;
+  if (my < 4 || my > ckVH - 4 || mx < 40) return; // zone utile uniquement
   ev.preventDefault(); // I59 : la molette zoome, elle ne doit ni scroller la page ni zoomer le navigateur (listener non-passif)
   const k = ev.deltaY < 0 ? 1 / 1.3 : 1.3;              // facteur fixe par crant ±1.3
   // ---- Axe Y seul : ancrage = fréquence sous le curseur ; span ≥ 2 Hz ; [fLo,fHi] ⊂ [0, FREQ_MAX]
   const fb0 = freqBounds();
-  const anchF = yToFreq(my);
+  const anchF = isSpec
+    ? Math.max(fb0[0], Math.min(fb0[1], fb0[1] - ((my - 4) / Math.max(1, ckVH - 8)) * (fb0[1] - fb0[0])))
+    : yToFreq(my);
   let nLo = anchF - (anchF - fb0[0]) * k;
   let nHi = anchF + (fb0[1] - anchF) * k;
   // I61b : clamp span min RÉPARTI autour de l'ancre (l'ancien recentrage sur le centre
@@ -1528,7 +1532,14 @@ function axZoom(ev) { // I61 : molette = zoom/dézoom sur l'axe Y SEUL, centré 
   const EPSF = 0.01; // I59 : tolérance float large (0,01 Hz, invisible à l'écran) — sinon drift accumulé ≠ reset de la vue pleine
   freqView = (Math.abs(nHi - fb0[1]) > EPSF && Math.abs(nLo - fb0[0]) > EPSF) ? {fLo: nLo, fHi: nHi}
              : (Math.abs(nHi - FREQ_MAX) < EPSF && Math.abs(nLo) < EPSF ? null : {fLo: nLo, fHi: nHi});
-  drawTimelineFull(false); // I61 : redraw cosmétique (survol/pan Y) sans rebuild tableau ; sync au prochain cycle complet
+  syncFreqButtons();
+  updateZoomBadge();
+  drawTimelineFull(false, false); // I61 : redraw cosmétique fluide
+  if (axZoomTimeout) clearTimeout(axZoomTimeout);
+  axZoomTimeout = setTimeout(() => {
+    if (SPEC && SPEC.enabled && specShow) fetchSpectrum(true);
+    syncEventsToTable();
+  }, 120);
 }
 function drawTimeline(events) {
   updateZoomBadge(); // I54 : badge toujours en phase avec les vues courantes
@@ -1964,8 +1975,12 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
 // ===== Molette : zoom axe Y ancré curseur (I61) ; double-clic/Echap réinitialisent =====
 (function () {
   const canvas = document.getElementById('timelineCanvas');
-  if (!canvas) return;
-  canvas.addEventListener('wheel', axZoom, { passive: false });
+  if (canvas) canvas.addEventListener('wheel', axZoom, { passive: false });
+  const specCv = document.getElementById('specCanvas');
+  if (specCv) {
+    specCv.addEventListener('wheel', axZoom, { passive: false });
+    specCv.addEventListener('dblclick', resetFviews);
+  }
 })();
 
 // ===== Hi-DPI & Responsive : le backing store suit la largeur réelle et devicePixelRatio =====
