@@ -886,6 +886,7 @@ function panFreqBy(dyPx, curLo, curHi) { // I54 : décale l'axe fréquence (ΔHz
   if (nLo < 0) { nHi -= nLo; nLo = 0; }
   if (nHi > FREQ_MAX) { nLo -= nHi - FREQ_MAX; nHi = FREQ_MAX; }
   freqView = (nLo > 1e-9 || nHi < FREQ_MAX - 1e-9) ? {fLo: nLo, fHi: nHi} : null;
+  syncFreqButtons();
 }
 
 function updateZoomBadge() { // I54 : badge si des vues libres ; clic dessus = reset
@@ -912,10 +913,52 @@ function startMajTick() { // I56 : tick 1 s léger (texte seul, pas de refetch)
   window.__majTick = setInterval(renderMaj, 1000);
 }
 
+function syncFreqButtons() {
+  const ids = ['fFocusAll', 'fFocusInfra', 'fFocusHum', 'fFocusHigh'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('btn-active');
+  });
+  if (!freqView) {
+    const el = document.getElementById('fFocusAll');
+    if (el) el.classList.add('btn-active');
+  } else if (Math.abs(freqView.fLo - 2.0) < 0.5 && Math.abs(freqView.fHi - 35.0) < 0.5) {
+    const el = document.getElementById('fFocusInfra');
+    if (el) el.classList.add('btn-active');
+  } else if (Math.abs(freqView.fLo - 35.0) < 0.5 && Math.abs(freqView.fHi - 70.0) < 0.5) {
+    const el = document.getElementById('fFocusHum');
+    if (el) el.classList.add('btn-active');
+  } else if (Math.abs(freqView.fLo - 70.0) < 0.5 && Math.abs(freqView.fHi - 150.0) < 0.5) {
+    const el = document.getElementById('fFocusHigh');
+    if (el) el.classList.add('btn-active');
+  }
+}
+
+function setFreqFocus(fLo, fHi, btn) {
+  if (fLo == null || fHi == null) {
+    freqView = null;
+  } else {
+    freqView = { fLo: Math.max(0, fLo), fHi: Math.min(FREQ_MAX, fHi) };
+  }
+  syncFreqButtons();
+  if (btn) {
+    ['fFocusAll', 'fFocusInfra', 'fFocusHum', 'fFocusHigh'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('btn-active');
+    });
+    btn.classList.add('btn-active');
+  }
+  updateZoomBadge();
+  if (SPEC && SPEC.enabled && specShow) fetchSpectrum(true);
+  drawTimelineFull(true, true);
+}
+
 function resetFviews() { // I54 : double-clic / Échap / badge → vues par défaut (X + Y)
   if (!tlMode && !freqView) return;
   tlMode = null; freqView = null;
-  syncTlButtons(); updateZoomBadge(); drawTimelineFull();
+  syncTlButtons(); syncFreqButtons(); updateZoomBadge();
+  if (SPEC && SPEC.enabled && specShow) fetchSpectrum(true);
+  drawTimelineFull(true, true);
 }
 
 (function () { // I54 : Ctrl+glisser vertical = translate axe fréquence uniquement

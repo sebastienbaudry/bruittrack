@@ -151,3 +151,18 @@ def test_viz_auto_refresh_selector_markers(zoom_server):
     ]
     for tok in tokens:
         assert tok in html, f"manquant : {tok}"
+
+
+def test_viz_frequency_focus_markers(zoom_server):
+    """Vérifie la présence des boutons de focus fréquence et de la fonction setFreqFocus."""
+    html = _get(f"{zoom_server}/").decode("utf-8")
+    tokens = [
+        'id="fFocusAll"',
+        'id="fFocusInfra"',
+        'id="fFocusHum"',
+        'id="fFocusHigh"',
+        "setFreqFocus",
+        "syncFreqButtons",
+    ]
+    for tok in tokens:
+        assert tok in html, f"manquant : {tok}"
