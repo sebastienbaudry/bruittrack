@@ -330,6 +330,26 @@ class TestVizApiSpectrum:
             since=now, until=now + 50.0, target_width=200, f_lo=10.0, f_hi=50.0, channel="l"
         )
         assert png_zoom.startswith(b"\x89PNG\r\n\x1a\n")
+
+        # Test des différents canaux et alias
+        png_d = store.get_spectrum_png(since=now, until=now + 50.0, target_width=200, channel="d")
+        assert png_d.startswith(b"\x89PNG\r\n\x1a\n")
+        assert png_d != png_zoom  # Contenus différents pour canal G vs canal D
+
+        png_g = store.get_spectrum_png(since=now, until=now + 50.0, target_width=200, channel="g")
+        assert png_g == store.get_spectrum_png(
+            since=now, until=now + 50.0, target_width=200, channel="l"
+        )
+
+        png_in2 = store.get_spectrum_png(
+            since=now, until=now + 50.0, target_width=200, channel="in2"
+        )
+        assert png_in2 == png_d
+
+        png_none = store.get_spectrum_png(
+            since=now, until=now + 50.0, target_width=200, channel="none"
+        )
+        assert png_none.startswith(b"\x89PNG\r\n\x1a\n")
         store.close()
 
     def test_get_spectrum_png_future_time_alignment(self, tmp_path):
@@ -347,14 +367,18 @@ class TestVizApiSpectrum:
         store.close()
 
     def test_api_spectrum_png_endpoint(self, tmp_path):
-        """Vérifie la route HTTP /api/spectrum.png."""
+        """Vérifie la route HTTP /api/spectrum.png et les filtres de canaux."""
         import threading
         import urllib.request
 
         from bruittrack import viz as viz_mod
 
         store = EventStore(db_path=str(tmp_path / "spec_api_png.db"))
-        store.add_spectrum(1700000000.0, 5.0, 150, b"\x20" * 600)
+        blob = bytearray(150 * 4)
+        for b in range(150):
+            blob[b * 4 + 1] = 100  # canal G / IN1
+            blob[b * 4 + 3] = 200  # canal D / IN2
+        store.add_spectrum(1700000000.0, 5.0, 150, bytes(blob))
         store.flush()
 
         config = Config()
@@ -371,8 +395,35 @@ class TestVizApiSpectrum:
             ) as resp:
                 assert resp.status == 200
                 assert resp.headers.get("Content-Type") == "image/png"
-                data = resp.read()
-                assert data.startswith(b"\x89PNG\r\n\x1a\n")
+                data_both = resp.read()
+                assert data_both.startswith(b"\x89PNG\r\n\x1a\n")
+
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/spectrum.png?width=500&ch=l"
+            ) as resp:
+                assert resp.status == 200
+                data_l = resp.read()
+                assert data_l.startswith(b"\x89PNG\r\n\x1a\n")
+
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/spectrum.png?width=500&ch=d"
+            ) as resp:
+                assert resp.status == 200
+                data_d = resp.read()
+                assert data_d.startswith(b"\x89PNG\r\n\x1a\n")
+
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/spectrum.png?width=500&ch=none"
+            ) as resp:
+                assert resp.status == 200
+                data_none = resp.read()
+                assert data_none.startswith(b"\x89PNG\r\n\x1a\n")
+
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/spectrum.png?width=500&ch=in1"
+            ) as resp:
+                assert resp.status == 200
+                assert resp.read() == data_l
         finally:
             server.shutdown()
             server.server_close()

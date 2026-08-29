@@ -243,8 +243,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <div class="filter-section filter-section-channels">
         <span class="filter-label" style="color:#c4b5fd;">🎧 Canaux</span>
         <div class="btn-group">
-          <button id="toggleChG" class="btn btn-sm" onclick="toggleChannel(0)" title="Micro aérien IN1">IN1 (Air)</button>
-          <button id="toggleChD" class="btn btn-sm" onclick="toggleChannel(1)" title="Capteur structurel piézo IN2">IN2 (Struct)</button>
+          <button id="toggleChG" class="btn btn-sm btn-active" onclick="toggleChannel(0)" title="Micro aérien IN1">IN1 (Air)</button>
+          <button id="toggleChD" class="btn btn-sm btn-active" onclick="toggleChannel(1)" title="Capteur structurel piézo IN2">IN2 (Struct)</button>
           <button id="toggleSpec" class="btn btn-sm" onclick="toggleSpectrum()" title="Spectrogramme d'énergie continue">📈 Spectre</button>
         </div>
       </div>
@@ -297,6 +297,28 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       </div>
       <div style="font-size:11px; color:#94a3b8; font-family:monospace;">Calcul du Max-Pooling multi-tranches côté serveur (HP T620)</div>
     </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top: 12px;">
+  <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+    <span>🚨 Journal des Gênes & Corrélations Psychoacoustiques</span>
+    <button class="btn btn-danger btn-sm" onclick="openDiscomfortModal()">+ Nouvelle Gêne</button>
+  </div>
+  <div class="table-container" style="max-height: 240px; overflow-y: auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Horodatage</th>
+          <th>Intensité</th>
+          <th>Symptômes / Notes</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="discomfortTableBody">
+        <tr><td colspan="4" style="text-align:center; color:#64748b;">Aucun signalement de gêne enregistré.</td></tr>
+      </tbody>
+    </table>
   </div>
 </div>
 
@@ -382,38 +404,16 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   </div>
 </div>
 
-<div class="card" style="margin-top: 12px;">
-  <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
-    <span>🚨 Journal des Gênes & Corrélations Psychoacoustiques</span>
-    <button class="btn btn-danger btn-sm" onclick="openDiscomfortModal()">+ Nouvelle Gêne</button>
-  </div>
-  <div class="table-container" style="max-height: 240px; overflow-y: auto;">
-    <table>
-      <thead>
-        <tr>
-          <th>Horodatage</th>
-          <th>Intensité</th>
-          <th>Symptômes / Notes</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-      <tbody id="discomfortTableBody">
-        <tr><td colspan="4" style="text-align:center; color:#64748b;">Aucun signalement de gêne enregistré.</td></tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-
 <div id="calendarModal" style="display:none; position:fixed; z-index:9999; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); backdrop-filter:blur(3px); align-items:center; justify-content:center; padding:12px;">
-  <div style="background:#18202c; border:1px solid #38bdf8; border-radius:8px; width:440px; max-width:100%; max-height:90vh; overflow-y:auto; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,0.7);">
+  <div style="background:#18202c; border:1px solid #38bdf8; border-radius:8px; width:480px; max-width:100%; max-height:90vh; overflow-y:auto; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,0.7);">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
       <h3 style="color:#38bdf8; font-size:15px; display:flex; align-items:center; gap:8px; margin:0;">
-        📅 Sélectionner une Date / Période
+        📅 Sélectionner une Date ou Plage de Dates
       </h3>
       <button class="btn btn-sm" onclick="closeCalendarModal()">✕</button>
     </div>
     <p style="color:#94a3b8; font-size:11px; margin-bottom:14px;">
-      Affiche les événements et génère le spectrogramme pour le jour ou l'intervalle sélectionné.
+      Affiche les événements et génère le spectrogramme pour le jour ou la plage sélectionnée.
     </p>
 
     <!-- Raccourcis rapides -->
@@ -422,25 +422,31 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
         <button type="button" class="btn btn-sm" onclick="applyCalShortcut('today')">📅 Aujourd'hui (00h-24h)</button>
         <button type="button" class="btn btn-sm" onclick="applyCalShortcut('yesterday')">⏮️ Hier (00h-24h)</button>
-        <button type="button" class="btn btn-sm" onclick="applyCalShortcut('d_minus_2')">⏪ Avant-hier</button>
         <button type="button" class="btn btn-sm" onclick="applyCalShortcut('last7d')">🗓️ 7 derniers jours</button>
+        <button type="button" class="btn btn-sm" onclick="applyCalShortcut('last30d')">🗓️ 30 derniers jours</button>
       </div>
     </div>
 
-    <!-- Sélecteur de date principale -->
+    <!-- Sélecteur de plage de dates -->
     <div style="background:#0f172a; border:1px solid #334155; border-radius:6px; padding:12px; margin-bottom:14px;">
-      <label style="display:block; font-size:11px; color:#cbd5e1; margin-bottom:6px; font-weight:bold;">Choisir un jour précis :</label>
-      <input type="date" id="calDateInput" class="flt" style="width:100%; padding:6px 10px; font-size:13px; font-family:monospace; margin-bottom:10px; color-scheme:dark;" />
+      <div style="margin-bottom:10px;">
+        <label style="display:block; font-size:11px; color:#7dd3fc; margin-bottom:4px; font-weight:bold;">Du (Début) :</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input type="date" id="calDateInput" class="flt" style="flex:2; padding:5px 8px; font-size:12px; font-family:monospace; color-scheme:dark;" />
+          <input type="time" id="calTimeStart" class="flt" value="00:00" style="flex:1; padding:5px 8px; font-size:12px; font-family:monospace; color-scheme:dark;" />
+        </div>
+      </div>
 
-      <label style="display:block; font-size:11px; color:#cbd5e1; margin-bottom:6px; font-weight:bold;">Plage horaire :</label>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <input type="time" id="calTimeStart" class="flt" value="00:00" style="flex:1; padding:5px 8px; font-family:monospace; color-scheme:dark;" />
-        <span style="color:#94a3b8; font-size:12px;">→</span>
-        <input type="time" id="calTimeEnd" class="flt" value="23:59" style="flex:1; padding:5px 8px; font-family:monospace; color-scheme:dark;" />
+      <div>
+        <label style="display:block; font-size:11px; color:#7dd3fc; margin-bottom:4px; font-weight:bold;">Au (Fin) :</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input type="date" id="calDateEnd" class="flt" style="flex:2; padding:5px 8px; font-size:12px; font-family:monospace; color-scheme:dark;" />
+          <input type="time" id="calTimeEnd" class="flt" value="23:59" style="flex:1; padding:5px 8px; font-size:12px; font-family:monospace; color-scheme:dark;" />
+        </div>
       </div>
     </div>
 
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
       <button type="button" class="btn btn-sm" style="color:#94a3b8;" onclick="resetCalToLive()">⏪ Retour au direct (24h)</button>
       <div style="display:flex; gap:6px;">
         <button type="button" class="btn" onclick="closeCalendarModal()">Annuler</button>
@@ -497,11 +503,20 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <div><span style="color:#94a3b8;">Période dominante :</span> <span id="snapModPeriod" style="color:#4ade80; font-weight:bold;">--</span></div>
     </div>
 
-    <div style="display:flex; gap:6px; margin-bottom:8px; align-items:center; flex-wrap:wrap;">
-      <span style="font-size:11px; color:#94a3b8;">Zoom Fréq :</span>
-      <button id="snapFocusAll" class="btn btn-sm btn-active" onclick="setSnapFocus(null,null,this)">Tout (0-150Hz)</button>
-      <button id="snapFocusInfra" class="btn btn-sm" onclick="setSnapFocus(2.0,35.0,this)">🔍 Infrasons (2–35 Hz)</button>
-      <button id="snapFocusHum" class="btn btn-sm" onclick="setSnapFocus(35.0,70.0,this)">🔍 Hum (35–70 Hz)</button>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+        <span style="font-size:11px; color:#94a3b8;">Zoom Fréq :</span>
+        <button id="snapFocusAll" class="btn btn-sm btn-active" onclick="setSnapFocus(null,null,this)">Tout (0-150Hz)</button>
+        <button id="snapFocusInfra" class="btn btn-sm" onclick="setSnapFocus(2.0,35.0,this)">🔍 Infrasons (2–35 Hz)</button>
+        <button id="snapFocusHum" class="btn btn-sm" onclick="setSnapFocus(35.0,70.0,this)">🔍 Hum (35–70 Hz)</button>
+      </div>
+      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+        <span style="font-size:11px; color:#c4b5fd;">🎧 Canaux :</span>
+        <div class="btn-group">
+          <button id="snapToggleChG" class="btn btn-sm btn-active" onclick="toggleSnapChannel(0)" title="Micro aérien IN1">IN1 (Air)</button>
+          <button id="snapToggleChD" class="btn btn-sm btn-active" onclick="toggleSnapChannel(1)" title="Capteur structurel piézo IN2">IN2 (Struct)</button>
+        </div>
+      </div>
     </div>
 
     <canvas id="snapCanvas" width="880" height="240" style="width:100%; height:220px; background:#080c12; border-radius:4px; display:block;"></canvas>
@@ -523,19 +538,39 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 let eventsData = [];
 let clustersData = [];
 let discomfortLogs = [];
+let statsData = null;
 let currentSnapshotData = null;
 let currentSnapFreqView = null;
+let snapShowCh = { l: true, d: true };
 
 function openCalendarModal() {
   const m = document.getElementById('calendarModal');
   if (!m) return;
   const now = Date.now() / 1000;
-  const refT = (tlScale ? tlScale.minT : (timeWindow ? now - timeWindow : now));
-  const dLocal = new Date(refT * 1000);
-  const pStr = dLocal.toLocaleString('sv-SE', { timeZone: TZ_VIZ }); // "YYYY-MM-DD HH:MM:SS"
-  const curDate = pStr.slice(0, 10);
+  const curScale = tlMode || tlScale;
+  const refT0 = curScale ? curScale.minT : (timeWindow ? now - timeWindow : now);
+  const refT1 = curScale ? (curScale.minT + curScale.span) : now;
+
+  const dLocal0 = new Date(refT0 * 1000);
+  const pStr0 = dLocal0.toLocaleString('sv-SE', { timeZone: TZ_VIZ }); // "YYYY-MM-DD HH:MM:SS"
+  const curDate0 = pStr0.slice(0, 10);
+  const curTime0 = pStr0.slice(11, 16);
+
+  const dLocal1 = new Date(refT1 * 1000);
+  const pStr1 = dLocal1.toLocaleString('sv-SE', { timeZone: TZ_VIZ });
+  const curDate1 = pStr1.slice(0, 10);
+  const curTime1 = pStr1.slice(11, 16);
+
   const dateInp = document.getElementById('calDateInput');
-  if (dateInp) dateInp.value = curDate;
+  if (dateInp) dateInp.value = curDate0;
+  const timeStartInp = document.getElementById('calTimeStart');
+  if (timeStartInp) timeStartInp.value = tlMode ? curTime0 : "00:00";
+
+  const dateEndInp = document.getElementById('calDateEnd');
+  if (dateEndInp) dateEndInp.value = curDate1;
+  const timeEndInp = document.getElementById('calTimeEnd');
+  if (timeEndInp) timeEndInp.value = tlMode ? curTime1 : "23:59";
+
   m.style.display = 'flex';
 }
 
@@ -561,6 +596,9 @@ function applyCalShortcut(mode) {
   } else if (mode === 'last7d') {
     minT = m0Today - 6 * 86400;
     span = 7 * 86400;
+  } else if (mode === 'last30d') {
+    minT = m0Today - 29 * 86400;
+    span = 30 * 86400;
   }
   closeCalendarModal();
   tlMode = { minT, span };
@@ -572,23 +610,34 @@ function applyCalShortcut(mode) {
 
 function applyCalendarSelection() {
   const dateInp = document.getElementById('calDateInput');
+  const dateEndInp = document.getElementById('calDateEnd');
   if (!dateInp || !dateInp.value) return;
-  const dateVal = dateInp.value; // "YYYY-MM-DD"
+
+  const dateStartVal = dateInp.value; // "YYYY-MM-DD"
+  const dateEndVal = (dateEndInp && dateEndInp.value) ? dateEndInp.value : dateStartVal;
+
   const tStartVal = (document.getElementById('calTimeStart')?.value || "00:00") + ":00";
   const tEndVal = (document.getElementById('calTimeEnd')?.value || "23:59") + ":59";
 
-  const parts = dateVal.split('-').map(Number);
+  const pStart = dateStartVal.split('-').map(Number);
+  const pEnd = dateEndVal.split('-').map(Number);
   const startParts = tStartVal.split(':').map(Number);
   const endParts = tEndVal.split(':').map(Number);
 
-  const dummyDate = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0);
-  const m0 = parisMidnightBefore(dummyDate.getTime() / 1000);
-  const tStart = m0 + startParts[0] * 3600 + startParts[1] * 60 + (startParts[2] || 0);
-  const tEnd = m0 + endParts[0] * 3600 + endParts[1] * 60 + (endParts[2] || 0);
+  const dummyStart = new Date(pStart[0], pStart[1] - 1, pStart[2], 12, 0, 0);
+  const dummyEnd = new Date(pEnd[0], pEnd[1] - 1, pEnd[2], 12, 0, 0);
 
-  const span = Math.max(60, tEnd - tStart);
+  const m0Start = parisMidnightBefore(dummyStart.getTime() / 1000);
+  const m0End = parisMidnightBefore(dummyEnd.getTime() / 1000);
+
+  const tStart = m0Start + startParts[0] * 3600 + startParts[1] * 60 + (startParts[2] || 0);
+  const tEnd = m0End + endParts[0] * 3600 + endParts[1] * 60 + (endParts[2] || 0);
+
+  const minT = Math.min(tStart, tEnd);
+  const span = Math.max(60, Math.abs(tEnd - tStart));
+
   closeCalendarModal();
-  tlMode = { minT: tStart, span: span };
+  tlMode = { minT, span };
   timeWindow = null;
   syncTlButtons();
   updateZoomBadge();
@@ -629,6 +678,12 @@ async function openSnapshotModal(discomfortId) {
     document.getElementById('snapModHum').textContent = (data.mod_hum_pct || 0) + '%';
     document.getElementById('snapModPeriod').textContent = (data.mod_period_s ? data.mod_period_s + ' s' : 'Non périodique');
     currentSnapFreqView = null;
+    snapShowCh = { l: showCh.l, d: showCh.d };
+    if (!snapShowCh.l && !snapShowCh.d) snapShowCh = { l: true, d: true };
+    const sg = document.getElementById('snapToggleChG');
+    const sd = document.getElementById('snapToggleChD');
+    if (sg) { sg.classList.toggle('btn-active', snapShowCh.l); sg.style.opacity = snapShowCh.l ? '1' : '.4'; }
+    if (sd) { sd.classList.toggle('btn-active', snapShowCh.d); sd.style.opacity = snapShowCh.d ? '1' : '.4'; }
     requestAnimationFrame(drawSnapshotSpectrogram);
   }
 }
@@ -654,6 +709,15 @@ function setSnapFocus(fLo, fHi, btn) {
   drawSnapshotSpectrogram();
 }
 
+function toggleSnapChannel(idx) {
+  if (idx === 0) snapShowCh.l = !snapShowCh.l; else snapShowCh.d = !snapShowCh.d;
+  const sg = document.getElementById('snapToggleChG');
+  const sd = document.getElementById('snapToggleChD');
+  if (sg) { sg.classList.toggle('btn-active', snapShowCh.l); sg.style.opacity = snapShowCh.l ? '1' : '.4'; }
+  if (sd) { sd.classList.toggle('btn-active', snapShowCh.d); sd.style.opacity = snapShowCh.d ? '1' : '.4'; }
+  drawSnapshotSpectrogram();
+}
+
 function drawSnapshotSpectrogram() {
   const cv = document.getElementById('snapCanvas');
   if (!cv || !currentSnapshotData) return;
@@ -676,6 +740,13 @@ function drawSnapshotSpectrogram() {
   const nBins = freqs ? freqs.length : 0;
   if (!nTicks || !nBins) return;
 
+  if (!snapShowCh.l && !snapShowCh.d) {
+    ctx.fillStyle = '#64748b'; ctx.font = '12px monospace'; ctx.textAlign = 'center';
+    ctx.fillText("Aucun canal sélectionné", wCss / 2, hCss / 2);
+    ctx.textAlign = 'left';
+    return;
+  }
+
   const fLo = currentSnapFreqView ? currentSnapFreqView.fLo : freqs[0];
   const fHi = currentSnapFreqView ? currentSnapFreqView.fHi : freqs[nBins - 1];
   const x0 = 40, x1 = wCss - 10;
@@ -691,7 +762,11 @@ function drawSnapshotSpectrogram() {
       const f = freqs[b];
       if (f + binStep < fLo || f > fHi) continue;
       const v1 = r1 ? r1[b] : -100, v2 = r2 ? r2[b] : -100;
-      let val = showCh.l && showCh.d ? Math.max(v1, v2) : (showCh.l ? v1 : v2);
+      let val = -100;
+      if (snapShowCh.l && snapShowCh.d) val = Math.max(v1, v2);
+      else if (snapShowCh.l) val = v1;
+      else if (snapShowCh.d) val = v2;
+      if (val <= -99) continue;
       const tNorm = Math.max(0, Math.min(1, (val - (-40)) / 70));
       ctx.fillStyle = specColor(tNorm);
       const yA = yOfHz(f), yB = yOfHz(f + binStep);
@@ -876,7 +951,13 @@ async function fetchWindow() { // I54/I55 : fenêtre ?since= dynamique — charg
 }
 
 function refreshWindowed() { // I54 : vue zoomée → fetch de la fenêtre puis dessin
-  if (tlMode) return Promise.resolve().then(fetchWindow).then(fetchSpectrum).then(() => drawTimelineFull());
+  if (tlMode) {
+    tlScale = { minT: tlMode.minT, span: tlMode.span };
+    return Promise.resolve()
+      .then(fetchWindow)
+      .then(() => (SPEC && SPEC.enabled && specShow ? fetchSpectrum(true) : Promise.resolve()))
+      .then(() => drawTimelineFull());
+  }
   drawTimelineFull();
 }
 
@@ -984,6 +1065,7 @@ async function refreshAll() {
   ]);
 
   if (stats) {
+    statsData = stats;
     document.getElementById('statEvents').innerText = stats.total_events || 0;
     document.getElementById('statClusters').innerText = stats.total_clusters || 0;
     if (stats.db_size_bytes != null) {
@@ -1030,7 +1112,48 @@ function filterEvents(list) {
     (clu === '' || String(e.cluster) === clu));
 }
 
+function syncChannelButtons() {
+  const g = document.getElementById('toggleChG');
+  const d = document.getElementById('toggleChD');
+  if (g) {
+    g.classList.toggle('btn-active', showCh.l);
+    g.style.opacity = showCh.l ? '1' : '.4';
+  }
+  if (d) {
+    d.classList.toggle('btn-active', showCh.d);
+    d.style.opacity = showCh.d ? '1' : '.4';
+  }
+}
+
+function syncChannelFilterSelect() {
+  const sel = document.getElementById('chanFilter');
+  if (!sel) return;
+  if (showCh.l && showCh.d) {
+    if (sel.value === 'l' || sel.value === 'd') sel.value = '';
+  } else if (showCh.l && !showCh.d) {
+    sel.value = 'l';
+  } else if (!showCh.l && showCh.d) {
+    sel.value = 'd';
+  }
+}
+
+function syncFromChannelFilterSelect() {
+  const chanSel = document.getElementById('chanFilter') ? document.getElementById('chanFilter').value : '';
+  if (chanSel === 'l') {
+    showCh.l = true;
+    showCh.d = false;
+  } else if (chanSel === 'd') {
+    showCh.l = false;
+    showCh.d = true;
+  } else if (chanSel === 'b' || chanSel === '') {
+    showCh.l = true;
+    showCh.d = true;
+  }
+  syncChannelButtons();
+}
+
 function applyFilters() {
+  syncFromChannelFilterSelect();
   drawTimelineFull(); // I58 : filtres → graphe + tableau synchronisés
 }
 
@@ -1153,6 +1276,12 @@ function setTimeWin(seconds) {
   timeWindow = seconds;
   tlMode = null; // les boutons de fenêtre annulent le zoom au pinceau
   syncTlButtons();
+  if (seconds === null) {
+    fetchWindow().then(() => {
+      drawTimelineFull(true, true);
+    });
+    return;
+  }
   drawTimelineFull();
 }
 
@@ -1166,9 +1295,11 @@ function syncTlButtons() {
     const calBtn = document.getElementById('calBtn');
     if (calBtn) {
       calBtn.classList.add('btn-active');
-      const d = new Date(tlMode.minT * 1000);
-      const dStr = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', timeZone: TZ_VIZ });
-      calBtn.innerText = `📅 ${dStr}`;
+      const d0 = new Date(tlMode.minT * 1000);
+      const d1 = new Date((tlMode.minT + tlMode.span) * 1000);
+      const d0Str = d0.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', timeZone: TZ_VIZ });
+      const d1Str = d1.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', timeZone: TZ_VIZ });
+      calBtn.innerText = (tlMode.span > 86400 && d0Str !== d1Str) ? `📅 ${d0Str} → ${d1Str}` : `📅 ${d0Str}`;
     }
     return;
   }
@@ -1188,12 +1319,13 @@ function parisMidnightBefore(tSec) { // UTC (s) du dernier minuit de Paris ≤ t
 }
 
 function drawTimeTicks(ctx, w, h, minT, span) {
-  // graduation axe X horodatée adaptative de 1s à 24h (~90 px entre marqueurs)
+  // graduation axe X horodatée adaptative de 1s à 365j (~90 px entre marqueurs)
   let lastTickDay = null;
   const steps = [
     1, 2, 5, 10, 15, 30,
     60, 120, 300, 600, 900, 1800,
-    3600, 7200, 10800, 21600, 43200, 86400
+    3600, 7200, 10800, 21600, 43200, 86400,
+    172800, 345600, 604800, 1209600, 2592000, 5184000, 7776000, 15552000, 31536000
   ];
   const targetCount = Math.max(3, Math.floor((w - 50) / 90));
   const rawStep = span / targetCount;
@@ -1250,8 +1382,9 @@ function drawTimeTicks(ctx, w, h, minT, span) {
 
 function toggleChannel(idx) {
   if (idx === 0) showCh.l = !showCh.l; else showCh.d = !showCh.d;
-  document.getElementById('toggleChG').style.opacity = showCh.l ? '1' : '.4';
-  document.getElementById('toggleChD').style.opacity = showCh.d ? '1' : '.4';
+  syncChannelButtons();
+  syncChannelFilterSelect();
+  if (SPEC && SPEC.enabled && specShow) fetchSpectrum(true);
   drawTimelineFull(); // I58 : toggle de canal → graphe + tableau synchronisés
 }
 
@@ -1472,7 +1605,7 @@ function drawTimeline(events) {
   } else { // Tout : plage recouvrant tous les événements + horizon présent
     const ts = evs.map(e => e.t0);
     const maxT = Math.max(now, ...ts);
-    const minTAll = Math.min(...ts);
+    const minTAll = (statsData && statsData.min_t0) ? Math.min(statsData.min_t0, ...ts) : (ts.length ? Math.min(...ts) : now - 86400);
     minT = minTAll; timeSpan = Math.max(3600, maxT - minT);
   }
   tlScale = {minT, span: timeSpan}; // conversion px→temps pour le zoom (I39)
@@ -1593,14 +1726,16 @@ function toggleSpectrum() {
 }
 
 function getSpecKey() {
-  if (!tlScale) return null;
+  const curScale = tlMode || tlScale;
+  if (!curScale) return null;
   // En mode direct défilant (tlMode === null), on quantifie à 30 s pour éviter des refetchs inutiles sur chaque seconde
-  const minT = tlMode ? tlScale.minT : Math.floor(tlScale.minT / 30) * 30;
-  const span = tlMode ? tlScale.span : Math.round(tlScale.span / 30) * 30;
+  const minT = tlMode ? tlMode.minT : Math.floor(curScale.minT / 30) * 30;
+  const span = tlMode ? tlMode.span : Math.round(curScale.span / 30) * 30;
   const fb = freqBounds();
   let ch = 'both';
   if (showCh.l && !showCh.d) ch = 'l';
   else if (!showCh.l && showCh.d) ch = 'd';
+  else if (!showCh.l && !showCh.d) ch = 'none';
   const dpr = window.devicePixelRatio || 1;
   const wCss = TL_CKWW || 1000;
   const specW = Math.max(100, Math.round((wCss - 50) * dpr));
@@ -1612,6 +1747,18 @@ async function fetchSpectrum(force = false) {
   if (!SPEC.enabled || !specShow || !tlScale) return;
   const p = getSpecKey();
   if (!p) return;
+  if (p.ch === 'none') {
+    specImg = null;
+    specImgKey = p.keyStr;
+    const overlay = document.getElementById('specOverlay');
+    if (overlay) overlay.style.display = 'none';
+    const statusBadge = document.getElementById('specStatusBadge');
+    if (statusBadge) statusBadge.style.display = 'none';
+    const specBtn = document.getElementById('toggleSpec');
+    if (specBtn) specBtn.innerText = 'Spectre';
+    drawSpecPanel();
+    return;
+  }
   const key = p.keyStr;
 
   if (!force && specImgKey === key && specImg) {
@@ -1691,7 +1838,11 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   const p = getSpecKey();
   const currentKey = p ? p.keyStr : null;
 
-  if (specImg && specImgKey === currentKey && specImg.complete && specImg.naturalWidth > 0) {
+  if (p && p.ch === 'none') {
+    ctx.fillStyle = '#64748b'; ctx.font = '12px monospace'; ctx.textAlign = 'center';
+    ctx.fillText("Aucun canal sélectionné", wCss / 2, hCss / 2);
+    ctx.textAlign = 'left';
+  } else if (specImg && specImgKey === currentKey && specImg.complete && specImg.naturalWidth > 0) {
     ctx.drawImage(specImg, x0, y0, x1 - x0, y1 - y0);
   }
 
@@ -1747,8 +1898,9 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   ctx.textAlign = 'left';
 
   // Label d'axe vertical en haut à gauche
+  const chLbl = p ? (p.ch === 'l' ? ' · IN1 (Air)' : (p.ch === 'd' ? ' · IN2 (Struct)' : (p.ch === 'none' ? ' · Aucun canal' : ' · Tous canaux'))) : '';
   ctx.fillStyle = '#64748b'; ctx.font = '11px monospace';
-  ctx.fillText('Spectre ' + fb[0].toFixed(0) + '..' + fb[1].toFixed(0) + ' Hz', x0 + 4, y0 + 12);
+  ctx.fillText('Spectre ' + fb[0].toFixed(0) + '..' + fb[1].toFixed(0) + ' Hz' + chLbl, x0 + 4, y0 + 12);
 }
 
 // ===== Zoom par brushing sur la timeline (I39) : glisser / touch = plage temps, double-clic/Esc = réinit =====
@@ -2076,7 +2228,13 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
                 self.send_error(400, "Paramètre de requête invalide")
                 return
 
-            if ch_spec not in ("both", "l", "d"):
+            if ch_spec in ("l", "1", "g", "in1", "left"):
+                ch_spec = "l"
+            elif ch_spec in ("d", "2", "r", "in2", "right"):
+                ch_spec = "d"
+            elif ch_spec in ("none", "neither", "0"):
+                ch_spec = "none"
+            elif ch_spec not in ("both", "l", "d", "none"):
                 ch_spec = "both"
 
             png_bytes = self.store.get_spectrum_png(

@@ -120,6 +120,7 @@ def test_viz_calendar_popup_markers(zoom_server):
         'id="calendarModal"',
         'id="calBtn"',
         'id="calDateInput"',
+        'id="calDateEnd"',
         'id="calTimeStart"',
         'id="calTimeEnd"',
         "openCalendarModal",
@@ -127,6 +128,7 @@ def test_viz_calendar_popup_markers(zoom_server):
         "applyCalShortcut",
         "applyCalendarSelection",
         "resetCalToLive",
+        "last30d",
         'id="eventsFilterCount"',
     ]
     for tok in tokens:

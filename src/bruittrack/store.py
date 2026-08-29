@@ -633,10 +633,12 @@ class EventStore:
         raw_bytes = b"".join(r["data"] for r in rows)
         arr = np.frombuffer(raw_bytes, dtype=np.uint8).reshape(n_slices, n_bands, 4)
 
-        if channel == "l":
+        if channel in ("l", "1", "g", "in1", "left"):
             data_2d = arr[:, :, 1]
-        elif channel == "d":
+        elif channel in ("d", "2", "r", "in2", "right"):
             data_2d = arr[:, :, 3]
+        elif channel in ("none", "neither", "0"):
+            data_2d = np.zeros((n_slices, n_bands), dtype=np.uint8)
         else:
             data_2d = np.maximum(arr[:, :, 1], arr[:, :, 3])
 

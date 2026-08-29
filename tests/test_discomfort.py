@@ -123,6 +123,14 @@ def test_dashboard_contains_discomfort_and_focus_controls() -> None:
     assert "snapAudioPlayer" in HTML_DASHBOARD
     assert "openSnapshotModal" in HTML_DASHBOARD
 
+    # Position : Le journal des gênes doit être placé AU-DESSUS des événements et clusters
+    pos_disc = HTML_DASHBOARD.find("discomfortTableBody")
+    pos_events = HTML_DASHBOARD.find("eventsTableBody")
+    pos_clusters = HTML_DASHBOARD.find("clustersTableBody")
+    assert pos_disc < pos_events and pos_disc < pos_clusters, (
+        "Le journal des gênes doit être au-dessus des événements"
+    )
+
 
 def test_dsp_snapshot_and_beating_metrics() -> None:
     """Verify DspPipeline captures 30s rolling buffers and measures amplitude beating."""

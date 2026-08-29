@@ -132,7 +132,16 @@ def test_dashboard_has_channel_toggles_and_tooltip(viz_server):
     with urllib.request.urlopen(base + "/", timeout=5) as resp:
         body = resp.read().decode("utf-8")
     # Item 6 : toggles de canal + tooltip bin/freq/niveaux dans le dashboard JS
-    for needle in ("toggleChannel", "evtTip", "timelinePoints", "showCh"):
+    for needle in (
+        "toggleChannel",
+        "evtTip",
+        "timelinePoints",
+        "showCh",
+        "syncChannelButtons",
+        "syncChannelFilterSelect",
+        "snapToggleChG",
+        "snapToggleChD",
+    ):
         assert needle in body, f"élément JS manquant: {needle}"
     # Le tooltip expose bien les champs requis
     assert "bin ${ev.bin_i}" in body and "lvl_g.toFixed" in body
