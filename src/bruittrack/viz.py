@@ -181,29 +181,44 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <span>Timeline Fréquence / Temps (0 – __FREQ_MAX__ Hz)</span>
     <span id="canvasTooltip" style="font-size:12px; color:var(--accent);">Survolez un point</span>
   </div>
-  <div class="toolbar">
-    <div class="btn-group">
-      <button id="toggleChG" class="btn btn-sm" onclick="toggleChannel(0)">IN1 (Air)</button>
-      <button id="toggleChD" class="btn btn-sm" onclick="toggleChannel(1)">IN2 (Struct)</button>
-      <button id="toggleSpec" class="btn btn-sm" onclick="toggleSpectrum()" title="I63 : heatmap de l'historique spectre (signaux quasi permanents, invisibles dans les événements)">Spectre</button>
+  <div class="toolbar" style="display:flex; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap; background:rgba(15,23,42,0.6); padding:8px 12px; border-radius:6px; border:1px solid var(--border);">
+    <div style="display:inline-flex; align-items:center; gap:5px;">
+      <span style="font-size:11px; color:var(--text-muted); font-weight:bold; text-transform:uppercase;">Canaux :</span>
+      <div class="btn-group">
+        <button id="toggleChG" class="btn btn-sm" onclick="toggleChannel(0)" title="Micro aérien IN1">IN1 (Air)</button>
+        <button id="toggleChD" class="btn btn-sm" onclick="toggleChannel(1)" title="Capteur structurel piézo IN2">IN2 (Struct)</button>
+        <button id="toggleSpec" class="btn btn-sm" onclick="toggleSpectrum()" title="Spectrogramme d'énergie continue">📈 Spectre</button>
+      </div>
     </div>
-    <div class="btn-group">
-      <button id="fFocusAll" class="btn btn-sm btn-active" onclick="setFreqFocus(null,null,this)" title="Bande complète 2–150 Hz">Tout (0-150Hz)</button>
-      <button id="fFocusInfra" class="btn btn-sm" onclick="setFreqFocus(2.0,35.0,this)" title="Focus Infrasons & Battements lents 2-35 Hz">🔍 Infrasons (2–35 Hz)</button>
-      <button id="fFocusHum" class="btn btn-sm" onclick="setFreqFocus(35.0,70.0,this)" title="Focus Hum / 50Hz & Résonance 53.7Hz">🔍 Hum (35–70 Hz)</button>
-      <button id="fFocusHigh" class="btn btn-sm" onclick="setFreqFocus(70.0,150.0,this)" title="Focus Harmoniques & Machines 70-150Hz">🔍 Haut (70–150 Hz)</button>
+
+    <div style="display:inline-flex; align-items:center; gap:5px;">
+      <span style="font-size:11px; color:var(--text-muted); font-weight:bold; text-transform:uppercase;">Fréquence :</span>
+      <div class="btn-group">
+        <button id="fFocusAll" class="btn btn-sm btn-active" onclick="setFreqFocus(null,null,this)" title="Bande complète 2–150 Hz">Tout (0-150Hz)</button>
+        <button id="fFocusInfra" class="btn btn-sm" onclick="setFreqFocus(2.0,35.0,this)" title="Focus Infrasons & Battements lents 2-35 Hz">🔍 Infrasons (2–35 Hz)</button>
+        <button id="fFocusHum" class="btn btn-sm" onclick="setFreqFocus(35.0,70.0,this)" title="Focus Hum / 50Hz & Résonance 53.7Hz">🔍 Hum (35–70 Hz)</button>
+        <button id="fFocusHigh" class="btn btn-sm" onclick="setFreqFocus(70.0,150.0,this)" title="Focus Harmoniques & Machines 70-150Hz">🔍 Haut (70–150 Hz)</button>
+      </div>
     </div>
-    <div class="btn-group">
-      <button id="winBtn1h" class="btn btn-sm" onclick="setTimeWin(3600,this)">1h</button>
-      <button id="winBtn6h" class="btn btn-sm" onclick="setTimeWin(21600,this)">6h</button>
-      <button id="winBtn24h" class="btn btn-sm btn-active" onclick="setTimeWin(86400,this)">24h</button>
-      <button id="winBtnTout" class="btn btn-sm" onclick="setTimeWin(null,this)">Tout</button>
+
+    <div style="display:inline-flex; align-items:center; gap:5px;">
+      <span style="font-size:11px; color:var(--text-muted); font-weight:bold; text-transform:uppercase;">Période :</span>
+      <div class="btn-group">
+        <button id="winBtn1h" class="btn btn-sm" onclick="setTimeWin(3600,this)">1h</button>
+        <button id="winBtn6h" class="btn btn-sm" onclick="setTimeWin(21600,this)">6h</button>
+        <button id="winBtn24h" class="btn btn-sm btn-active" onclick="setTimeWin(86400,this)">24h</button>
+        <button id="winBtnTout" class="btn btn-sm" onclick="setTimeWin(null,this)">Tout</button>
+        <button id="calBtn" class="btn btn-sm" onclick="openCalendarModal()" title="Sélectionner une date ou plage historique précise">📅 Calendrier</button>
+      </div>
     </div>
-    <span style="opacity:.4; font-size:11px; font-family:monospace">glisser = zoom temps · Échap = réinit</span>
-    <span id="evtTip" style="font-family:monospace; font-size:12px; color:#e2e8f0; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
-    <span id="freqTip" title="I49 : fréquence sous le curseur" style="font-family:monospace; font-size:12px; color:#93c5fd; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
-    <span id="zoomBadge" onclick="resetFviews()" title="I54 : reset zoom X+Y (double-clic ou Échap)" style="display:none; cursor:pointer; color:#94a3b8; font-size:12px;"></span>
-    <span id="majBadge" title="I53/I56 : dernière MAJ réussie" style="margin-left:10px; font-family:monospace; font-size:12px; color:#94a3b8;"></span>
+
+    <div style="margin-left:auto; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+      <span style="opacity:.5; font-size:10px; font-family:monospace">glisser = zoom · Échap = réinit</span>
+      <span id="evtTip" style="font-family:monospace; font-size:12px; color:#e2e8f0; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
+      <span id="freqTip" title="I49 : fréquence sous le curseur" style="font-family:monospace; font-size:12px; color:#93c5fd; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
+      <span id="zoomBadge" onclick="resetFviews()" title="I54 : reset zoom X+Y (double-clic ou Échap)" style="display:none; cursor:pointer; color:#38bdf8; background:rgba(2,132,199,0.15); border:1px solid #0284c7; padding:2px 8px; border-radius:4px; font-size:11px; font-family:monospace;"></span>
+      <span id="majBadge" title="I53/I56 : dernière MAJ réussie" style="font-family:monospace; font-size:11px; color:#94a3b8;"></span>
+    </div>
   </div>
   <canvas id="timelineCanvas" width="1000" height="260"></canvas>
   <div id="specBar" style="display:none; justify-content:space-between; align-items:center; font-size:11px; color:#64748b; margin:6px 2px 2px 0;">
@@ -227,13 +242,38 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 <div class="layout-2col">
   <div class="card">
     <div class="card-title">Derniers Événements</div>
-    <div style="margin: 0 0 8px 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-      <input type="checkbox" id="onlyLegal" style="accent-color: #ef4444;" onchange="applyFilters()" />
-      <label for="onlyLegal" style="font-size: 12px; cursor: pointer; color: #fca5a5;" title="Filtrer uniquement les événements dépassant le seuil d'émergence légal autorisé (CSP Art. R1336-7)">Infractions / Dépassements légaux (▲)</label>
-      <select id="chanFilter" class="flt" onchange="applyFilters()"><option value="">Tous canaux</option><option value="l">IN1 (Air)</option><option value="d">IN2 (Struct)</option><option value="b">Les 2</option></select>
-      <label for="minLvlFilter" style="font-size: 12px; color:#94a3b8;">Ém. ≥</label>
-      <input type="number" id="minLvlFilter" class="flt" style="width:48px;" value="0" min="0" step="1" onchange="applyFilters()" /><span style="font-size:11px;color:#94a3b8;">dB</span>
-      <select id="clusterFilter" class="flt" onchange="applyFilters()"><option value="">Tous clusters</option></select>
+    <div style="margin: 0 0 10px 0; background:rgba(15,23,42,0.6); padding:8px 10px; border-radius:6px; border:1px solid var(--border); display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:12px;">
+      <label style="display:inline-flex; align-items:center; gap:6px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.4); padding:3px 8px; border-radius:4px; cursor:pointer; color:#fca5a5; font-size:11px; font-weight:600;" title="Filtrer uniquement les événements dépassant le seuil d'émergence légal autorisé (CSP Art. R1336-7)">
+        <input type="checkbox" id="onlyLegal" style="accent-color:#ef4444; margin:0;" onchange="applyFilters()" />
+        <span>Infractions / Dépassements légaux (▲)</span>
+      </label>
+
+      <div style="display:inline-flex; align-items:center; gap:4px;">
+        <span style="color:#94a3b8; font-size:11px;">Canal :</span>
+        <select id="chanFilter" class="flt" onchange="applyFilters()">
+          <option value="">Tous canaux</option>
+          <option value="l">IN1 (Air)</option>
+          <option value="d">IN2 (Struct)</option>
+          <option value="b">Les 2 simultanés</option>
+        </select>
+      </div>
+
+      <div style="display:inline-flex; align-items:center; gap:4px;">
+        <span style="color:#94a3b8; font-size:11px;">Émergence ≥</span>
+        <div style="display:inline-flex; align-items:center; background:#0f172a; border:1px solid #334155; border-radius:4px; padding:0 4px;">
+          <input type="number" id="minLvlFilter" style="width:36px; background:transparent; border:none; color:#e2e8f0; font-size:12px; padding:3px 2px; text-align:right;" value="0" min="0" step="1" onchange="applyFilters()" />
+          <span style="font-size:11px; color:#94a3b8;">dB</span>
+        </div>
+      </div>
+
+      <div style="display:inline-flex; align-items:center; gap:4px;">
+        <span style="color:#94a3b8; font-size:11px;">Groupe :</span>
+        <select id="clusterFilter" class="flt" onchange="applyFilters()">
+          <option value="">Tous clusters</option>
+        </select>
+      </div>
+
+      <div style="margin-left:auto; color:#64748b; font-size:11px; font-family:monospace;" id="eventsFilterCount"></div>
     </div>
     <div class="table-container" style="max-height: 480px; overflow-y: auto;">
       <table>
@@ -294,6 +334,52 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         <tr><td colspan="4" style="text-align:center; color:#64748b;">Aucun signalement de gêne enregistré.</td></tr>
       </tbody>
     </table>
+  </div>
+</div>
+
+<div id="calendarModal" style="display:none; position:fixed; z-index:9999; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); backdrop-filter:blur(3px); align-items:center; justify-content:center; padding:12px;">
+  <div style="background:#18202c; border:1px solid #38bdf8; border-radius:8px; width:440px; max-width:100%; max-height:90vh; overflow-y:auto; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,0.7);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h3 style="color:#38bdf8; font-size:15px; display:flex; align-items:center; gap:8px; margin:0;">
+        📅 Sélectionner une Date / Période
+      </h3>
+      <button class="btn btn-sm" onclick="closeCalendarModal()">✕</button>
+    </div>
+    <p style="color:#94a3b8; font-size:11px; margin-bottom:14px;">
+      Affiche les événements et génère le spectrogramme pour le jour ou l'intervalle sélectionné.
+    </p>
+
+    <!-- Raccourcis rapides -->
+    <div style="margin-bottom:14px;">
+      <label style="display:block; font-size:11px; color:#cbd5e1; margin-bottom:6px; font-weight:bold;">Raccourcis rapides :</label>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+        <button type="button" class="btn btn-sm" onclick="applyCalShortcut('today')">📅 Aujourd'hui (00h-24h)</button>
+        <button type="button" class="btn btn-sm" onclick="applyCalShortcut('yesterday')">⏮️ Hier (00h-24h)</button>
+        <button type="button" class="btn btn-sm" onclick="applyCalShortcut('d_minus_2')">⏪ Avant-hier</button>
+        <button type="button" class="btn btn-sm" onclick="applyCalShortcut('last7d')">🗓️ 7 derniers jours</button>
+      </div>
+    </div>
+
+    <!-- Sélecteur de date principale -->
+    <div style="background:#0f172a; border:1px solid #334155; border-radius:6px; padding:12px; margin-bottom:14px;">
+      <label style="display:block; font-size:11px; color:#cbd5e1; margin-bottom:6px; font-weight:bold;">Choisir un jour précis :</label>
+      <input type="date" id="calDateInput" class="flt" style="width:100%; padding:6px 10px; font-size:13px; font-family:monospace; margin-bottom:10px; color-scheme:dark;" />
+
+      <label style="display:block; font-size:11px; color:#cbd5e1; margin-bottom:6px; font-weight:bold;">Plage horaire :</label>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="time" id="calTimeStart" class="flt" value="00:00" style="flex:1; padding:5px 8px; font-family:monospace; color-scheme:dark;" />
+        <span style="color:#94a3b8; font-size:12px;">→</span>
+        <input type="time" id="calTimeEnd" class="flt" value="23:59" style="flex:1; padding:5px 8px; font-family:monospace; color-scheme:dark;" />
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+      <button type="button" class="btn btn-sm" style="color:#94a3b8;" onclick="resetCalToLive()">⏪ Retour au direct (24h)</button>
+      <div style="display:flex; gap:6px;">
+        <button type="button" class="btn" onclick="closeCalendarModal()">Annuler</button>
+        <button type="button" class="btn btn-active" style="background:#0284c7; color:white; font-weight:bold;" onclick="applyCalendarSelection()">🔍 Afficher la période</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -370,6 +456,80 @@ let clustersData = [];
 let discomfortLogs = [];
 let currentSnapshotData = null;
 let currentSnapFreqView = null;
+
+function openCalendarModal() {
+  const m = document.getElementById('calendarModal');
+  if (!m) return;
+  const now = Date.now() / 1000;
+  const refT = (tlScale ? tlScale.minT : (timeWindow ? now - timeWindow : now));
+  const dLocal = new Date(refT * 1000);
+  const pStr = dLocal.toLocaleString('sv-SE', { timeZone: TZ_VIZ }); // "YYYY-MM-DD HH:MM:SS"
+  const curDate = pStr.slice(0, 10);
+  const dateInp = document.getElementById('calDateInput');
+  if (dateInp) dateInp.value = curDate;
+  m.style.display = 'flex';
+}
+
+function closeCalendarModal() {
+  const m = document.getElementById('calendarModal');
+  if (m) m.style.display = 'none';
+}
+
+function applyCalShortcut(mode) {
+  const now = Date.now() / 1000;
+  const m0Today = parisMidnightBefore(now);
+  let minT, span;
+
+  if (mode === 'today') {
+    minT = m0Today;
+    span = 86400;
+  } else if (mode === 'yesterday') {
+    minT = m0Today - 86400;
+    span = 86400;
+  } else if (mode === 'd_minus_2') {
+    minT = m0Today - 2 * 86400;
+    span = 86400;
+  } else if (mode === 'last7d') {
+    minT = m0Today - 6 * 86400;
+    span = 7 * 86400;
+  }
+  closeCalendarModal();
+  tlMode = { minT, span };
+  timeWindow = null;
+  syncTlButtons();
+  updateZoomBadge();
+  refreshWindowed();
+}
+
+function applyCalendarSelection() {
+  const dateInp = document.getElementById('calDateInput');
+  if (!dateInp || !dateInp.value) return;
+  const dateVal = dateInp.value; // "YYYY-MM-DD"
+  const tStartVal = (document.getElementById('calTimeStart')?.value || "00:00") + ":00";
+  const tEndVal = (document.getElementById('calTimeEnd')?.value || "23:59") + ":59";
+
+  const parts = dateVal.split('-').map(Number);
+  const startParts = tStartVal.split(':').map(Number);
+  const endParts = tEndVal.split(':').map(Number);
+
+  const dummyDate = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0);
+  const m0 = parisMidnightBefore(dummyDate.getTime() / 1000);
+  const tStart = m0 + startParts[0] * 3600 + startParts[1] * 60 + (startParts[2] || 0);
+  const tEnd = m0 + endParts[0] * 3600 + endParts[1] * 60 + (endParts[2] || 0);
+
+  const span = Math.max(60, tEnd - tStart);
+  closeCalendarModal();
+  tlMode = { minT: tStart, span: span };
+  timeWindow = null;
+  syncTlButtons();
+  updateZoomBadge();
+  refreshWindowed();
+}
+
+function resetCalToLive() {
+  closeCalendarModal();
+  setTimeWin(86400);
+}
 
 function openDiscomfortModal() {
   const m = document.getElementById('discomfortModal');
@@ -767,6 +927,10 @@ function fillClusterFilter(clusters) {
 
 function renderEventsTable(events) {
   const tbody = document.getElementById('eventsTableBody');
+  const countEl = document.getElementById('eventsFilterCount');
+  if (countEl) {
+    countEl.textContent = `${events ? events.length : 0} visible(s)`;
+  }
   if (!events || events.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8;">Aucun événement enregistré.</td></tr>';
     return;
@@ -876,11 +1040,25 @@ function setTimeWin(seconds) {
 
 // Synchronise la mise en surbrillance des boutons avec la plage active (I39)
 function syncTlButtons() {
-  ['winBtn1h', 'winBtn6h', 'winBtn24h', 'winBtnTout'].forEach(id =>
-    document.getElementById(id).classList.remove('btn-active'));
-  if (tlMode) return; // zoom au pinceau actif : aucun bouton de fenêtre
+  ['winBtn1h', 'winBtn6h', 'winBtn24h', 'winBtnTout', 'calBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('btn-active');
+  });
+  if (tlMode) {
+    const calBtn = document.getElementById('calBtn');
+    if (calBtn) {
+      calBtn.classList.add('btn-active');
+      const d = new Date(tlMode.minT * 1000);
+      const dStr = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', timeZone: TZ_VIZ });
+      calBtn.innerText = `📅 ${dStr}`;
+    }
+    return;
+  }
+  const calBtn = document.getElementById('calBtn');
+  if (calBtn) calBtn.innerText = '📅 Calendrier';
   const active = {3600:'winBtn1h', 21600:'winBtn6h', 86400:'winBtn24h'}[timeWindow] || 'winBtnTout';
-  document.getElementById(active).classList.add('btn-active');
+  const actEl = document.getElementById(active);
+  if (actEl) actEl.classList.add('btn-active');
 }
 
 const TZ_VIZ = 'Europe/Paris'; // I62 : fuseau horaire d'affichage (échelle X + badge), indépendant de la machine cliente

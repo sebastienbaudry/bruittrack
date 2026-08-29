@@ -111,3 +111,24 @@ def test_viz_zoom_order_invalid(zoom_server):
     except urllib.error.HTTPError as exc:
         raised = exc.code == 400
     assert raised, "order invalide doit renvoyer 400"
+
+
+def test_viz_calendar_popup_markers(zoom_server):
+    """Vérifie la présence des éléments de calendrier popup et des filtres améliorés."""
+    html = _get(f"{zoom_server}/").decode("utf-8")
+    tokens = [
+        'id="calendarModal"',
+        'id="calBtn"',
+        'id="calDateInput"',
+        'id="calTimeStart"',
+        'id="calTimeEnd"',
+        "openCalendarModal",
+        "closeCalendarModal",
+        "applyCalShortcut",
+        "applyCalendarSelection",
+        "resetCalToLive",
+        'id="eventsFilterCount"',
+    ]
+    for tok in tokens:
+        assert tok in html, f"manquant : {tok}"
+
