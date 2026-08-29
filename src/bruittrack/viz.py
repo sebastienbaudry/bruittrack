@@ -110,6 +110,35 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     white-space: nowrap;
   }
 
+  .filter-section {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 6px;
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid var(--border);
+  }
+  .filter-section-channels {
+    border-color: rgba(139, 92, 246, 0.4);
+    background: rgba(139, 92, 246, 0.08);
+  }
+  .filter-section-freq {
+    border-color: rgba(56, 189, 248, 0.4);
+    background: rgba(56, 189, 248, 0.08);
+  }
+  .filter-section-period {
+    border-color: rgba(245, 158, 11, 0.4);
+    background: rgba(245, 158, 11, 0.08);
+  }
+  .filter-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
   @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   .spinner-inline {
     display: inline-block;
@@ -207,10 +236,12 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   <div class="card-title">
     <span>Timeline Fréquence / Temps (0 – __FREQ_MAX__ Hz)</span>
   </div>
-  <div class="toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; background:rgba(15,23,42,0.6); padding:8px 12px; border-radius:6px; border:1px solid var(--border); min-height:42px;">
-    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-      <div style="display:inline-flex; align-items:center; gap:5px;">
-        <span style="font-size:11px; color:var(--text-muted); font-weight:bold; text-transform:uppercase;">Canaux :</span>
+  <div class="toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; background:#0b1118; padding:8px 12px; border-radius:8px; border:1px solid var(--border); min-height:46px;">
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      
+      <!-- 1. Catégorie CANAUX -->
+      <div class="filter-section filter-section-channels">
+        <span class="filter-label" style="color:#c4b5fd;">🎧 Canaux</span>
         <div class="btn-group">
           <button id="toggleChG" class="btn btn-sm" onclick="toggleChannel(0)" title="Micro aérien IN1">IN1 (Air)</button>
           <button id="toggleChD" class="btn btn-sm" onclick="toggleChannel(1)" title="Capteur structurel piézo IN2">IN2 (Struct)</button>
@@ -218,18 +249,20 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         </div>
       </div>
 
-      <div style="display:inline-flex; align-items:center; gap:5px;">
-        <span style="font-size:11px; color:var(--text-muted); font-weight:bold; text-transform:uppercase;">Fréquence :</span>
+      <!-- 2. Catégorie FRÉQUENCE -->
+      <div class="filter-section filter-section-freq">
+        <span class="filter-label" style="color:#7dd3fc;">🎚️ Fréquence</span>
         <div class="btn-group">
-          <button id="fFocusAll" class="btn btn-sm btn-active" onclick="setFreqFocus(null,null,this)" title="Bande complète 2–150 Hz">Tout (0-150Hz)</button>
+          <button id="fFocusAll" class="btn btn-sm btn-active" onclick="setFreqFocus(null,null,this)" title="Bande complète 2–150 Hz">Tout</button>
           <button id="fFocusInfra" class="btn btn-sm" onclick="setFreqFocus(2.0,35.0,this)" title="Focus Infrasons & Battements lents 2-35 Hz">🔍 Infrasons (2–35 Hz)</button>
           <button id="fFocusHum" class="btn btn-sm" onclick="setFreqFocus(35.0,70.0,this)" title="Focus Hum / 50Hz & Résonance 53.7Hz">🔍 Hum (35–70 Hz)</button>
           <button id="fFocusHigh" class="btn btn-sm" onclick="setFreqFocus(70.0,150.0,this)" title="Focus Harmoniques & Machines 70-150Hz">🔍 Haut (70–150 Hz)</button>
         </div>
       </div>
 
-      <div style="display:inline-flex; align-items:center; gap:5px;">
-        <span style="font-size:11px; color:var(--text-muted); font-weight:bold; text-transform:uppercase;">Période :</span>
+      <!-- 3. Catégorie PÉRIODE -->
+      <div class="filter-section filter-section-period">
+        <span class="filter-label" style="color:#fcd34d;">⏱️ Période</span>
         <div class="btn-group">
           <button id="winBtn1h" class="btn btn-sm" onclick="setTimeWin(3600,this)">1h</button>
           <button id="winBtn6h" class="btn btn-sm" onclick="setTimeWin(21600,this)">6h</button>
@@ -238,6 +271,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           <button id="calBtn" class="btn btn-sm" onclick="openCalendarModal()" title="Sélectionner une date ou plage historique précise">📅 Calendrier</button>
         </div>
       </div>
+
     </div>
 
     <div style="display:flex; align-items:center; gap:8px; margin-left:auto; min-height:26px;">
@@ -269,15 +303,19 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 <div class="layout-2col">
   <div class="card">
     <div class="card-title">Derniers Événements</div>
-    <div style="margin: 0 0 10px 0; background:rgba(15,23,42,0.6); padding:8px 10px; border-radius:6px; border:1px solid var(--border); display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:12px;">
-      <label style="display:inline-flex; align-items:center; gap:6px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.4); padding:3px 8px; border-radius:4px; cursor:pointer; color:#fca5a5; font-size:11px; font-weight:600;" title="Filtrer uniquement les événements dépassant le seuil d'émergence légal autorisé (CSP Art. R1336-7)">
+    <div style="margin: 0 0 10px 0; background:#0b1118; padding:8px 10px; border-radius:8px; border:1px solid var(--border); display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:12px;">
+      <!-- Toggle Infraction -->
+      <label style="display:inline-flex; align-items:center; gap:6px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.5); padding:4px 9px; border-radius:6px; cursor:pointer; color:#fca5a5; font-size:11px; font-weight:700;" title="Filtrer uniquement les événements dépassant le seuil d'émergence légal autorisé (CSP Art. R1336-7)">
         <input type="checkbox" id="onlyLegal" style="accent-color:#ef4444; margin:0;" onchange="applyFilters()" />
         <span>Infractions / Dépassements légaux (▲)</span>
       </label>
 
-      <div style="display:inline-flex; align-items:center; gap:4px;">
-        <span style="color:#94a3b8; font-size:11px;">Canal :</span>
-        <select id="chanFilter" class="flt" onchange="applyFilters()">
+      <div style="height:20px; width:1px; background:var(--border); margin:0 2px;"></div>
+
+      <!-- Filtre Canal -->
+      <div style="display:inline-flex; align-items:center; gap:5px; background:rgba(139,92,246,0.08); border:1px solid rgba(139,92,246,0.3); border-radius:5px; padding:2px 6px;">
+        <span style="color:#c4b5fd; font-size:10px; font-weight:700; text-transform:uppercase;">Canal :</span>
+        <select id="chanFilter" class="flt" style="background:#0f172a; border-color:#475569;" onchange="applyFilters()">
           <option value="">Tous canaux</option>
           <option value="l">IN1 (Air)</option>
           <option value="d">IN2 (Struct)</option>
@@ -285,22 +323,24 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         </select>
       </div>
 
-      <div style="display:inline-flex; align-items:center; gap:4px;">
-        <span style="color:#94a3b8; font-size:11px;">Émergence ≥</span>
+      <!-- Filtre Seuil Émergence -->
+      <div style="display:inline-flex; align-items:center; gap:5px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); border-radius:5px; padding:2px 6px;">
+        <span style="color:#6ee7b7; font-size:10px; font-weight:700; text-transform:uppercase;">Émergence ≥</span>
         <div style="display:inline-flex; align-items:center; background:#0f172a; border:1px solid #334155; border-radius:4px; padding:0 4px;">
           <input type="number" id="minLvlFilter" style="width:36px; background:transparent; border:none; color:#e2e8f0; font-size:12px; padding:3px 2px; text-align:right;" value="0" min="0" step="1" onchange="applyFilters()" />
           <span style="font-size:11px; color:#94a3b8;">dB</span>
         </div>
       </div>
 
-      <div style="display:inline-flex; align-items:center; gap:4px;">
-        <span style="color:#94a3b8; font-size:11px;">Groupe :</span>
-        <select id="clusterFilter" class="flt" onchange="applyFilters()">
+      <!-- Filtre Cluster -->
+      <div style="display:inline-flex; align-items:center; gap:5px; background:rgba(56,189,248,0.08); border:1px solid rgba(56,189,248,0.3); border-radius:5px; padding:2px 6px;">
+        <span style="color:#7dd3fc; font-size:10px; font-weight:700; text-transform:uppercase;">Groupe :</span>
+        <select id="clusterFilter" class="flt" style="background:#0f172a; border-color:#475569;" onchange="applyFilters()">
           <option value="">Tous clusters</option>
         </select>
       </div>
 
-      <div style="margin-left:auto; color:#64748b; font-size:11px; font-family:monospace;" id="eventsFilterCount"></div>
+      <div style="margin-left:auto; color:#94a3b8; font-size:11px; font-family:monospace; background:rgba(15,23,42,0.8); border:1px solid #334155; border-radius:4px; padding:2px 8px;" id="eventsFilterCount"></div>
     </div>
     <div class="table-container" style="max-height: 480px; overflow-y: auto;">
       <table>
