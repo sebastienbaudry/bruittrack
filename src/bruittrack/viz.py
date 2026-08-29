@@ -981,7 +981,7 @@ function copyCurrentSnapshotReport() {
     lines.push(`  Aucun pic distinct identifié.`);
   }
   lines.push(`========================================`);
-  const txt = lines.join('\n');
+  const txt = lines.join('\\n');
   navigator.clipboard.writeText(txt).then(() => {
     alert('✅ Rapport de cliché HD copié dans le presse-papier !');
   }).catch(() => {
@@ -1153,7 +1153,7 @@ function copyCurrentDiscomfortReport() {
   }
   lines.push(`========================================`);
 
-  const txt = lines.join('\n');
+  const txt = lines.join('\\n');
   navigator.clipboard.writeText(txt).then(() => {
     alert('✅ Fiche d’analyse copiée dans le presse-papier !');
   }).catch(() => {
