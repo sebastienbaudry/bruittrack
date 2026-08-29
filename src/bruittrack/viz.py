@@ -2736,6 +2736,8 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
 
                 # Capture snapshot if engine is attached or payload has snapshot
                 snapshot_data = payload.get("snapshot")
+                sdir = Path(self.config.storage.snapshots_dir)
+                sdir.mkdir(parents=True, exist_ok=True)
                 if snapshot_data:
                     self.store.save_discomfort_snapshot(
                         log_id, snapshot_data, snapshots_dir=self.config.storage.snapshots_dir
@@ -2747,6 +2749,18 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
                         logger.warning(
                             "Could not capture live snapshot for discomfort %s: %s", log_id, e
                         )
+                else:
+                    # Multi-process IPC: write trigger file for capture engine process
+                    req_file = sdir / f"req_{log_id}.trigger"
+                    try:
+                        req_file.write_text(str(log_id), encoding="utf-8")
+                        # Wait up to 600 ms for capture engine to write the snapshot
+                        for _ in range(12):
+                            time.sleep(0.05)
+                            if (sdir / f"snap_{log_id}.npz").is_file():
+                                break
+                    except Exception as e:
+                        logger.warning("Error writing snapshot trigger: %s", e)
 
                 has_snap = (
                     Path(self.config.storage.snapshots_dir) / f"snap_{log_id}.npz"

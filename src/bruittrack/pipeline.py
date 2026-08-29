@@ -196,7 +196,25 @@ class Engine:
 
         self.store.maybe_flush()
         self._tick_count += 1
+        if self._tick_count % 3 == 0:
+            self._check_snapshot_requests()
         return psd1, psd2, em1, em2, events
+
+    def _check_snapshot_requests(self) -> None:
+        """Check for external snapshot triggers from the web viz process."""
+        sdir = Path(self.config.storage.snapshots_dir)
+        if sdir.is_dir():
+            for req_file in sdir.glob("req_*.trigger"):
+                try:
+                    disc_id = int(req_file.stem.split("_")[1])
+                    self.capture_discomfort_snapshot(disc_id)
+                except Exception as e:
+                    logger.warning("Error processing snapshot trigger %s: %s", req_file, e)
+                finally:
+                    try:
+                        req_file.unlink(missing_ok=True)
+                    except OSError:
+                        pass
 
     def _check_capture_health(self) -> None:
         """Warn sur SLOW_BLOCK_STREAK blocs de capture lents consecutifs."""
