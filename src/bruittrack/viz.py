@@ -620,7 +620,7 @@ async function fetchWindow() { // I54/I55 : fenêtre ?since= dynamique — charg
 }
 
 function refreshWindowed() { // I54 : vue zoomée → fetch de la fenêtre puis dessin
-  if (tlMode) return Promise.resolve().then(fetchWindow).then(() => drawTimelineFull());
+  if (tlMode) return Promise.resolve().then(fetchWindow).then(fetchSpectrum).then(() => drawTimelineFull());
   drawTimelineFull();
 }
 
@@ -676,13 +676,13 @@ function resetFviews() { // I54 : double-clic / Échap / badge → vues par déf
 })();
 
 async function refreshAll() {
+  const specPromise = fetchSpectrum(); // Démarrage immédiat en parallèle
+  const discPromise = fetchDiscomfortLogs();
   const [stats, events, clusters] = await Promise.all([
     fetchJson('/api/stats'),
     fetchJson('/api/events?limit=20000'), // I55: plus de plafond 200 — fenêtre ?since= déleste le éventail complet
     fetchJson('/api/clusters')
   ]);
-  fetchSpectrum(); // I63 : heatmap spectre (async, non bloquant)
-  fetchDiscomfortLogs(); // Journal des gênes
 
   if (stats) {
     document.getElementById('statEvents').innerText = stats.total_events || 0;
@@ -705,7 +705,7 @@ async function refreshAll() {
     renderClustersTable(clusters);
     fillClusterFilter(clusters); // liste déroulante I41
   }
-  await fetchWindow(); // I55 : tous les événements de la plage sélectionnée (plus de plafond figé)
+  await Promise.all([fetchWindow(), specPromise, discPromise]); // Attente sans blocage sérialisé
   drawTimelineFull();
   lastMajTs = Date.now() / 1000; renderMaj(); startMajTick(); // I53/I56 : badge MAJ après chargement réussi
 }
@@ -843,6 +843,7 @@ function setTimeWin(seconds) {
   tlMode = null; // les boutons de fenêtre annulent le zoom au pinceau
   syncTlButtons();
   drawTimelineFull();
+  fetchSpectrum();
 }
 
 // Synchronise la mise en surbrillance des boutons avec la plage active (I39)
@@ -1123,10 +1124,10 @@ function drawTimeline(events) {
     // même si la fenêtre contient zéro événement : l'ancrage du zoom doit rester stable,
     // sinon chaque redraw recentre sur Date.now() et le point sous le curseur dérive.
     timeSpan = tlMode.span; minT = tlMode.minT;
-  } else if (evs.length === 0) { // I48 : graphe vide → horizon 6 h (bootstrap uniquement)
-    timeSpan = 21600; minT = now - timeSpan;
-  } else if (timeWindow) { // fenêtre glissante 1h/6h/24h
+  } else if (timeWindow) { // fenêtre glissante 1h/6h/24h (prioritaire sur graphe vide pour éviter le saut 6h -> 24h)
     timeSpan = timeWindow; minT = now - timeWindow;
+  } else if (evs.length === 0) { // Tout sans événement : horizon 24 h
+    timeSpan = 86400; minT = now - timeSpan;
   } else { // Tout : plage recouvrant tous les événements + horizon présent
     const ts = evs.map(e => e.t0);
     const maxT = Math.max(now, ...ts);
@@ -1231,42 +1232,68 @@ function drawTimeline(events) {
   drawSpecPanel(); // I63 : heatmap spectre alignée sur la même échelle temps (tlScale à jour)
 }
 
-// ===== I63 : historique spectre — heatmap bandes log sous la timeline =====
+// ===== I63 : historique spectre — heatmap PNG générée côté serveur =====
 // Config injectée côté serveur (placeholders remplacés par BruitTrackHandler).
 const SPEC = { enabled: __SPEC_ENABLED__, bands: __SPEC_BANDS__, dbMin: __SPEC_DB_MIN__, dbRange: __SPEC_DB_RANGE__ };
 const EXEMPLARS_ENABLED = __EXEMPLARS_ENABLED__;
-let specRows = [];
+let specImg = null;
+let specImgKey = null;
+let fetchingSpec = false;
 let specShow = true;
-let specEdges = null;
 
 function toggleSpectrum() {
   if (!SPEC.enabled) return;
   specShow = !specShow;
   document.getElementById('toggleSpec').classList.toggle('btn-active', specShow);
   document.getElementById('specCanvas').style.display = specShow ? 'block' : 'none';
+  if (specShow) fetchSpectrum(true);
   drawTimelineFull();
 }
 
-async function fetchSpectrum() {
-  if (!SPEC.enabled) return;
-  // Plafond 20000 lignes ≈ 14 jours à 1 ligne/min (au-delà : zoomer puis recharger)
-  const got = await fetchJson('/api/spectrum?limit=20000');
-  if (got && Array.isArray(got.rows)) specRows = got.rows;
+async function fetchSpectrum(force = false) {
+  if (!SPEC.enabled || !specShow) return;
+  const now = Date.now() / 1000;
+  let minT, span;
+  if (tlScale) {
+    minT = tlScale.minT; span = tlScale.span;
+  } else if (tlMode) {
+    minT = tlMode.minT; span = tlMode.span;
+  } else if (timeWindow) {
+    minT = now - timeWindow; span = timeWindow;
+  } else {
+    minT = (dataSince !== null ? dataSince : now - 86400);
+    span = Math.max(3600, now - minT);
+  }
+  const fb = freqBounds();
+  let ch = 'both';
+  if (showCh.l && !showCh.d) ch = 'l';
+  else if (!showCh.l && showCh.d) ch = 'd';
+
+  const wCss = TL_CKWW || 1000;
+  const specW = Math.max(100, Math.round(wCss - 50));
+  const key = [Math.round(minT), Math.round(span), specW, fb[0].toFixed(1), fb[1].toFixed(1), ch].join('|');
+
+  if (!force && specImgKey === key) return;
+  if (fetchingSpec) return;
+
+  fetchingSpec = true;
+  const url = `/api/spectrum.png?since=${minT}&until=${minT + span}&width=${specW}&f_lo=${fb[0]}&f_hi=${fb[1]}&ch=${ch}&_t=${Date.now()}`;
+  const img = new Image();
+  img.onload = () => {
+    specImg = img;
+    specImgKey = key;
+    fetchingSpec = false;
+    drawSpecPanel();
+  };
+  img.onerror = () => {
+    fetchingSpec = false;
+  };
+  img.src = url;
 }
 
 function specBandEdge(i, nb) { // bords linéaires identiques au serveur (SpectrumAggregator.band_edges)
   return MIN_EVENT_HZ + (FREQ_MAX - MIN_EVENT_HZ) * (i / (nb || SPEC.bands));
 }
-
-function specColor(t) { // noir -> bleu -> cyan -> jaune -> rouge
-  if (t < 0.25) { const k = t * 4; return 'rgb(' + Math.round(8 + k * 20) + ',' + Math.round(12 + k * 45) + ',' + Math.round(18 + k * 120) + ')'; }
-  if (t < 0.5) { const k = (t - 0.25) * 4; return 'rgb(' + Math.round(28 + k * 30) + ',' + Math.round(57 + k * 95) + ',' + Math.round(138 + k * 105) + ')'; }
-  if (t < 0.75) { const k = (t - 0.5) * 4; return 'rgb(' + Math.round(58 + k * 180) + ',' + Math.round(152 + k * 70) + ',' + Math.round(243 - k * 180) + ')'; }
-  const k = (t - 0.75) * 4; return 'rgb(' + Math.round(238 + k * 17) + ',' + Math.round(222 - k * 150) + ',' + Math.round(63 - k * 63) + ')';
-}
-
-// Cache du rendu heatmap
-let specCache = { key: null, cv: null };
 
 function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale (même axe X)
   const cv = document.getElementById('specCanvas');
@@ -1283,110 +1310,63 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   const ctx = cv.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  const minT = tlScale.minT, span = tlScale.span;
-  const lastT = specRows.length ? specRows[specRows.length - 1].t0 : 0;
-  const fb = freqBounds(); // Y-axis bounds from current frequency zoom
-  const key = [minT, span, wCss, hCss, dpr, specRows.length, lastT, showCh.l, showCh.d, fb[0].toFixed(1), fb[1].toFixed(1)].join('|');
+  ctx.clearRect(0, 0, wCss, hCss);
+  ctx.fillStyle = '#080c12';
+  ctx.fillRect(0, 0, wCss, hCss);
 
-  if (specCache.key !== key) { // recompute complet UNIQUEMENT sur changement réel
-    if (!specCache.cv) specCache.cv = document.createElement('canvas');
-    const off = specCache.cv;
-    if (off.width !== bw || off.height !== bh) { off.width = bw; off.height = bh; }
-    const octx = off.getContext('2d');
-    octx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    octx.clearRect(0, 0, wCss, hCss);
-    octx.fillStyle = '#080c12'; octx.fillRect(0, 0, wCss, hCss);
+  const x0 = 40, x1 = wCss - 10;
+  const y0 = 4, y1 = hCss - 4;
+  const fb = freqBounds();
 
-    const x0 = 40, x1 = wCss - 10;
-    // Axe Y aligné avec la vue zoomée dynamique freqBounds()
-    const yOfHz = (f) => 4 + (fb[1] - Math.min(Math.max(f, fb[0]), fb[1])) / Math.max(0.1, fb[1] - fb[0]) * (hCss - 8);
-
-    if (!specRows.length) { // état vide
-      octx.fillStyle = '#64748b'; octx.font = '12px monospace'; octx.textAlign = 'center';
-      octx.fillText("Pas encore d'historique spectre", wCss / 2, hCss / 2);
-      octx.textAlign = 'left';
-    }
-
-    const qOf = (raw, b) => { // max des canaux visibles pour la bande b
-      if (showCh.l && showCh.d) return Math.max(raw.charCodeAt(b * 4 + 1), raw.charCodeAt(b * 4 + 3));
-      if (showCh.l) return raw.charCodeAt(b * 4 + 1);
-      return raw.charCodeAt(b * 4 + 3);
-    };
-
-    const vis = [];
-    const allQs = [];
-    for (const r of specRows) {
-      const tEnd = r.t0 + r.dur;
-      if (tEnd < minT || r.t0 > minT + span) continue;
-      if (!r._raw) r._raw = atob(r.data); // décodage mémoïsé par ligne
-      vis.push(r);
-      for (let b = 0; b < r.n_bands; b++) {
-        const eLo = specBandEdge(b, r.n_bands), eHi = specBandEdge(b + 1, r.n_bands);
-        if (eHi < fb[0] || eLo > fb[1]) continue;
-        const q = qOf(r._raw, b);
-        if (q > 0) allQs.push(q);
-      }
-    }
-
-    // Contraste global réaliste (p5..p98) sur toute la vue visible
-    let qLo = 20, qHi = 100;
-    if (allQs.length > 30) {
-      allQs.sort(function (a, b) { return a - b; });
-      qLo = allQs[Math.floor(0.05 * (allQs.length - 1))];
-      qHi = allQs[Math.floor(0.98 * (allQs.length - 1))];
-      if (qHi <= qLo + 6) qHi = qLo + 25;
-    }
-
-    for (const r of vis) {
-      const tEnd = r.t0 + r.dur;
-      let xa = Math.max(x0, x0 + ((r.t0 - minT) / span) * (x1 - x0));
-      const xb = Math.min(x1, x0 + ((tEnd - minT) / span) * (x1 - x0));
-      if (xb <= xa) continue;
-      const colW = Math.max(1, xb - xa);
-      for (let b = 0; b < r.n_bands; b++) {
-        const eLo = specBandEdge(b, r.n_bands), eHi = specBandEdge(b + 1, r.n_bands);
-        if (eHi < fb[0] || eLo > fb[1]) continue; // bande hors de la vue Y zoomée
-        const q = qOf(r._raw, b);
-        const yA = yOfHz(eLo), yB = yOfHz(eHi);
-        const yT = Math.min(yA, yB), hh = Math.max(1, Math.abs(yB - yA));
-        const t = Math.max(0, Math.min(1, (q - qLo) / Math.max(1, qHi - qLo)));
-        octx.fillStyle = specColor(t);
-        octx.fillRect(xa, yT, colW, hh);
-      }
-    }
-    specCache.key = key;
+  if (specImg && specImg.complete && specImg.naturalWidth > 0) {
+    ctx.drawImage(specImg, x0, y0, x1 - x0, y1 - y0);
+  } else {
+    ctx.fillStyle = '#64748b'; ctx.font = '12px monospace'; ctx.textAlign = 'center';
+    ctx.fillText("Chargement du spectre...", wCss / 2, hCss / 2);
+    ctx.textAlign = 'left';
   }
 
-  // Blit 1:1 du cache + habillage léger (labels, dash) à chaque frame
-  ctx.clearRect(0, 0, wCss, hCss);
-  ctx.drawImage(specCache.cv, 0, 0, wCss, hCss);
+  const yOfHz2 = (f) => y0 + (fb[1] - Math.min(Math.max(f, fb[0]), fb[1])) / Math.max(0.1, fb[1] - fb[0]) * (y1 - y0);
 
-  const yOfHz2 = (f) => 4 + (fb[1] - Math.min(Math.max(f, fb[0]), fb[1])) / Math.max(0.1, fb[1] - fb[0]) * (hCss - 8);
+  // Fil horizontal sous le curseur (repérage de fréquence instantané)
+  if (hoverYpx != null && hoverYpx >= 20 && hoverYpx <= TL_CKVH - 20) {
+    const fHover = yToFreq(hoverYpx);
+    const ys = yOfHz2(fHover);
+    if (ys >= y0 && ys <= y1) {
+      ctx.strokeStyle = 'rgba(147,197,253,.65)'; ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]); sharpLine(ctx, x0, ys, x1, ys); ctx.setLineDash([]);
+      ctx.fillStyle = '#93c5fd'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
+      ctx.fillText(fHover.toFixed(1) + ' Hz', 36, ys + 4); ctx.textAlign = 'left';
+    }
+  }
 
   // Marqueurs de gêne sur le spectrogramme
-  discomfortLogs.forEach(dl => {
-    if (dl.t0 >= minT - 1e-9 && dl.t0 <= minT + span + 1e-9) {
-      const x = 40 + ((dl.t0 - minT) / span) * (wCss - 50);
-      if (x >= 40 && x <= wCss - 10) {
-        ctx.save();
-        ctx.strokeStyle = dl.level >= 4 ? '#ef4444' : '#f59e0b';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([4, 3]);
-        ctx.beginPath();
-        ctx.moveTo(x, 4);
-        ctx.lineTo(x, hCss - 4);
-        ctx.stroke();
-        ctx.restore();
+  const minT = tlScale.minT, span = tlScale.span;
+  if (discomfortLogs && discomfortLogs.length > 0) {
+    discomfortLogs.forEach(dl => {
+      if (dl.t0 >= minT - 1e-9 && dl.t0 <= minT + span + 1e-9) {
+        const x = x0 + ((dl.t0 - minT) / span) * (x1 - x0);
+        if (x >= x0 && x <= x1) {
+          ctx.save();
+          ctx.strokeStyle = dl.level >= 4 ? '#ef4444' : '#f59e0b';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          ctx.moveTo(x, y0);
+          ctx.lineTo(x, y1);
+          ctx.stroke();
+          ctx.restore();
+        }
       }
-    }
-  });
+    });
+  }
 
   // Limite f_min (si dans la vue)
   if (MIN_EVENT_HZ >= fb[0] && MIN_EVENT_HZ <= fb[1]) {
     const yMin = Math.round(yOfHz2(MIN_EVENT_HZ));
     ctx.strokeStyle = 'rgba(245,158,11,.5)';
     ctx.setLineDash([4, 4]);
-    ctx.beginPath(); ctx.moveTo(40, yMin + 0.5); ctx.lineTo(wCss - 10, yMin + 0.5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x0, yMin + 0.5); ctx.lineTo(x1, yMin + 0.5); ctx.stroke();
     ctx.setLineDash([]);
   }
 
@@ -1396,6 +1376,10 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   for (let f = Math.ceil(fb[0] / hzStep) * hzStep; f <= fb[1] + 1e-6; f += hzStep)
     ctx.fillText(Math.round(f) + ' Hz', 36, Math.min(hCss - 2, yOfHz2(f) + 4));
   ctx.textAlign = 'left';
+
+  // Label d'axe vertical en haut à gauche
+  ctx.fillStyle = '#64748b'; ctx.font = '11px monospace';
+  ctx.fillText('Spectre ' + fb[0].toFixed(0) + '..' + fb[1].toFixed(0) + ' Hz', x0 + 4, y0 + 12);
 }
 
 // ===== Zoom par brushing sur la timeline (I39) : glisser / touch = plage temps, double-clic/Esc = réinit =====
@@ -1582,6 +1566,7 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
             ).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)
@@ -1648,8 +1633,13 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
                 since_spec = float(qs["since"][0]) if "since" in qs else None
                 until_spec = float(qs["until"][0]) if "until" in qs else None
                 raw_limit_spec = int(qs.get("limit", [20000])[0])
+                order_spec = qs.get("order", ["asc"])[0].lower()
+                step_spec = max(1, int(qs.get("step", [1])[0]))
             except (ValueError, IndexError):
                 self.send_error(400, "Paramètre de requête invalide")
+                return
+            if order_spec not in ("asc", "desc"):
+                self.send_error(400, "order doit valoir 'asc' ou 'desc'")
                 return
             if raw_limit_spec <= 0:
                 self.send_error(400, "limit doit > 0")
@@ -1664,11 +1654,49 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
             self._send_json(
                 {
                     "rows": self.store.get_spectrum(
-                        since=since_spec, until=until_spec, limit=limit_spec
+                        since=since_spec,
+                        until=until_spec,
+                        limit=limit_spec,
+                        order=order_spec,
+                        step=step_spec,
                     ),
                     "edges": edges,
                 }
             )
+            return
+
+        if path == "/api/spectrum.png":
+            try:
+                since_spec = float(qs["since"][0]) if "since" in qs else None
+                until_spec = float(qs["until"][0]) if "until" in qs else None
+                width_spec = int(qs.get("width", [1000])[0])
+                f_lo_spec = float(qs["f_lo"][0]) if "f_lo" in qs else None
+                f_hi_spec = float(qs["f_hi"][0]) if "f_hi" in qs else None
+                ch_spec = qs.get("ch", ["both"])[0].lower()
+            except (ValueError, IndexError):
+                self.send_error(400, "Paramètre de requête invalide")
+                return
+
+            if ch_spec not in ("both", "l", "d"):
+                ch_spec = "both"
+
+            png_bytes = self.store.get_spectrum_png(
+                since=since_spec,
+                until=until_spec,
+                target_width=width_spec,
+                n_bands=self.config.spectrum.n_bands,
+                min_hz=self.config.dsp.min_event_hz,
+                max_hz=self.config.dsp.freq_max,
+                f_lo=f_lo_spec,
+                f_hi=f_hi_spec,
+                channel=ch_spec,
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.send_header("Content-Length", str(len(png_bytes)))
+            self.end_headers()
+            self.wfile.write(png_bytes)
             return
 
         if path == "/api/discomfort":

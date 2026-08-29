@@ -138,6 +138,29 @@ class TestStoreSpectrum:
         assert len(store.get_spectrum(until=1060.0)) == 2
         assert len(store.get_spectrum(limit=3)) == 3
 
+    def test_order_asc_desc_and_validation(self):
+        store = EventStore(db_path=":memory:")
+        for i in range(5):
+            store.add_spectrum(1000.0 + i * 60.0, 60.0, 1, b"\x00\x01\x02\x03")
+        store.flush()
+        asc_rows = store.get_spectrum(order="asc")
+        assert asc_rows[0]["t0"] == pytest.approx(1000.0)
+        assert asc_rows[-1]["t0"] == pytest.approx(1240.0)
+
+        desc_rows = store.get_spectrum(order="desc")
+        assert desc_rows[0]["t0"] == pytest.approx(1240.0)
+        assert desc_rows[-1]["t0"] == pytest.approx(1000.0)
+
+        # Test step downsampling
+        step2_rows = store.get_spectrum(step=2)
+        assert len(step2_rows) == 3
+        assert step2_rows[0]["t0"] == pytest.approx(1000.0)
+        assert step2_rows[1]["t0"] == pytest.approx(1120.0)
+        assert step2_rows[0]["dur"] == pytest.approx(120.0)
+
+        with pytest.raises(ValueError, match="order doit valoir"):
+            store.get_spectrum(order="invalid")
+
     def test_retention_spectrum_only(self):
         store = EventStore(db_path=":memory:")
         store.add_spectrum(1000.0, 60.0, 1, b"\x00" * 4)
@@ -248,6 +271,18 @@ class TestVizApiSpectrum:
             assert all(d > 0 for d in diffs)
             assert max(abs(d - diffs[0]) for d in diffs) < 0.01 if len(diffs) > 1 else True
             assert edges[0] == cfg.min_event_hz and edges[-1] == cfg.freq_max
+
+            # Test order=desc
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/spectrum?order=desc") as resp:
+                payload_desc = _json.loads(resp.read())
+            assert len(payload_desc["rows"]) == 1
+
+            # Test invalid order -> 400
+            import urllib.error
+
+            with pytest.raises(urllib.error.HTTPError) as exc_info:
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/api/spectrum?order=invalid")
+            assert exc_info.value.code == 400
         finally:
             server.shutdown()
             server.server_close()
@@ -268,3 +303,63 @@ class TestVizApiSpectrum:
         assert len(rows) == 1
         assert rows[0]["t0"] == pytest.approx(now - 5 * 86400)
         store.close()
+
+    def test_get_spectrum_png_generation(self, tmp_path):
+        """Vérifie la génération d'image PNG avec max-pooling vectorisé."""
+        store = EventStore(db_path=str(tmp_path / "spec_png.db"))
+        # Test DB vide -> PNG foncé retourné sans planter
+        empty_png = store.get_spectrum_png(target_width=100)
+        assert empty_png.startswith(b"\x89PNG\r\n\x1a\n")
+
+        now = 1_700_000_000.0
+        # Ajouter 10 tranches de 150 bandes
+        for i in range(10):
+            blob = bytearray(150 * 4)
+            for b in range(150):
+                blob[b * 4 + 1] = (b * 2) % 255  # canal G
+                blob[b * 4 + 3] = (b * 3) % 255  # canal D
+            store.add_spectrum(now + i * 5.0, 5.0, 150, bytes(blob))
+        store.flush()
+
+        png_all = store.get_spectrum_png(since=now, until=now + 50.0, target_width=200)
+        assert png_all.startswith(b"\x89PNG\r\n\x1a\n")
+        assert len(png_all) > 100
+
+        # Test avec zoom fréquentiel et sélection canal
+        png_zoom = store.get_spectrum_png(
+            since=now, until=now + 50.0, target_width=200, f_lo=10.0, f_hi=50.0, channel="l"
+        )
+        assert png_zoom.startswith(b"\x89PNG\r\n\x1a\n")
+        store.close()
+
+    def test_api_spectrum_png_endpoint(self, tmp_path):
+        """Vérifie la route HTTP /api/spectrum.png."""
+        import threading
+        import urllib.request
+
+        from bruittrack import viz as viz_mod
+
+        store = EventStore(db_path=str(tmp_path / "spec_api_png.db"))
+        store.add_spectrum(1700000000.0, 5.0, 150, b"\x20" * 600)
+        store.flush()
+
+        config = Config()
+        handler = type("H", (viz_mod.BruitTrackHandler,), {"store": store, "config": config})
+        server = __import__("http.server", fromlist=["ThreadingHTTPServer"]).ThreadingHTTPServer(
+            ("127.0.0.1", 0), handler
+        )
+        port = server.server_address[1]
+        th = threading.Thread(target=server.serve_forever, daemon=True)
+        th.start()
+        try:
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/spectrum.png?width=500"
+            ) as resp:
+                assert resp.status == 200
+                assert resp.headers.get("Content-Type") == "image/png"
+                data = resp.read()
+                assert data.startswith(b"\x89PNG\r\n\x1a\n")
+        finally:
+            server.shutdown()
+            server.server_close()
+            store.close()

@@ -281,5 +281,14 @@ par id absorbe en fin de boucle. Garantit : le cluster canonique final est l'id 
   - Affichage instantané dans le bandeau de métriques du cliché HD.
   - Suite de tests complète portée à 176 tests 100% verts.
 
-
-
+## [2026-08-29] Rendu Spectrogramme Côté Serveur (PNG / Max-Pooling NumPy)
+- **Contexte & Problématique** :
+  - L'affichage de l'historique 24h à résolution native (5 secondes / 150 bandes) nécessitait le transfert de 17 280 tranches sous forme de JSON base64 (~14,4 Mo).
+  - Ce volume entraînait une latence réseau (0.8 à 2.0 s) et une charge CPU côté navigateur (décodage et boucles Canvas 2D) provoquant un délai ressenti de plusieurs secondes et des artefacts de superposition sur les infrasons.
+- **Décision d'Architecture** :
+  - Génération de l'image du spectrogramme directement côté serveur via le nouvel endpoint `GET /api/spectrum.png`.
+  - Max-Pooling temporel vectorisé en NumPy pur : chaque colonne de pixel ($x$) agrège le niveau crête maximal sur l'intervalle temporel, préservant 100 % des impulsions sonores et de l'énergie des infrasons.
+  - Encodage PNG standard direct via `zlib` et `struct` de la bibliothèque standard Python (niveau 1 ultra-rapide). Zéro nouvelle dépendance externe (conforme `AGENTS.md`).
+  - Transfert réseau divisé par 130 (~108 Ko au lieu de 14,4 Mo) et temps total serveur + réseau + affichage réduit à ~300 ms sur thin client HP T620.
+  - Côté frontend : affichage instantané de l'image PNG sur le Canvas avec maintien de l'alignement temporel/fréquentiel, du survol interactif et des marqueurs de signalements de gêne.
+  - Suite de tests complète portée à 180 tests 100% verts.

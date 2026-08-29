@@ -15,9 +15,11 @@ import logging
 import os
 import re
 import sqlite3
+import struct
 import threading
 import time
 import wave
+import zlib
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -63,15 +65,66 @@ def cursor(
     conn = sqlite3.connect(str(path), timeout=timeout_s, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     try:
+        conn.execute("PRAGMA mmap_size = 67108864;")  # 64 Mo mmap zero-copy en RAM
+        conn.execute("PRAGMA cache_size = -32000;")  # 32 Mo cache de pages
+        conn.execute("PRAGMA temp_store = MEMORY;")
         if readonly:
             conn.execute("PRAGMA query_only = ON;")
         else:
             conn.execute("PRAGMA journal_mode = WAL;")
             conn.execute("PRAGMA synchronous = NORMAL;")
-            conn.execute("PRAGMA temp_store = MEMORY;")
         yield conn
     finally:
         conn.close()
+
+
+def encode_png_rgb(rgb_arr: np.ndarray, compress_level: int = 1) -> bytes:
+    """Encode HxWx3 uint8 numpy array to standard PNG bytes using stdlib zlib."""
+    h, w, c = rgb_arr.shape
+    if c != 3 or rgb_arr.dtype != np.uint8:
+        raise ValueError("Expected HxWx3 uint8 array")
+    line_len = w * 3 + 1
+    raw_lines = bytearray(h * line_len)
+    rgb_bytes = rgb_arr.tobytes()
+    row_bytes = w * 3
+    for y in range(h):
+        raw_lines[y * line_len + 1 : (y + 1) * line_len] = rgb_bytes[
+            y * row_bytes : (y + 1) * row_bytes
+        ]
+    compressed = zlib.compress(raw_lines, level=compress_level)
+
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(data))
+            + tag
+            + data
+            + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+        )
+
+    png = bytearray(b"\x89PNG\r\n\x1a\n")
+    ihdr = struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)
+    png += chunk(b"IHDR", ihdr)
+    png += chunk(b"IDAT", compressed)
+    png += chunk(b"IEND", b"")
+    return bytes(png)
+
+
+# Palette de couleurs précalculée Inferno / Viridis (256x3 uint8)
+SPECTRUM_COLORMAP = np.zeros((256, 3), dtype=np.uint8)
+for _i in range(256):
+    _t = _i / 255.0
+    if _t < 0.25:
+        _k = _t * 4
+        SPECTRUM_COLORMAP[_i] = [int(8 + _k * 20), int(12 + _k * 45), int(18 + _k * 120)]
+    elif _t < 0.5:
+        _k = (_t - 0.25) * 4
+        SPECTRUM_COLORMAP[_i] = [int(28 + _k * 30), int(57 + _k * 95), int(138 + _k * 105)]
+    elif _t < 0.75:
+        _k = (_t - 0.5) * 4
+        SPECTRUM_COLORMAP[_i] = [int(58 + _k * 180), int(152 + _k * 70), int(243 - _k * 180)]
+    else:
+        _k = (_t - 0.75) * 4
+        SPECTRUM_COLORMAP[_i] = [int(238 + _k * 17), int(222 - _k * 150), int(63 - _k * 63)]
 
 
 class EventStore:
@@ -158,6 +211,7 @@ class EventStore:
 
                 CREATE INDEX IF NOT EXISTS idx_events_t0 ON events(t0);
                 CREATE INDEX IF NOT EXISTS idx_events_cluster ON events(cluster);
+                CREATE INDEX IF NOT EXISTS idx_events_cluster_t0 ON events(cluster, t0);
 
                 CREATE TABLE IF NOT EXISTS clusters (
                     id INTEGER PRIMARY KEY,
@@ -499,12 +553,20 @@ class EventStore:
         since: float | None = None,
         until: float | None = None,
         limit: int = 20000,
+        order: str = "asc",
+        step: int = 1,
     ) -> list[dict[str, Any]]:
-        """Fetch spectrum history rows (thread-safe read), oldest first.
+        """Fetch spectrum history rows (thread-safe read).
 
+        order: "asc" (chronologique ancien -> récent) ou "desc" (plus récents d'abord).
+        step: sous-échantillonnage régulier (1 = toutes les tranches, >1 = 1 tranche sur step)
+              pour accélérer drastiquement les transferts sur les vues temporelles larges.
         Chaque ligne : {t0, dur, n_bands, data} avec data en base64 (blob uint8
         n_bands×[min_g, max_g, min_d, max_d]).
         """
+        if order not in ("asc", "desc"):
+            raise ValueError("order doit valoir 'asc' ou 'desc'")
+        step = max(1, int(step))
         self.flush()
         limit = max(1, min(int(limit), 50_000))
         query = "SELECT t0, dur, n_bands, data FROM spectrum WHERE 1=1"
@@ -515,18 +577,112 @@ class EventStore:
         if until is not None:
             query += " AND t0 <= ?"
             params.append(until)
-        query += " ORDER BY t0 ASC LIMIT ?"
+        query += f" ORDER BY t0 {order.upper()} LIMIT ?"
         params.append(limit)
         with self._db(readonly=True) as conn:
+            raw_rows = conn.execute(query, params).fetchall()
+            if step > 1:
+                raw_rows = raw_rows[::step]
             return [
                 {
                     "t0": row["t0"],
-                    "dur": row["dur"],
+                    "dur": row["dur"] * step,
                     "n_bands": row["n_bands"],
                     "data": base64.b64encode(bytes(row["data"])).decode("ascii"),
                 }
-                for row in conn.execute(query, params).fetchall()
+                for row in raw_rows
             ]
+
+    def get_spectrum_png(
+        self,
+        since: float | None = None,
+        until: float | None = None,
+        target_width: int = 1000,
+        n_bands: int = 150,
+        min_hz: float = 2.0,
+        max_hz: float = 150.0,
+        f_lo: float | None = None,
+        f_hi: float | None = None,
+        channel: str = "both",
+    ) -> bytes:
+        """Génère une image PNG du spectrogramme avec Max-Pooling vectorisé NumPy.
+
+        Préserve 100% des crêtes sonores et infrasons, encodée en PNG standard
+        optimisé pour un affichage instantané et un transfert ultra-léger (< 120 Ko).
+        """
+        self.flush()
+        target_width = max(10, min(int(target_width), 4000))
+        query = "SELECT t0, dur, data FROM spectrum WHERE 1=1"
+        params: list[Any] = []
+        if since is not None:
+            query += " AND t0 >= ?"
+            params.append(since)
+        if until is not None:
+            query += " AND t0 <= ?"
+            params.append(until)
+        query += " ORDER BY t0 ASC"
+
+        with self._db(readonly=True) as conn:
+            rows = conn.execute(query, params).fetchall()
+
+        if not rows:
+            empty = np.full((n_bands, target_width, 3), [8, 12, 18], dtype=np.uint8)
+            return encode_png_rgb(empty)
+
+        n_slices = len(rows)
+        raw_bytes = b"".join(r["data"] for r in rows)
+        arr = np.frombuffer(raw_bytes, dtype=np.uint8).reshape(n_slices, n_bands, 4)
+
+        if channel == "l":
+            data_2d = arr[:, :, 1]
+        elif channel == "d":
+            data_2d = arr[:, :, 3]
+        else:
+            data_2d = np.maximum(arr[:, :, 1], arr[:, :, 3])
+
+        edges = np.linspace(min_hz, max_hz, n_bands + 1)
+        if f_lo is not None or f_hi is not None:
+            f0 = max(min_hz, float(f_lo) if f_lo is not None else min_hz)
+            f1 = min(max_hz, float(f_hi) if f_hi is not None else max_hz)
+            b0 = int(np.clip(np.searchsorted(edges, f0, side="left"), 0, n_bands - 1))
+            b1 = int(np.clip(np.searchsorted(edges, f1, side="right"), 1, n_bands))
+            data_2d = data_2d[:, b0:b1]
+
+        n_kept_bands = data_2d.shape[1]
+
+        # Max-Pooling vectorisé par colonne de pixels
+        if n_slices >= target_width:
+            idx = np.linspace(0, n_slices, target_width + 1, dtype=int)
+            matrix = np.zeros((target_width, n_kept_bands), dtype=np.uint8)
+            for i in range(target_width):
+                s0, s1 = idx[i], idx[i + 1]
+                if s1 > s0:
+                    matrix[i] = np.max(data_2d[s0:s1], axis=0)
+                elif s0 < n_slices:
+                    matrix[i] = data_2d[s0]
+        else:
+            idx = np.clip(np.linspace(0, n_slices - 1, target_width, dtype=int), 0, n_slices - 1)
+            matrix = data_2d[idx]
+
+        # Inverser l'axe Y : fréquences hautes en haut, infrasons en bas
+        img_bands = np.flipud(matrix.T)  # shape (n_kept_bands, target_width)
+
+        # Contraste percentiles p5..p98
+        non_zero = img_bands[img_bands > 0]
+        if len(non_zero) > 30:
+            p5 = float(np.percentile(non_zero, 5))
+            p98 = float(np.percentile(non_zero, 98))
+            if p98 <= p5 + 6:
+                p98 = p5 + 25.0
+        else:
+            p5, p98 = 20.0, 100.0
+
+        norm = np.clip(
+            (img_bands.astype(np.float32) - p5) / max(1.0, p98 - p5) * 255.0, 0, 255
+        ).astype(np.uint8)
+        rgb = SPECTRUM_COLORMAP[norm]
+
+        return encode_png_rgb(rgb)
 
     def get_stats(self) -> dict[str, Any]:
         """Get aggregate statistics (thread-safe read)."""
