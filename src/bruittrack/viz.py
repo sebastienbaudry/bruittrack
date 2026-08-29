@@ -863,6 +863,7 @@ function syncEventsToTable() {
 function drawTimelineFull(shouldSyncTable = true) { // I59 : la source est TOUJOURS eventsData (brut) — lastVisible n'est qu'une SORTIE de vue ;
   drawTimeline(filterEvents(eventsData)); // le réutiliser en entrée amputait définitivement les points hors de la vue précédente (zoom → dézoom vide)
   if (shouldSyncTable) syncEventsToTable(); // false pour redraws cosmetiques (survol, pan, brush en cours) sans rebuild du tableau
+  drawSpecPanel();
   if (SPEC && SPEC.enabled && specShow) fetchSpectrum();
 }
 
@@ -1255,8 +1256,6 @@ function drawTimeline(events) {
     ctx.fillText('Aucun événement visible sur la plage affichée', w / 2, h / 2 - 10);
     ctx.textAlign = 'left';
   }
-
-  drawSpecPanel(); // I63 : heatmap spectre alignée sur la même échelle temps (tlScale à jour)
 }
 
 // ===== I63 : historique spectre — heatmap PNG générée côté serveur =====
@@ -1265,6 +1264,7 @@ const SPEC = { enabled: __SPEC_ENABLED__, bands: __SPEC_BANDS__, dbMin: __SPEC_D
 const EXEMPLARS_ENABLED = __EXEMPLARS_ENABLED__;
 let specImg = null;
 let specImgKey = null;
+let specRequestedKey = null;
 let fetchingSpec = false;
 let specShow = true;
 
@@ -1273,48 +1273,55 @@ function toggleSpectrum() {
   specShow = !specShow;
   document.getElementById('toggleSpec').classList.toggle('btn-active', specShow);
   document.getElementById('specCanvas').style.display = specShow ? 'block' : 'none';
+  const overlay = document.getElementById('specOverlay');
+  if (overlay && !specShow) overlay.style.display = 'none';
   if (specShow) fetchSpectrum(true);
   drawTimelineFull();
 }
 
-async function fetchSpectrum(force = false) {
-  if (!SPEC.enabled || !specShow) return;
-  const now = Date.now() / 1000;
-  let minT, span;
-  if (tlScale) {
-    minT = tlScale.minT; span = tlScale.span;
-  } else if (tlMode) {
-    minT = tlMode.minT; span = tlMode.span;
-  } else if (timeWindow) {
-    minT = now - timeWindow; span = timeWindow;
-  } else {
-    minT = (dataSince !== null ? dataSince : now - 86400);
-    span = Math.max(3600, now - minT);
-  }
+function getSpecKey() {
+  if (!tlScale) return null;
+  const minT = tlScale.minT, span = tlScale.span;
   const fb = freqBounds();
   let ch = 'both';
   if (showCh.l && !showCh.d) ch = 'l';
   else if (!showCh.l && showCh.d) ch = 'd';
-
   const wCss = TL_CKWW || 1000;
   const specW = Math.max(100, Math.round(wCss - 50));
-  const key = [Math.round(minT), Math.round(span), specW, fb[0].toFixed(1), fb[1].toFixed(1), ch].join('|');
+  const keyStr = [Math.round(minT), Math.round(span), specW, fb[0].toFixed(1), fb[1].toFixed(1), ch].join('|');
+  return { minT, span, specW, fb, ch, keyStr };
+}
 
-  if (!force && specImgKey === key) return;
-  if (fetchingSpec) return;
+async function fetchSpectrum(force = false) {
+  if (!SPEC.enabled || !specShow || !tlScale) return;
+  const p = getSpecKey();
+  if (!p) return;
+  const key = p.keyStr;
+
+  if (!force && specImgKey === key && specImg) {
+    const overlay = document.getElementById('specOverlay');
+    if (overlay) overlay.style.display = 'none';
+    const statusBadge = document.getElementById('specStatusBadge');
+    if (statusBadge) statusBadge.style.display = 'none';
+    const specBtn = document.getElementById('toggleSpec');
+    if (specBtn) specBtn.innerText = 'Spectre';
+    return;
+  }
+  if (fetchingSpec && specRequestedKey === key) return;
 
   fetchingSpec = true;
+  specRequestedKey = key;
   const specBtn = document.getElementById('toggleSpec');
   if (specBtn) specBtn.innerText = 'Spectre ⏳';
   const overlay = document.getElementById('specOverlay');
   if (overlay) overlay.style.display = 'flex';
   const statusBadge = document.getElementById('specStatusBadge');
   if (statusBadge) statusBadge.style.display = 'inline-flex';
-  drawSpecPanel();
 
-  const url = `/api/spectrum.png?since=${minT}&until=${minT + span}&width=${specW}&f_lo=${fb[0]}&f_hi=${fb[1]}&ch=${ch}&_t=${Date.now()}`;
+  const url = `/api/spectrum.png?since=${p.minT}&until=${p.minT + p.span}&width=${p.specW}&f_lo=${p.fb[0]}&f_hi=${p.fb[1]}&ch=${p.ch}&_t=${Date.now()}`;
   const img = new Image();
   img.onload = () => {
+    if (specRequestedKey !== key) return;
     specImg = img;
     specImgKey = key;
     fetchingSpec = false;
@@ -1324,6 +1331,7 @@ async function fetchSpectrum(force = false) {
     drawSpecPanel();
   };
   img.onerror = () => {
+    if (specRequestedKey !== key) return;
     fetchingSpec = false;
     if (specBtn) specBtn.innerText = 'Spectre';
     if (overlay) overlay.style.display = 'none';
@@ -1360,29 +1368,11 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   const y0 = 4, y1 = hCss - 4;
   const fb = freqBounds();
 
-  if (specImg && specImg.complete && specImg.naturalWidth > 0) {
-    if (fetchingSpec) ctx.globalAlpha = 0.55;
-    ctx.drawImage(specImg, x0, y0, x1 - x0, y1 - y0);
-    ctx.globalAlpha = 1.0;
-  } else {
-    ctx.fillStyle = '#94a3b8'; ctx.font = '13px monospace'; ctx.textAlign = 'center';
-    ctx.fillText("⏳ Chargement du spectrogramme...", wCss / 2, hCss / 2);
-    ctx.textAlign = 'left';
-  }
+  const p = getSpecKey();
+  const currentKey = p ? p.keyStr : null;
 
-  if (fetchingSpec && specImg && specImg.complete && specImg.naturalWidth > 0) {
-    ctx.save();
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 1;
-    const badgeW = 180, badgeH = 22, bx = x1 - badgeW - 6, by = y0 + 6;
-    ctx.fillRect(bx, by, badgeW, badgeH);
-    ctx.strokeRect(bx, by, badgeW, badgeH);
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = '11px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('⏳ Chargement spectre...', bx + 8, by + 15);
-    ctx.restore();
+  if (specImg && specImgKey === currentKey && specImg.complete && specImg.naturalWidth > 0) {
+    ctx.drawImage(specImg, x0, y0, x1 - x0, y1 - y0);
   }
 
   const yOfHz2 = (f) => y0 + (fb[1] - Math.min(Math.max(f, fb[0]), fb[1])) / Math.max(0.1, fb[1] - fb[0]) * (y1 - y0);
