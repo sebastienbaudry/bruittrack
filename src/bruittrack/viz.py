@@ -94,6 +94,21 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
   #timelineCanvas { width: 100%; height: 260px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); cursor: crosshair; touch-action: none; display: block; }
   #specCanvas { width: 100%; height: 220px; background: #080c12; border-radius: 4px; border: 1px solid var(--border); display: none; touch-action: none; }
+  #evtTip {
+    position: fixed;
+    display: none;
+    z-index: 9999;
+    pointer-events: none;
+    background: rgba(15, 23, 42, 0.96);
+    border: 1px solid #38bdf8;
+    color: #f8fafc;
+    font-size: 11px;
+    font-family: monospace;
+    padding: 5px 10px;
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.8);
+    white-space: nowrap;
+  }
 
   @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   .spinner-inline {
@@ -179,9 +194,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 <div class="card">
   <div class="card-title">
     <span>Timeline Fréquence / Temps (0 – __FREQ_MAX__ Hz)</span>
-    <span id="canvasTooltip" style="font-size:12px; color:var(--accent);">Survolez un point</span>
   </div>
-  <div class="toolbar" style="display:flex; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap; background:rgba(15,23,42,0.6); padding:8px 12px; border-radius:6px; border:1px solid var(--border);">
+  <div class="toolbar" style="display:flex; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap; background:rgba(15,23,42,0.6); padding:8px 12px; border-radius:6px; border:1px solid var(--border); min-height:42px;">
     <div style="display:inline-flex; align-items:center; gap:5px;">
       <span style="font-size:11px; color:var(--text-muted); font-weight:bold; text-transform:uppercase;">Canaux :</span>
       <div class="btn-group">
@@ -212,12 +226,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       </div>
     </div>
 
-    <div style="margin-left:auto; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-      <span style="opacity:.5; font-size:10px; font-family:monospace">glisser = zoom · Échap = réinit</span>
-      <span id="evtTip" style="font-family:monospace; font-size:12px; color:#e2e8f0; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
-      <span id="freqTip" title="I49 : fréquence sous le curseur" style="font-family:monospace; font-size:12px; color:#93c5fd; background:#1e293b; border-radius:4px; padding:2px 8px; display:none;"></span>
-      <span id="zoomBadge" onclick="resetFviews()" title="I54 : reset zoom X+Y (double-clic ou Échap)" style="display:none; cursor:pointer; color:#38bdf8; background:rgba(2,132,199,0.15); border:1px solid #0284c7; padding:2px 8px; border-radius:4px; font-size:11px; font-family:monospace;"></span>
-      <span id="majBadge" title="I53/I56 : dernière MAJ réussie" style="font-family:monospace; font-size:11px; color:#94a3b8;"></span>
+    <div style="margin-left:auto; display:flex; align-items:center; gap:6px; flex-wrap:nowrap;">
+      <span style="opacity:.5; font-size:10px; font-family:monospace; white-space:nowrap;">glisser = zoom · Échap = réinit</span>
+      <span id="freqTip" title="I49 : fréquence sous le curseur" style="font-family:monospace; font-size:11px; color:#93c5fd; background:#1e293b; border-radius:4px; padding:2px 8px; white-space:nowrap; display:none;"></span>
+      <span id="zoomBadge" onclick="resetFviews()" title="I54 : reset zoom X+Y (double-clic ou Échap)" style="display:none; cursor:pointer; color:#38bdf8; background:rgba(2,132,199,0.15); border:1px solid #0284c7; padding:2px 8px; border-radius:4px; font-size:11px; font-family:monospace; white-space:nowrap;"></span>
+      <span id="majBadge" title="I53/I56 : dernière MAJ réussie" style="font-family:monospace; font-size:11px; color:#94a3b8; white-space:nowrap;"></span>
     </div>
   </div>
   <canvas id="timelineCanvas" width="1000" height="260"></canvas>
@@ -449,6 +462,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     </div>
   </div>
 </div>
+
+<div id="evtTip"></div>
 
 <script>
 let eventsData = [];
@@ -1124,8 +1139,10 @@ function toggleChannel(idx) {
 }
 
 function hideEvtTip() {
-  document.getElementById('evtTip').style.display = 'none';
-  const ft = document.getElementById('freqTip'); if (ft) ft.style.display = 'none';
+  const tip = document.getElementById('evtTip');
+  if (tip) tip.style.display = 'none';
+  const ft = document.getElementById('freqTip');
+  if (ft) ft.style.display = 'none';
   // I50 : nettoyage du fil de repère sans boucle (redraw seulement si le fil était actif)
   if (hoverYpx !== null && tlLastEvts !== null) { hoverYpx = null; drawTimelineFull(false); } // I59 : idem, cosmétique uniquement
 }
@@ -1151,7 +1168,7 @@ function hideEvtTip() {
     if (mx >= 40 && mx <= TL_CKWW - 10 && my >= 20 && my <= hCSS - 20) {
       const fUnder = yToFreq(my); // I54 : la lecture Hz suit la vue Y zoomée (sinon 0..FREQ_MAX)
       ft.textContent = '≈ ' + fUnder.toFixed(1) + ' Hz';
-      ft.style.display = 'inline';
+      ft.style.display = 'inline-flex';
     } else { ft.style.display = 'none'; }
 
     // I50 : fil horizontal à la hauteur du curseur (redraw throttle rAF, saut si inchangé)
@@ -1178,12 +1195,10 @@ function hideEvtTip() {
       hoverLockId = best ? best.ev.id : null; // le verrou change en sortant du rayon
     }
     const tip = document.getElementById('evtTip');
-    if (!best) { hideEvtTip(); return; }
+    if (!best) { if (tip) tip.style.display = 'none'; return; }
     const ev = best.ev;
     tip.textContent = `#${ev.cluster || '-'} · bin ${ev.bin_i} (${ev.freq.toFixed(2)} Hz) · G +${ev.lvl_g.toFixed(1)} / D +${ev.lvl_d.toFixed(1)} dB` + (ev.over_legal ? ' · ▲ legal' : '');
-    tip.style.display = 'inline';
-    // I69 : le texte suit la bulle — centré au-dessus d'elle (plus jamais ancré
-    // dans la barre d'outils, qui était perçu comme un « décalage »).
+    tip.style.display = 'block';
     tip.style.position = 'fixed';
     tip.style.zIndex = '50';
     tip.style.pointerEvents = 'none';
@@ -1202,7 +1217,7 @@ function hideEvtTip() {
     const selEv = showTip(e); // I40 : clic sur un point → surbrillance ligne
     if (selEv) selectEv(selEv.id);
     const tip2 = document.getElementById('evtTip');
-    if (tip2.textContent) { tip2.dataset.sticky = '1'; setTimeout(function () { if (tip2.dataset.sticky === '1') hideEvtTip(); }, 6000); }
+    if (tip2 && tip2.textContent) { tip2.dataset.sticky = '1'; setTimeout(function () { if (tip2.dataset.sticky === '1') hideEvtTip(); }, 6000); }
   });
   canvas.addEventListener('mouseleave', hideEvtTip);
 })();
