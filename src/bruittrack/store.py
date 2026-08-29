@@ -650,24 +650,37 @@ class EventStore:
 
         n_kept_bands = data_2d.shape[1]
 
-        # Max-Pooling vectorisé par colonne de pixels
-        if n_slices >= target_width:
-            idx = np.linspace(0, n_slices, target_width + 1, dtype=int)
-            matrix = np.zeros((target_width, n_kept_bands), dtype=np.uint8)
-            for i in range(target_width):
-                s0, s1 = idx[i], idx[i + 1]
-                if s1 > s0:
-                    matrix[i] = np.max(data_2d[s0:s1], axis=0)
-                elif s0 < n_slices:
-                    matrix[i] = data_2d[s0]
+        # Calcul des positions temporelles exactes en pixels selon [since, until]
+        t0s = np.fromiter((r["t0"] for r in rows), dtype=np.float64, count=n_slices)
+        durs = np.fromiter((r["dur"] for r in rows), dtype=np.float64, count=n_slices)
+
+        t_base = float(since if since is not None else t0s[0])
+        t_end = float(until if until is not None else (t0s[-1] + durs[-1]))
+        total_span = max(1.0, t_end - t_base)
+
+        x0s = np.clip(
+            np.floor((t0s - t_base) / total_span * target_width).astype(int), 0, target_width - 1
+        )
+        x1s = np.clip(
+            np.ceil((t0s + durs - t_base) / total_span * target_width).astype(int),
+            x0s + 1,
+            target_width,
+        )
+
+        matrix = np.zeros((target_width, n_kept_bands), dtype=np.uint8)
+
+        # Max-pooling temporel pixel-exact (gère les heures futures et les trous)
+        if np.all(x1s - x0s <= 1):
+            np.maximum.at(matrix, x0s, data_2d)
         else:
-            idx = np.clip(np.linspace(0, n_slices - 1, target_width, dtype=int), 0, n_slices - 1)
-            matrix = data_2d[idx]
+            for j in range(n_slices):
+                xa, xb = x0s[j], x1s[j]
+                matrix[xa:xb] = np.maximum(matrix[xa:xb], data_2d[j])
 
         # Inverser l'axe Y : fréquences hautes en haut, infrasons en bas
         img_bands = np.flipud(matrix.T)  # shape (n_kept_bands, target_width)
 
-        # Contraste percentiles p5..p98
+        # Contraste percentiles p5..p98 calculé uniquement sur les données réelles
         non_zero = img_bands[img_bands > 0]
         if len(non_zero) > 30:
             p5 = float(np.percentile(non_zero, 5))
@@ -677,8 +690,11 @@ class EventStore:
         else:
             p5, p98 = 20.0, 100.0
 
-        norm = np.clip(
-            (img_bands.astype(np.float32) - p5) / max(1.0, p98 - p5) * 255.0, 0, 255
+        # Les colonnes sans données (ex: temps futur ou coupure) restent à 0 (fond sombre)
+        norm = np.zeros_like(img_bands, dtype=np.uint8)
+        mask = img_bands > 0
+        norm[mask] = np.clip(
+            (img_bands[mask].astype(np.float32) - p5) / max(1.0, p98 - p5) * 254.0 + 1.0, 1, 255
         ).astype(np.uint8)
         rgb = SPECTRUM_COLORMAP[norm]
 

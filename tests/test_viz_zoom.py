@@ -131,4 +131,3 @@ def test_viz_calendar_popup_markers(zoom_server):
     ]
     for tok in tokens:
         assert tok in html, f"manquant : {tok}"
-

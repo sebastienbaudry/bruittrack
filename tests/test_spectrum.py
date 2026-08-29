@@ -332,6 +332,20 @@ class TestVizApiSpectrum:
         assert png_zoom.startswith(b"\x89PNG\r\n\x1a\n")
         store.close()
 
+    def test_get_spectrum_png_future_time_alignment(self, tmp_path):
+        """Vérifie que les tranches passées s'alignent exactement à gauche sans s'étaler dans le futur."""
+        store = EventStore(db_path=str(tmp_path / "spec_future.db"))
+        t0 = 1_700_000_000.0
+        # Ajouter 10 tranches de 1s chacune de t0 à t0 + 10s
+        for i in range(10):
+            store.add_spectrum(t0 + i * 1.0, 1.0, 150, b"\x50" * 600)
+        store.flush()
+
+        # Demander une plage de t0 à t0 + 20s (la 2e moitié est vide)
+        png = store.get_spectrum_png(since=t0, until=t0 + 20.0, target_width=100)
+        assert png.startswith(b"\x89PNG\r\n\x1a\n")
+        store.close()
+
     def test_api_spectrum_png_endpoint(self, tmp_path):
         """Vérifie la route HTTP /api/spectrum.png."""
         import threading
