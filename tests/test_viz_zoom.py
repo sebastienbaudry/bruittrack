@@ -131,3 +131,23 @@ def test_viz_calendar_popup_markers(zoom_server):
     ]
     for tok in tokens:
         assert tok in html, f"manquant : {tok}"
+
+
+def test_viz_auto_refresh_selector_markers(zoom_server):
+    """Vérifie la présence du sélecteur de cadence de rafraîchissement."""
+    html = _get(f"{zoom_server}/").decode("utf-8")
+    tokens = [
+        'id="autoRefreshSelect"',
+        "changeAutoRefresh",
+        "initAutoRefresh",
+        'value="1"',
+        'value="2"',
+        'value="5"',
+        'value="10"',
+        'value="30"',
+        'value="60"',
+        'value="0"',
+        "bruittrack_refresh_interval",
+    ]
+    for tok in tokens:
+        assert tok in html, f"manquant : {tok}"

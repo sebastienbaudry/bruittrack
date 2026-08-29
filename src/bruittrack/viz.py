@@ -168,7 +168,19 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   <h1>🔊 BruitTrack <span class="badge badge-live">24/7 ACTIF</span></h1>
   <div class="header-actions">
     <button class="btn btn-danger" style="font-weight:bold; background:rgba(239,68,68,0.25); border:1px solid #ef4444; color:#fca5a5;" onclick="openDiscomfortModal()">🚨 Signaler une Gêne / Crise</button>
-    <button class="btn" onclick="refreshAll()">🔄 Rafraîchir</button>
+    <div style="display:inline-flex; align-items:center; gap:5px; background:rgba(15,23,42,0.8); border:1px solid var(--border); border-radius:4px; padding:3px 8px;">
+      <span style="font-size:11px; color:var(--text-muted); font-weight:bold;">⏱️ Rafraîchissement :</span>
+      <select id="autoRefreshSelect" class="flt" style="padding:2px 6px; font-size:11px; height:24px; cursor:pointer; background:#0b1118; border:1px solid #334155;" onchange="changeAutoRefresh(this.value)" title="Choisir la cadence de rafraîchissement automatique">
+        <option value="1">1 s (Ultra-rapide)</option>
+        <option value="2">2 s</option>
+        <option value="5">5 s</option>
+        <option value="10" selected>10 s (Défaut)</option>
+        <option value="30">30 s</option>
+        <option value="60">1 min</option>
+        <option value="0">Désactivé</option>
+      </select>
+    </div>
+    <button class="btn" onclick="refreshAll()" title="Rafraîchir immédiatement">🔄 Rafraîchir</button>
   </div>
 </header>
 
@@ -1746,11 +1758,41 @@ window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 150));
   canvas.addEventListener('touchend', () => { if (tip) tip.style.display = 'none'; }, { passive: true });
 })();
 
-// Initial : fit hi-DPI puis fetch + poll every 10s
-// Exemplaires désactivés : on retire aussi la colonne Audio du tableau
+// Auto-rafraîchissement paramétrable avec mémorisation localStorage
+let autoRefreshTimer = null;
+let currentRefreshSec = 10;
+
+function changeAutoRefresh(secondsVal) {
+  const sec = parseInt(secondsVal, 10);
+  currentRefreshSec = isNaN(sec) ? 10 : sec;
+  try { localStorage.setItem('bruittrack_refresh_interval', String(currentRefreshSec)); } catch (e) {}
+
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+
+  const sel = document.getElementById('autoRefreshSelect');
+  if (sel) sel.value = String(currentRefreshSec);
+
+  if (currentRefreshSec > 0) {
+    autoRefreshTimer = setInterval(refreshAll, currentRefreshSec * 1000);
+  }
+}
+
+function initAutoRefresh() {
+  let saved = null;
+  try { saved = localStorage.getItem('bruittrack_refresh_interval'); } catch (e) {}
+  if (saved !== null) {
+    const s = parseInt(saved, 10);
+    if (!isNaN(s)) currentRefreshSec = s;
+  }
+  changeAutoRefresh(currentRefreshSec);
+}
+
+// Initial : fit hi-DPI puis fetch + auto-refresh configuré
 if (!EXEMPLARS_ENABLED) { const th = document.getElementById('audioTh'); if (th) th.remove(); }
-requestAnimationFrame(() => { fitCanvas(); refreshAll(); });
-setInterval(refreshAll, 10000);
+requestAnimationFrame(() => { fitCanvas(); refreshAll(); initAutoRefresh(); });
 </script>
 </body>
 </html>
