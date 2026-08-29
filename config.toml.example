@@ -107,8 +107,8 @@ n_bands = 150
 db_min = -60.0
 db_range = 120.0
 
-# Rétention dédiée de la table spectrum en jours (100 jours ≈ 1.14 Go stabilisés sur SSD ; 0 = illimité)
-retention_days = 100
+# Rétention dédiée de la table spectrum en jours (365 jours ≈ 1.0 Go stabilisés sur SSD ; 0 = illimité)
+retention_days = 365
 
 [viz]
 # Adresse IP d'écoute du serveur web léger (défaut 127.0.0.1 pour la sécurité locale ; 0.0.0.0 pour exposer sur le LAN)

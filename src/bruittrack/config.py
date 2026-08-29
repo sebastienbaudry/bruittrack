@@ -70,7 +70,7 @@ class SpectrumConfig:
     n_bands: int = 150
     db_min: float = -60.0
     db_range: float = 120.0
-    retention_days: int | None = 100
+    retention_days: int | None = 365
 
 
 @dataclass

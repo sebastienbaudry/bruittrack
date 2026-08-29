@@ -202,7 +202,7 @@ class TestConfigSpectrum:
         assert cfg.spectrum.enabled is True
         assert cfg.spectrum.interval_s == 5.0
         assert cfg.spectrum.n_bands == 150
-        assert cfg.spectrum.retention_days == 100
+        assert cfg.spectrum.retention_days == 365
 
     def test_load_from_toml(self, tmp_path):
         p = tmp_path / "config.toml"
