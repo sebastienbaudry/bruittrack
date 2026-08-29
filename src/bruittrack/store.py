@@ -957,12 +957,20 @@ class EventStore:
             wf.writeframes(pcm16.tobytes())
 
         # 3. Save JSON metadata for instant dashboard access
+        # Ignore 50 Hz electrical mains artifact specifically on piezo (IN2)
+        is_piezo_50hz = (freqs_arr >= 49.0) & (freqs_arr <= 51.0)
         mean_p1 = float(np.mean(psd1_arr)) if psd1_arr.size else 0.0
-        mean_p2 = float(np.mean(psd2_arr)) if psd2_arr.size else 0.0
-        mean_spec_max = np.maximum(
-            np.mean(psd1_arr, axis=0) if psd1_arr.ndim == 2 else 0,
-            np.mean(psd2_arr, axis=0) if psd2_arr.ndim == 2 else 0,
-        )
+        if psd2_arr.ndim == 2 and np.any(~is_piezo_50hz):
+            mean_p2 = float(np.mean(psd2_arr[:, ~is_piezo_50hz]))
+        else:
+            mean_p2 = float(np.mean(psd2_arr)) if psd2_arr.size else 0.0
+
+        mean1 = np.mean(psd1_arr, axis=0) if psd1_arr.ndim == 2 else np.zeros_like(freqs_arr)
+        mean2 = np.mean(psd2_arr, axis=0) if psd2_arr.ndim == 2 else np.zeros_like(freqs_arr)
+        clean_mean2 = mean2.copy()
+        clean_mean2[is_piezo_50hz] = -120.0  # Ignore 50Hz electrical hum on piezo
+
+        mean_spec_max = np.maximum(mean1, clean_mean2)
         top_idx = int(np.argmax(mean_spec_max)) if mean_spec_max.size > 0 else 0
         peak_freq = float(freqs_arr[top_idx]) if freqs_arr.size > top_idx else 0.0
         meta = {
@@ -1015,10 +1023,15 @@ class EventStore:
                 else np.zeros(p2.shape[0])
             )
 
-            # Find top 3 peaks in combined spectrum
-            comb_mean = np.maximum(mean1, mean2)
+            # Find top 3 peaks in combined spectrum, ignoring 50Hz piezo electrical artifact
+            is_piezo_50hz = (freqs >= 49.0) & (freqs <= 51.0)
+            clean_mean2 = mean2.copy()
+            clean_mean2[is_piezo_50hz] = -120.0
+            comb_mean = np.maximum(mean1, clean_mean2)
             peak_indices = []
             for i in range(1, len(comb_mean) - 1):
+                if 49.0 <= freqs[i] <= 51.0 and mean1[i] <= clean_mean2[i]:
+                    continue  # Ignore 50 Hz piezo electrical artifact
                 if comb_mean[i] > comb_mean[i - 1] and comb_mean[i] > comb_mean[i + 1]:
                     peak_indices.append(i)
             peak_indices.sort(key=lambda idx: comb_mean[idx], reverse=True)

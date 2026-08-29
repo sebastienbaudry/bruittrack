@@ -183,14 +183,26 @@ def test_discomfort_snapshot_store_and_api(tmp_path: Path) -> None:
 
     log_id = store.log_discomfort(t0=1787200000.0, level=4, note="Test snapshot")
 
-    # Generate synthetic snapshot data
+    # Generate synthetic snapshot data with 50Hz electrical spike on Piezo (IN2) and 23.4Hz real acoustic peak
     n_bins = 300
+    freqs = np.linspace(2.0, 150.0, n_bins, dtype=np.float32)
+    psd1 = np.full((300, n_bins), -60.0, dtype=np.float32)
+    psd2 = np.full((300, n_bins), -60.0, dtype=np.float32)
+
+    # Real acoustic peak on channel 1 (Air) at index ~43 (~23.4 Hz)
+    idx_real = int(np.argmin(np.abs(freqs - 23.4)))
+    psd1[:, idx_real] = -10.0
+
+    # Electrical 50Hz mains artifact on channel 2 (Piezo) at index ~97 (~50.0 Hz)
+    idx_50hz = int(np.argmin(np.abs(freqs - 50.0)))
+    psd2[:, idx_50hz] = +15.0  # Very large electrical artifact
+
     snap_data = {
         "fs": 1000,
-        "freqs": np.linspace(2.0, 150.0, n_bins, dtype=np.float32),
+        "freqs": freqs,
         "audio": np.zeros((30000, 2), dtype=np.float32),
-        "psd_ch1": np.zeros((300, n_bins), dtype=np.float32),
-        "psd_ch2": np.zeros((300, n_bins), dtype=np.float32),
+        "psd_ch1": psd1,
+        "psd_ch2": psd2,
         "mod_infra_pct": 65.4,
         "mod_hum_pct": 12.3,
         "mod_period_s": 1.2,
@@ -204,11 +216,13 @@ def test_discomfort_snapshot_store_and_api(tmp_path: Path) -> None:
     json_file = snap_dir / f"snap_{log_id}.json"
     assert json_file.is_file()
 
-    # 2. Get discomfort logs with has_snapshot flag and metadata
+    # 2. Get discomfort logs with has_snapshot flag and metadata: 50Hz piezo MUST be ignored
     logs = store.get_discomfort_logs(snapshots_dir=snap_dir)
     assert len(logs) == 1
     assert logs[0]["has_snapshot"] is True
     assert logs[0]["mod_infra_pct"] == 65.4
+    # Peak frequency must be the real 23.4 Hz peak, NOT the 50.0 Hz piezo artifact
+    assert abs(logs[0]["peak_freq_hz"] - 23.4) < 1.0
 
     # 3. GET /api/discomfort/<id>/snapshot
     handler_snap = MagicMock()
@@ -222,6 +236,9 @@ def test_discomfort_snapshot_store_and_api(tmp_path: Path) -> None:
     assert len(snap_res["freqs"]) == n_bins
     assert "mean_psd_ch1" in snap_res
     assert "peaks" in snap_res
+    # Verify that top peak is ~23.4 Hz and 50Hz piezo artifact is NOT in peaks
+    assert any(abs(p["freq_hz"] - 23.4) < 1.0 for p in snap_res["peaks"])
+    assert not any(abs(p["freq_hz"] - 50.0) < 0.8 for p in snap_res["peaks"])
 
     # 4. GET /api/discomfort/<id>/audio
     handler_audio = MagicMock()
