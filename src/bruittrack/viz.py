@@ -1024,11 +1024,12 @@ function syncEventsToTable() {
   const rows = Array.prototype.slice.call(lastVisible).sort((a, b) => b.t0 - a.t0);
   renderEventsTable(rows);
 }
-function drawTimelineFull(shouldSyncTable = true) { // I59 : la source est TOUJOURS eventsData (brut) — lastVisible n'est qu'une SORTIE de vue ;
+function drawTimelineFull(shouldSyncTable = true, shouldFetchSpec = null) { // I59 : la source est TOUJOURS eventsData (brut) — lastVisible n'est qu'une SORTIE de vue ;
+  if (shouldFetchSpec === null) shouldFetchSpec = (shouldSyncTable === true);
   drawTimeline(filterEvents(eventsData)); // le réutiliser en entrée amputait définitivement les points hors de la vue précédente (zoom → dézoom vide)
   if (shouldSyncTable) syncEventsToTable(); // false pour redraws cosmetiques (survol, pan, brush en cours) sans rebuild du tableau
   drawSpecPanel();
-  if (SPEC && SPEC.enabled && specShow) fetchSpectrum();
+  if (shouldFetchSpec && SPEC && SPEC.enabled && specShow) fetchSpectrum();
 }
 
 function setTimeWin(seconds) {
@@ -1459,7 +1460,9 @@ function toggleSpectrum() {
 
 function getSpecKey() {
   if (!tlScale) return null;
-  const minT = tlScale.minT, span = tlScale.span;
+  // En mode direct défilant (tlMode === null), on quantifie à 30 s pour éviter des refetchs inutiles sur chaque seconde
+  const minT = tlMode ? tlScale.minT : Math.floor(tlScale.minT / 30) * 30;
+  const span = tlMode ? tlScale.span : Math.round(tlScale.span / 30) * 30;
   const fb = freqBounds();
   let ch = 'both';
   if (showCh.l && !showCh.d) ch = 'l';
