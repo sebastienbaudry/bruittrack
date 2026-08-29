@@ -943,7 +943,12 @@ async function refreshAll() {
   if (stats) {
     document.getElementById('statEvents').innerText = stats.total_events || 0;
     document.getElementById('statClusters').innerText = stats.total_clusters || 0;
-    document.getElementById('statDbSize').innerText = stats.db_size_bytes ? (stats.db_size_bytes / 1024).toFixed(1) + ' Ko' : '0 Ko';
+    if (stats.db_size_bytes != null) {
+      const mb = stats.db_size_bytes / (1024 * 1024);
+      document.getElementById('statDbSize').innerText = mb.toFixed(2) + ' Mo';
+    } else {
+      document.getElementById('statDbSize').innerText = '--';
+    }
     document.getElementById('statAvgDur').innerText = stats.avg_dur ? stats.avg_dur.toFixed(2) + ' s' : '--';
   }
 
