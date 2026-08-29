@@ -1055,7 +1055,6 @@ function resetFviews() { // I54 : double-clic / Échap / badge → vues par déf
 })();
 
 async function refreshAll() {
-  const specPromise = fetchSpectrum(); // Démarrage immédiat en parallèle
   const discPromise = fetchDiscomfortLogs();
   const [stats, events, clusters] = await Promise.all([
     fetchJson('/api/stats'),
@@ -1090,7 +1089,7 @@ async function refreshAll() {
     renderClustersTable(clusters);
     fillClusterFilter(clusters); // liste déroulante I41
   }
-  await Promise.all([fetchWindow(), specPromise, discPromise]); // Attente sans blocage sérialisé
+  await Promise.all([fetchWindow(), discPromise]); // Attente sans blocage sérialisé
   drawTimelineFull();
   lastMajTs = Date.now() / 1000; renderMaj(); startMajTick(); // I53/I56 : badge MAJ après chargement réussi
 }
@@ -1788,9 +1787,9 @@ async function fetchSpectrum(force = false) {
   const specBtn = document.getElementById('toggleSpec');
   if (specBtn) specBtn.innerText = 'Spectre ⏳';
   const overlay = document.getElementById('specOverlay');
-  if (overlay) overlay.style.display = 'flex';
+  if (overlay && !specImg) overlay.style.display = 'flex';
   const statusBadge = document.getElementById('specStatusBadge');
-  if (statusBadge) statusBadge.style.display = 'inline-flex';
+  if (statusBadge && !specImg) statusBadge.style.display = 'inline-flex';
 
   const url = `/api/spectrum.png?since=${p.minT}&until=${p.minT + p.span}&width=${p.specW}&f_lo=${p.fb[0]}&f_hi=${p.fb[1]}&ch=${p.ch}&_t=${Date.now()}`;
   const img = new Image();
@@ -1847,13 +1846,12 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   const fb = freqBounds();
 
   const p = getSpecKey();
-  const currentKey = p ? p.keyStr : null;
 
   if (p && p.ch === 'none') {
     ctx.fillStyle = '#64748b'; ctx.font = '12px monospace'; ctx.textAlign = 'center';
     ctx.fillText("Aucun canal sélectionné", wCss / 2, hCss / 2);
     ctx.textAlign = 'left';
-  } else if (specImg && specImgKey === currentKey && specImg.complete && specImg.naturalWidth > 0) {
+  } else if (specImg && specImg.complete && specImg.naturalWidth > 0) {
     ctx.drawImage(specImg, x0, y0, x1 - x0, y1 - y0);
   }
 
