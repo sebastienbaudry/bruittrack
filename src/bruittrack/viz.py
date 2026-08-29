@@ -1145,38 +1145,53 @@ function parisMidnightBefore(tSec) { // UTC (s) du dernier minuit de Paris ≤ t
 }
 
 function drawTimeTicks(ctx, w, h, minT, span) {
-  // graduation axe X horodatée ; pas adaptatif pour ~90 px entre marqueurs
-  let lastTickDay = null; // I62 : jour courant pour l'étiquette date
-  const steps = [900, 1800, 3600, 7200, 21600, 86400]; // I62 : 144000 (40 h !) -> 86400 (24 h)
-  let step = span / Math.max(3, Math.floor((w - 50) / 90));
-  for (const s of steps) { if (step <= s) { step = s; break; } }
-  if (step > span) step = Math.min(86400, Math.max(900, span / 4));
+  // graduation axe X horodatée adaptative de 1s à 24h (~90 px entre marqueurs)
+  let lastTickDay = null;
+  const steps = [
+    1, 2, 5, 10, 15, 30,
+    60, 120, 300, 600, 900, 1800,
+    3600, 7200, 10800, 21600, 43200, 86400
+  ];
+  const targetCount = Math.max(3, Math.floor((w - 50) / 90));
+  const rawStep = span / targetCount;
+  let step = steps[steps.length - 1];
+  for (const s of steps) {
+    if (s >= rawStep) {
+      step = s;
+      break;
+    }
+  }
+
   const x0 = 40, x1 = w - 10;
   ctx.strokeStyle = '#334155';
   ctx.fillStyle = '#64748b';
   ctx.font = '12px monospace';
   ctx.textAlign = 'center';
-  // I62 : pas ≥ 6 h ancré sur minuit PARIS (sinon multiples UTC -> changement de jour à 02:00 à l'écran)
+
   let t;
   if (step >= 21600) {
     const m0 = parisMidnightBefore(minT);
     t = m0 + Math.ceil((minT - m0) / step) * step;
-    if (t === m0 && minT > m0) t = m0 + step; // crant strictement dans la fenêtre
+    if (t === m0 && minT > m0) t = m0 + step;
   } else {
     t = Math.ceil(minT / step) * step;
   }
+
+  const withSeconds = step < 60;
+
   for (; t <= minT + span; t += step) {
     const x = x0 + ((t - minT) / span) * (x1 - x0);
     if (x > x1) break;
-    const xt = Math.round(x) + 0.5;   // graduation alignée half-pixel : net en HiDPI comme en QVGA
-    ctx.strokeStyle = '#1e293b';      // I48 : grille verticale temps (alignée, subtile)
+    const xt = Math.round(x) + 0.5;
+    ctx.strokeStyle = '#1e293b';
     sharpLine(ctx, xt, 20, xt, h - 20);
     ctx.strokeStyle = '#334155';
     ctx.beginPath(); ctx.moveTo(xt, h); ctx.lineTo(xt, h - 5); ctx.stroke();
     const d = new Date(t * 1000);
-    // I62b : heure de PARIS 24 h ; le jour est INLINÉ sur la ligne des heures
-    // (l'ancienne rangée date à h-21 empiétait sur le tracé et était masquée par les points)
-    const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: TZ_VIZ });
+    const timeOpts = withSeconds
+      ? { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: TZ_VIZ }
+      : { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: TZ_VIZ };
+    const time = d.toLocaleTimeString('fr-FR', timeOpts);
     const day = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', timeZone: TZ_VIZ });
     if (day !== lastTickDay) {
       ctx.fillStyle = '#94a3b8';
