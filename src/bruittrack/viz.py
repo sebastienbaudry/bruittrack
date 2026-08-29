@@ -1277,16 +1277,23 @@ async function fetchSpectrum(force = false) {
   if (fetchingSpec) return;
 
   fetchingSpec = true;
+  const specBtn = document.getElementById('toggleSpec');
+  if (specBtn) specBtn.innerText = 'Spectre ⏳';
+  drawSpecPanel();
+
   const url = `/api/spectrum.png?since=${minT}&until=${minT + span}&width=${specW}&f_lo=${fb[0]}&f_hi=${fb[1]}&ch=${ch}&_t=${Date.now()}`;
   const img = new Image();
   img.onload = () => {
     specImg = img;
     specImgKey = key;
     fetchingSpec = false;
+    if (specBtn) specBtn.innerText = 'Spectre';
     drawSpecPanel();
   };
   img.onerror = () => {
     fetchingSpec = false;
+    if (specBtn) specBtn.innerText = 'Spectre';
+    drawSpecPanel();
   };
   img.src = url;
 }
@@ -1319,11 +1326,28 @@ function drawSpecPanel() { // dessinée après drawTimeline : réutilise tlScale
   const fb = freqBounds();
 
   if (specImg && specImg.complete && specImg.naturalWidth > 0) {
+    if (fetchingSpec) ctx.globalAlpha = 0.55;
     ctx.drawImage(specImg, x0, y0, x1 - x0, y1 - y0);
+    ctx.globalAlpha = 1.0;
   } else {
-    ctx.fillStyle = '#64748b'; ctx.font = '12px monospace'; ctx.textAlign = 'center';
-    ctx.fillText("Chargement du spectre...", wCss / 2, hCss / 2);
+    ctx.fillStyle = '#94a3b8'; ctx.font = '13px monospace'; ctx.textAlign = 'center';
+    ctx.fillText("⏳ Chargement du spectrogramme...", wCss / 2, hCss / 2);
     ctx.textAlign = 'left';
+  }
+
+  if (fetchingSpec && specImg && specImg.complete && specImg.naturalWidth > 0) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1;
+    const badgeW = 180, badgeH = 22, bx = x1 - badgeW - 6, by = y0 + 6;
+    ctx.fillRect(bx, by, badgeW, badgeH);
+    ctx.strokeRect(bx, by, badgeW, badgeH);
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('⏳ Chargement spectre...', bx + 8, by + 15);
+    ctx.restore();
   }
 
   const yOfHz2 = (f) => y0 + (fb[1] - Math.min(Math.max(f, fb[0]), fb[1])) / Math.max(0.1, fb[1] - fb[0]) * (y1 - y0);
