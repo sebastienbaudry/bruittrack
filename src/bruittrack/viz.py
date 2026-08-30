@@ -716,11 +716,45 @@ function closeDiscomfortModal() {
 
 let selectedDiscomfort = null;
 
+function specColor(t) {
+  t = Math.max(0, Math.min(1, t));
+  let r = 8, g = 12, b = 18;
+  if (t < 0.25) {
+    const k = t * 4;
+    r = Math.round(8 + k * 20);
+    g = Math.round(12 + k * 45);
+    b = Math.round(18 + k * 120);
+  } else if (t < 0.5) {
+    const k = (t - 0.25) * 4;
+    r = Math.round(28 + k * 30);
+    g = Math.round(57 + k * 95);
+    b = Math.round(138 + k * 105);
+  } else if (t < 0.75) {
+    const k = (t - 0.5) * 4;
+    r = Math.round(58 + k * 180);
+    g = Math.round(152 + k * 70);
+    b = Math.round(243 - k * 180);
+  } else {
+    const k = (t - 0.75) * 4;
+    r = Math.round(238 + k * 17);
+    g = Math.round(222 - k * 150);
+    b = Math.round(63 - k * 63);
+  }
+  return `rgb(${r},${g},${b})`;
+}
+
 async function openSnapshotModal(discomfortId) {
   const m = document.getElementById('snapshotModal');
   if (m) m.style.display = 'flex';
   const title = document.getElementById('snapModalTitle');
   if (title) title.textContent = `🔬 Cliché Haute Définition — Signalement #${discomfortId} (30s / 100ms / 0.49Hz)`;
+
+  currentSnapshotData = null;
+  document.getElementById('snapModInfra').textContent = '--';
+  document.getElementById('snapModHum').textContent = '--';
+  document.getElementById('snapModPeriod').textContent = '--';
+  const peaksListEl = document.getElementById('snapPeaksList');
+  if (peaksListEl) peaksListEl.textContent = 'Chargement du cliché HD...';
 
   const audio = document.getElementById('snapAudioPlayer');
   if (audio) {
@@ -736,7 +770,6 @@ async function openSnapshotModal(discomfortId) {
     document.getElementById('snapModHum').textContent = (data.mod_hum_pct || 0) + '%';
     document.getElementById('snapModPeriod').textContent = (data.mod_period_s ? data.mod_period_s + ' s' : 'Non périodique');
 
-    const peaksListEl = document.getElementById('snapPeaksList');
     if (peaksListEl) {
       if (data.peaks && data.peaks.length > 0) {
         peaksListEl.innerHTML = data.peaks.map((p, idx) =>
@@ -748,6 +781,10 @@ async function openSnapshotModal(discomfortId) {
     }
 
     currentSnapFreqView = null;
+    document.querySelectorAll('#snapFocusAll, #snapFocusInfra, #snapFocusHum').forEach(b => b.classList.remove('btn-active'));
+    const bAll = document.getElementById('snapFocusAll');
+    if (bAll) bAll.classList.add('btn-active');
+
     snapShowCh = { l: showCh.l, d: showCh.d };
     if (!snapShowCh.l && !snapShowCh.d) snapShowCh = { l: true, d: true };
     const sg = document.getElementById('snapToggleChG');
@@ -758,6 +795,10 @@ async function openSnapshotModal(discomfortId) {
       drawSnapshotSpectrogram();
       drawSnapshotSpectrumCurve();
     });
+  } else {
+    if (peaksListEl) {
+      peaksListEl.innerHTML = '<span style="color:#f87171;">⚠️ Données du cliché HD non disponibles pour ce signalement.</span>';
+    }
   }
 }
 
@@ -831,7 +872,8 @@ function drawSnapshotSpectrogram() {
   const fLo = currentSnapFreqView ? currentSnapFreqView.fLo : freqs[0];
   const fHi = currentSnapFreqView ? currentSnapFreqView.fHi : freqs[nBins - 1];
   const x0 = 40, x1 = wCss - 10;
-  const yOfHz = (f) => 4 + (fHi - Math.min(Math.max(f, fLo), fHi)) / Math.max(0.1, fHi - fLo) * (hCss - 8);
+  const y0 = 6, y1 = hCss - 18;
+  const yOfHz = (f) => y0 + (fHi - Math.min(Math.max(f, fLo), fHi)) / Math.max(0.1, fHi - fLo) * (y1 - y0);
 
   const colW = Math.max(1, (x1 - x0) / nTicks);
   const binStep = freqs.length > 1 ? freqs[1] - freqs[0] : 0.488;
@@ -848,7 +890,7 @@ function drawSnapshotSpectrogram() {
       else if (snapShowCh.l) val = v1;
       else if (snapShowCh.d) val = v2;
       if (val <= -99) continue;
-      const tNorm = Math.max(0, Math.min(1, (val - (-40)) / 70));
+      const tNorm = Math.max(0, Math.min(1, (val - (-60)) / 80));
       ctx.fillStyle = specColor(tNorm);
       const yA = yOfHz(f), yB = yOfHz(f + binStep);
       const yT = Math.min(yA, yB), hh = Math.max(1, Math.abs(yB - yA));
@@ -860,13 +902,17 @@ function drawSnapshotSpectrogram() {
   ctx.font = '11px monospace';
   ctx.textAlign = 'right';
   const hzStep = niceHzStep((fHi - fLo) / 4);
-  for (let f = Math.ceil(fLo / hzStep) * hzStep; f <= fHi + 1e-6; f += hzStep)
-    ctx.fillText(Math.round(f) + ' Hz', 36, Math.min(hCss - 2, yOfHz(f) + 4));
+  for (let f = Math.ceil(fLo / hzStep) * hzStep; f <= fHi + 1e-6; f += hzStep) {
+    const yf = yOfHz(f);
+    ctx.fillText(Math.round(f) + ' Hz', 36, Math.min(hCss - 2, yf + 4));
+  }
 
+  ctx.fillStyle = '#64748b';
+  ctx.font = '10px monospace';
   ctx.textAlign = 'center';
   for (let sec = -30; sec <= 0; sec += 5) {
     const xp = x0 + ((sec + 30) / 30) * (x1 - x0);
-    ctx.fillText(sec + 's', xp, hCss - 2);
+    ctx.fillText(sec + 's', xp, hCss - 3);
   }
   ctx.textAlign = 'left';
 }

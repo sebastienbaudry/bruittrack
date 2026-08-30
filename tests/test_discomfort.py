@@ -124,6 +124,9 @@ def test_dashboard_contains_discomfort_and_focus_controls() -> None:
     assert "snapPeaksBar" in HTML_DASHBOARD
     assert "snapAudioPlayer" in HTML_DASHBOARD
     assert "openSnapshotModal" in HTML_DASHBOARD
+    assert "specColor" in HTML_DASHBOARD
+    assert "drawSnapshotSpectrogram" in HTML_DASHBOARD
+    assert "drawSnapshotSpectrumCurve" in HTML_DASHBOARD
     assert "discomfortAnalysisBanner" in HTML_DASHBOARD
     assert "closeDiscomfortBanner" in HTML_DASHBOARD
     assert "copyCurrentDiscomfortReport" in HTML_DASHBOARD
@@ -135,6 +138,23 @@ def test_dashboard_contains_discomfort_and_focus_controls() -> None:
     assert pos_disc < pos_events and pos_disc < pos_clusters, (
         "Le journal des gênes doit être au-dessus des événements"
     )
+
+
+def test_spec_color_palette() -> None:
+    """Verify specColor JavaScript function aligns with SPECTRUM_COLORMAP palette."""
+    import re
+
+    from bruittrack.store import SPECTRUM_COLORMAP
+
+    # Extract specColor function from HTML_DASHBOARD
+    match = re.search(
+        r"function specColor\s*\([^)]*\)\s*\{([^}]+(?:\{[^}]*\}[^}]+)*)\}", HTML_DASHBOARD
+    )
+    assert match is not None, "specColor function must be present in HTML_DASHBOARD"
+
+    # Verify key color anchors in SPECTRUM_COLORMAP
+    assert SPECTRUM_COLORMAP[0].tolist() == [8, 12, 18]
+    assert SPECTRUM_COLORMAP[255].tolist() == [255, 72, 0]
 
 
 def test_dsp_snapshot_and_beating_metrics() -> None:
