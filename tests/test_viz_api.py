@@ -641,3 +641,96 @@ def test_p1_legal_report_api_endpoint(viz_server) -> None:
     assert "total_events" in rep
     assert "infraction_count" in rep
     assert isinstance(rep["infractions"], list)
+
+
+def test_is_local_client_detection() -> None:
+    """Vérifie la distinction précise entre adresses IP locales/privées et publiques."""
+    from bruittrack.viz import is_local_client
+
+    # Local / Privé / Loopback / Link-local
+    assert is_local_client("127.0.0.1") is True
+    assert is_local_client("127.0.1.1") is True
+    assert is_local_client("::1") is True
+    assert is_local_client("192.168.1.1") is True
+    assert is_local_client("192.168.1.30") is True
+    assert is_local_client("10.0.0.1") is True
+    assert is_local_client("172.16.0.1") is True
+    assert is_local_client("172.31.255.254") is True
+    assert is_local_client("fe80::28c:faff:fed2:3e85") is True
+    assert is_local_client("::ffff:192.168.1.30") is True
+
+    # Externe / Public
+    assert is_local_client("93.174.93.12") is False
+    assert is_local_client("8.8.8.8") is False
+    assert is_local_client("51.77.52.145") is False
+    assert is_local_client("2a01:cb05:8593:600:1175:46d9:d8c1:3a36") is False
+    assert is_local_client("::ffff:93.174.93.12") is False
+
+    # Invalide / None
+    assert is_local_client("") is False
+    assert is_local_client(None) is False
+    assert is_local_client("non_ip_string") is False
+
+
+def test_external_post_requests_rejected_403(tmp_path) -> None:
+    """Vérifie que les requêtes POST provenant d'une IP externe sont rejetées avec HTTP 403."""
+    from bruittrack.config import Config, StorageConfig
+    from bruittrack.store import EventStore
+    from bruittrack.viz import BruitTrackHandler
+
+    db_path = str(tmp_path / "readonly_test.db")
+    store = EventStore(db_path=db_path)
+    config = Config(storage=StorageConfig(db_path=db_path))
+
+    # Handler avec client_address simulée externe
+    class ExternalHandler(BruitTrackHandler):
+        def __init__(self, *args, **kwargs):
+            # Intercepte l'appel pour forcer une IP cliente externe
+            super().__init__(*args, **kwargs)
+
+        def setup(self):
+            super().setup()
+            self.client_address = ("93.174.93.12", 54321)
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), ExternalHandler)
+    ExternalHandler.store = store
+    ExternalHandler.config = config
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{port}"
+
+    try:
+        # 1. POST /api/clusters/1/triage
+        body = json.dumps({"flags": 1, "label": "test"}).encode("utf-8")
+        req1 = urllib.request.Request(
+            base + "/api/clusters/1/triage",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(urllib.error.HTTPError) as e1:
+            urllib.request.urlopen(req1, timeout=5)
+        assert e1.value.code == 403
+        err_body = json.loads(e1.value.read().decode("utf-8"))
+        assert "Modifications interdites depuis l'extérieur" in err_body.get("error", "")
+
+        # 2. POST /api/discomfort
+        body_disc = json.dumps({"level": 4, "note": "test"}).encode("utf-8")
+        req2 = urllib.request.Request(
+            base + "/api/discomfort",
+            data=body_disc,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(urllib.error.HTTPError) as e2:
+            urllib.request.urlopen(req2, timeout=5)
+        assert e2.value.code == 403
+
+        # 3. GET /api/events (lecture seule) doit rester autorisée avec HTTP 200
+        with urllib.request.urlopen(base + "/api/events", timeout=5) as r3:
+            assert r3.status == 200
+    finally:
+        server.shutdown()
+        server.server_close()
+        store.close()

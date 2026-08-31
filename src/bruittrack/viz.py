@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import http.server
 import io
+import ipaddress
 import json
 import logging
 import time
@@ -25,6 +26,19 @@ logger = logging.getLogger("bruittrack.viz")
 # Garde-fous réseau et mémoire (P0)
 MAX_POST_BODY = 64 * 1024  # 64 Ko max pour les corps de requêtes POST
 MAX_API_LIMIT = 50_000  # Plafond strict pour les requêtes paginées
+
+
+def is_local_client(client_ip: str | None) -> bool:
+    """Détermine si l'adresse IP du client provient du réseau local (LAN / loopback / link-local)."""
+    if not client_ip:
+        return False
+    try:
+        ip = ipaddress.ip_address(client_ip)
+        if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+            ip = ip.ipv4_mapped
+        return bool(ip.is_loopback or ip.is_private or ip.is_link_local)
+    except ValueError:
+        return False
 
 
 def create_wav_from_raw(raw_path: Path, sample_rate: int = 1000) -> bytes:
@@ -194,7 +208,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 <body>
 
 <header>
-  <h1>🔊 BruitTrack <span class="badge badge-live">24/7 ACTIF</span></h1>
+  <h1>🔊 BruitTrack <span class="badge badge-live">24/7 ACTIF</span><span id="readonlyBadge" class="badge" style="display:none; background:rgba(239,68,68,0.2); color:#fca5a5; border:1px solid #ef4444; margin-left:6px;" title="Accès externe : les modifications sont verrouillées en lecture seule">🔒 LECTURE SEULE</span></h1>
   <div class="header-actions">
     <button class="btn btn-danger" style="font-weight:bold; background:rgba(239,68,68,0.25); border:1px solid #ef4444; color:#fca5a5;" onclick="openDiscomfortModal()">🚨 Signaler une Gêne / Crise</button>
     <div style="display:inline-flex; align-items:center; gap:5px; background:rgba(15,23,42,0.8); border:1px solid var(--border); border-radius:4px; padding:3px 8px;">
@@ -705,6 +719,10 @@ function resetCalToLive() {
 }
 
 function openDiscomfortModal() {
+  if (!IS_LOCAL) {
+    alert("Modifications interdites depuis l'extérieur (mode lecture seule).");
+    return;
+  }
   const m = document.getElementById('discomfortModal');
   if (m) m.style.display = 'flex';
 }
@@ -1071,6 +1089,10 @@ async function submitDiscomfort() {
 }
 
 async function deleteDiscomfort(id) {
+  if (!IS_LOCAL) {
+    alert("Modifications interdites depuis l'extérieur (mode lecture seule).");
+    return;
+  }
   if (!confirm('Supprimer ce signalement de gêne ?')) return;
   try {
     const res = await fetch('/api/discomfort/' + id + '/delete', { method: 'POST' });
@@ -1078,6 +1100,9 @@ async function deleteDiscomfort(id) {
       if (selectedDiscomfort && selectedDiscomfort.id === id) closeDiscomfortBanner();
       await fetchDiscomfortLogs();
       drawTimelineFull(false);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || 'Erreur lors de la suppression');
     }
   } catch(e) {
     console.error('Erreur deleteDiscomfort', e);
@@ -1605,13 +1630,26 @@ function renderClustersTable(clusters) {
 }
 
 async function triageCluster(clusterId, flags) {
+  if (!IS_LOCAL) {
+    alert("Modifications interdites depuis l'extérieur (mode lecture seule).");
+    return;
+  }
   const label = prompt("Label du cluster (optionnel)", "") ?? "";
-  await fetch(`/api/clusters/${clusterId}/triage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ flags, label })
-  });
-  refreshAll();
+  try {
+    const res = await fetch(`/api/clusters/${clusterId}/triage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ flags, label })
+    });
+    if (res.ok) {
+      refreshAll();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || 'Erreur lors du triage');
+    }
+  } catch (e) {
+    alert('Erreur réseau');
+  }
 }
 
 // Bornes de fréquence injectées côté serveur depuis la configuration DSP
@@ -2112,6 +2150,7 @@ function drawTimeline(events) {
 // Config injectée côté serveur (placeholders remplacés par BruitTrackHandler).
 const SPEC = { enabled: __SPEC_ENABLED__, bands: __SPEC_BANDS__, dbMin: __SPEC_DB_MIN__, dbRange: __SPEC_DB_RANGE__ };
 const EXEMPLARS_ENABLED = __EXEMPLARS_ENABLED__;
+const IS_LOCAL = __IS_LOCAL__;
 let specImg = null;
 let specImgKey = null;
 let specRequestedKey = null;
@@ -2469,6 +2508,7 @@ function initAutoRefresh() {
 
 // Initial : fit hi-DPI puis fetch + auto-refresh configuré
 if (!EXEMPLARS_ENABLED) { const th = document.getElementById('audioTh'); if (th) th.remove(); }
+if (!IS_LOCAL) { const rb = document.getElementById('readonlyBadge'); if (rb) rb.style.display = 'inline-block'; }
 requestAnimationFrame(() => { fitCanvas(); refreshAll(); initAutoRefresh(); });
 </script>
 </body>
@@ -2481,6 +2521,12 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
 
     store: EventStore
     config: Config
+
+    def _is_local_request(self) -> bool:
+        """Vérifie si la requête courante provient du réseau local (LAN / loopback / link-local)."""
+        if not self.client_address or not self.client_address[0]:
+            return False
+        return is_local_client(str(self.client_address[0]))
 
     def _check_auth(self) -> bool:
         """Vérifie le jeton d'authentification si configuré pour les actions d'écriture."""
@@ -2520,6 +2566,7 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
 
         if path in ("/", "/index.html"):
             # Injection des bornes DSP configurées (zéro magic number client)
+            is_local = self._is_local_request()
             payload = (
                 HTML_DASHBOARD.replace("__FREQ_MAX__", f"{self.config.dsp.freq_max:g}")
                 .replace("__MIN_EVENT_HZ__", f"{self.config.dsp.min_event_hz:g}")
@@ -2531,6 +2578,7 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
                     "__EXEMPLARS_ENABLED__",
                     "true" if self.config.storage.record_exemplars else "false",
                 )
+                .replace("__IS_LOCAL__", "true" if is_local else "false")
             ).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -2760,6 +2808,13 @@ class BruitTrackHandler(http.server.BaseHTTPRequestHandler):
         self.send_error(404, "Not Found")
 
     def do_POST(self) -> None:
+        if not self._is_local_request():
+            self._send_json(
+                {"error": "Modifications interdites depuis l'extérieur (lecture seule)"},
+                status=403,
+            )
+            return
+
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
