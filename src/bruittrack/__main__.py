@@ -439,7 +439,7 @@ def cmd_log_discomfort(args: argparse.Namespace) -> int:
 
 
 def cmd_discomfort_logs(args: argparse.Namespace) -> int:
-    """Lister les signalements de gêne enregistrés."""
+    """Lister les signalements de gêne enregistrés avec clusters corrélés."""
     import datetime
 
     config = load_config(args.config)
@@ -455,10 +455,23 @@ def cmd_discomfort_logs(args: argparse.Namespace) -> int:
             print("Aucun signalement de gêne enregistré.")
         else:
             print(f"Signalements de gêne enregistrés ({len(logs)}) :")
-            print("-" * 65)
+            print("-" * 75)
             for r in logs:
                 dt = datetime.datetime.fromtimestamp(r["t0"]).strftime("%Y-%m-%d %H:%M:%S")  # noqa: DTZ006
-                print(f"#{r['id']:3d} | {dt} | Niveau {r['level']}/5 | {r['note'] or 'Sans note'}")
+                clusters_str = ""
+                if r.get("correlated_clusters"):
+                    cl_items = [
+                        f"#{c['cluster_id']}"
+                        + (f" ({c['label']})" if c.get("label") else "")
+                        + f" [{c['count']}x, {c['avg_freq']}Hz]"
+                        for c in r["correlated_clusters"]
+                    ]
+                    clusters_str = f" | Clusters: {', '.join(cl_items)}"
+                else:
+                    clusters_str = " | Clusters: Aucun"
+                print(
+                    f"#{r['id']:3d} | {dt} | Niveau {r['level']}/5 | {r['note'] or 'Sans note'}{clusters_str}"
+                )
     store.close()
     return 0
 

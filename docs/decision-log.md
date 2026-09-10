@@ -292,3 +292,16 @@ par id absorbe en fin de boucle. Garantit : le cluster canonique final est l'id 
   - Transfert réseau divisé par 130 (~108 Ko au lieu de 14,4 Mo) et temps total serveur + réseau + affichage réduit à ~300 ms sur thin client HP T620.
   - Côté frontend : affichage instantané de l'image PNG sur le Canvas avec maintien de l'alignement temporel/fréquentiel, du survol interactif et des marqueurs de signalements de gêne.
   - Suite de tests complète portée à 180 tests 100% verts.
+
+## [2026-09-04] Corrélation des Gênes avec les Clusters Récurrents
+- **Contexte & Objectif** :
+  - Permettre d'identifier immédiatement, pour chaque signalement de gêne/crise, quels clusters sonores récurrents étaient actifs au moment ressenti (fenêtre temporelle standard de $\pm 5\text{ min}$ / $\pm 300\text{ s}$).
+- **Modifications d'Architecture** :
+  - **`EventStore.get_discomfort_logs()`** : Agrégation SQL groupée par cluster dans la fenêtre $\pm 300\text{ s}$ autour du $t_0$ de la gêne (nombre d'occurrences, fréquence moyenne, émergence maximale, label). Enrichissement des entrées avec `correlated_clusters` et `cluster_ids`.
+  - **Interface Web (`viz.py`)** :
+    - Ajout de la colonne *Clusters corrélés (±5 min)* dans le tableau du Journal des Gênes avec badges cliquables (couleur de cluster dédiée, infobulle détaillée, filtrage direct des événements en 1-clic).
+    - Intégration des badges de clusters corrélés dans le bandeau d'analyse de crise (`discomfortAnalysisBanner`).
+    - Ajout de la ligne descriptive des clusters corrélés dans l'export textuel (`copyCurrentDiscomfortReport()`).
+  - **CLI (`__main__.py`)** : Affichage des clusters corrélés dans la commande `bruittrack discomfort-logs` (format texte et format `--json`).
+  - **Tests (`tests/test_discomfort.py`)** : Tests unitaires et d'intégration validant le calcul SQL, l'API JSON, la présence des éléments UI et la sortie CLI. Suite complète portée à 190 tests 100% verts.
+

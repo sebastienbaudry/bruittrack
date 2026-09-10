@@ -368,11 +368,12 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           <th>Intensité</th>
           <th>Symptômes / Notes</th>
           <th>Profil Physique HD</th>
+          <th>Clusters corrélés (±5 min)</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody id="discomfortTableBody">
-        <tr><td colspan="5" style="text-align:center; color:#64748b;">Aucun signalement de gêne enregistré.</td></tr>
+        <tr><td colspan="6" style="text-align:center; color:#64748b;">Aucun signalement de gêne enregistré.</td></tr>
       </tbody>
     </table>
   </div>
@@ -1128,6 +1129,49 @@ function closeDiscomfortBanner() {
   drawTimelineFull(false);
 }
 
+function getCorrelatedClustersForLog(l) {
+  if (l && l.correlated_clusters && l.correlated_clusters.length > 0) {
+    return l.correlated_clusters;
+  }
+  if (eventsData && eventsData.length > 0 && l && l.t0) {
+    const t0 = l.t0;
+    const evNear = eventsData.filter(e => e.t0 >= t0 - 300 && e.t0 <= t0 + 300 && e.cluster != null);
+    const groups = {};
+    evNear.forEach(e => {
+      const cid = e.cluster;
+      if (!groups[cid]) {
+        groups[cid] = { cluster_id: cid, count: 0, sum_freq: 0, max_emergence: 0, label: '' };
+        if (typeof clustersData !== 'undefined' && Array.isArray(clustersData)) {
+          const cinfo = clustersData.find(c => c.cluster_id === cid);
+          if (cinfo && cinfo.label) groups[cid].label = cinfo.label;
+        }
+      }
+      groups[cid].count += 1;
+      groups[cid].sum_freq += e.freq;
+      const em = Math.max(e.lvl_g || 0, e.lvl_d || 0);
+      if (em > groups[cid].max_emergence) groups[cid].max_emergence = em;
+    });
+    const list = Object.values(groups).map(g => ({
+      cluster_id: g.cluster_id,
+      count: g.count,
+      avg_freq: Math.round((g.sum_freq / g.count) * 10) / 10,
+      max_emergence: Math.round(g.max_emergence * 10) / 10,
+      label: g.label
+    }));
+    list.sort((a, b) => b.count - a.count || b.max_emergence - a.max_emergence);
+    return list;
+  }
+  return [];
+}
+
+function filterByCluster(clusterId) {
+  const sel = document.getElementById('clusterFilter');
+  if (sel) {
+    sel.value = String(clusterId);
+    applyFilters();
+  }
+}
+
 function renderDiscomfortBanner(d) {
   const b = document.getElementById('discomfortAnalysisBanner');
   if (!b || !d) return;
@@ -1155,10 +1199,20 @@ function renderDiscomfortBanner(d) {
     if (em > maxEmerg) { maxEmerg = em; peakHz = e.freq; }
   });
 
+  const clList = getCorrelatedClustersForLog(d);
+  let clHtml = '';
+  if (clList.length > 0) {
+    clHtml = '<br/><span style="color:#94a3b8;">Clusters : </span>' + clList.map(c => {
+      const col = getClusterColor(c.cluster_id);
+      const lbl = c.label ? ` (${c.label})` : '';
+      return `<span class="badge badge-cluster" style="background:${col}22; color:${col}; border:1px solid ${col}55; cursor:pointer;" onclick="filterByCluster(${c.cluster_id})" title="Cluster #${c.cluster_id} : ${c.count} evts, fréq moy ${c.avg_freq} Hz, émergence +${c.max_emergence} dB">#${c.cluster_id}${lbl} (${c.count}× · ${c.avg_freq}Hz)</span>`;
+    }).join(' ');
+  }
+
   const statEventsEl = document.getElementById('bannerStatEvents');
   if (statEventsEl) {
     statEventsEl.innerHTML = totalNear > 0
-      ? `<span style="color:#38bdf8; font-weight:bold;">${totalNear} événements</span> (dont <span style="color:${legalNear > 0 ? '#ef4444' : '#4ade80'}; font-weight:bold;">${legalNear} infractions</span>)<br/><span style="color:#fcd34d;">Émergence max: +${maxEmerg.toFixed(1)} dB @ ${peakHz.toFixed(1)} Hz</span>`
+      ? `<span style="color:#38bdf8; font-weight:bold;">${totalNear} événements</span> (dont <span style="color:${legalNear > 0 ? '#ef4444' : '#4ade80'}; font-weight:bold;">${legalNear} infractions</span>)<br/><span style="color:#fcd34d;">Émergence max: +${maxEmerg.toFixed(1)} dB @ ${peakHz.toFixed(1)} Hz</span>${clHtml}`
       : `<span style="color:#94a3b8;">Aucune émergence ponctuelle au-dessus du plancher (nuisance continue ou infrason pur)</span>`;
   }
 
@@ -1213,6 +1267,13 @@ function copyCurrentDiscomfortReport() {
     `- Événements détectés: ${evNear.length}`,
     `- Dépassements du seuil légal (CSP R1336-7): ${legalCount}`,
   ];
+  const clList = getCorrelatedClustersForLog(d);
+  if (clList.length > 0) {
+    const clStr = clList.map(c => `#${c.cluster_id}${c.label ? ' (' + c.label + ')' : ''} (${c.count} evts, ~${c.avg_freq} Hz, max +${c.max_emergence} dB)`).join(', ');
+    lines.push(`- Clusters corrélés: ${clStr}`);
+  } else {
+    lines.push(`- Clusters corrélés: Aucun (nuisance continue ou infrason pur)`);
+  }
   if (d.has_snapshot) {
     lines.push(`----------------------------------------`);
     lines.push(`ANALYSE PHYSIQUE HAUTE DÉFINITION (30s @ 100ms / 0.49Hz) :`);
@@ -1248,7 +1309,7 @@ function renderDiscomfortTable() {
   const tbody = document.getElementById('discomfortTableBody');
   if (!tbody) return;
   if (!discomfortLogs.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#64748b;">Aucun signalement de gêne enregistré.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#64748b;">Aucun signalement de gêne enregistré.</td></tr>';
     return;
   }
   const levelBadges = {
@@ -1279,6 +1340,19 @@ function renderDiscomfortTable() {
       profileBadges = '<span style="color:#64748b; font-size:11px;">Standard</span>';
     }
 
+    // Clusters corrélés (±5 min)
+    const clList = getCorrelatedClustersForLog(l);
+    let clustersHtml = '';
+    if (clList.length > 0) {
+      clustersHtml = clList.map(c => {
+        const col = getClusterColor(c.cluster_id);
+        const lbl = c.label ? ` <small style="opacity:0.8;">(${c.label})</small>` : '';
+        return `<span class="badge badge-cluster" style="background:${col}22; color:${col}; border:1px solid ${col}55; cursor:pointer;" onclick="filterByCluster(${c.cluster_id})" title="Cluster #${c.cluster_id} : ${c.count} événement(s), fréq moy ${c.avg_freq} Hz, émergence max +${c.max_emergence} dB${c.label ? ' - ' + c.label : ''}">#${c.cluster_id}${lbl} <small style="opacity:0.85;">(${c.count}× · ${c.avg_freq}Hz)</small></span>`;
+      }).join(' ');
+    } else {
+      clustersHtml = '<span style="color:#64748b; font-size:11px;" title="Aucun événement détecté dans les ±5 min">Aucun</span>';
+    }
+
     const snapBtn = l.has_snapshot
       ? `<button class="btn btn-sm" style="background:#0284c7; color:white; font-weight:bold;" onclick="openSnapshotModal(${l.id})" title="Ouvrir le Cliché Spectrogramme HD (100ms / 0.49Hz)">🔬 Cliché HD</button>`
       : '';
@@ -1287,6 +1361,7 @@ function renderDiscomfortTable() {
       <td>${b}</td>
       <td>${noteEsc || '<em style="color:#64748b;">Sans note</em>'}</td>
       <td style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">${profileBadges}</td>
+      <td style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">${clustersHtml}</td>
       <td style="display:flex; gap:4px; flex-wrap:wrap;">
         <button class="btn btn-sm" style="background:#334155; color:#f8fafc;" onclick="zoomOnDiscomfort(${l.t0}, ${l.id})" title="Zoomer et afficher l'analyse acoustique complète (±5 min)">🔍 Zoomer & Analyser</button>
         ${snapBtn}

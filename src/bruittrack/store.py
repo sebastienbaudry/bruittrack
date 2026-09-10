@@ -882,8 +882,14 @@ class EventStore:
         until: float | None = None,
         limit: int = 1000,
         snapshots_dir: str | Path | None = "snapshots",
+        correlation_window_s: float = 300.0,
     ) -> list[dict[str, Any]]:
-        """Fetch discomfort log entries, newest first by default."""
+        """Fetch discomfort log entries with correlated clusters, newest first by default.
+
+        For each discomfort log entry, computes the clusters present in the ±correlation_window_s
+        (default ±5 min / 300 s) time window.
+        """
+        self.flush()
         limit = max(1, min(int(limit), 50_000))
         query = "SELECT id, t0, level, note, created_at FROM discomfort_log WHERE 1=1"
         params: list[Any] = []
@@ -898,8 +904,42 @@ class EventStore:
         sdir = Path(snapshots_dir) if snapshots_dir else None
         with self._db(readonly=True) as conn:
             rows = [dict(row) for row in conn.execute(query, params).fetchall()]
-            if sdir and sdir.is_dir():
-                for r in rows:
+            for r in rows:
+                t0_val = r["t0"]
+                cl_rows = conn.execute(
+                    """
+                    SELECT
+                        e.cluster,
+                        COUNT(e.id) AS event_count,
+                        ROUND(AVG(e.freq), 1) AS avg_freq,
+                        ROUND(MAX(MAX(e.lvl_g, e.lvl_d)), 1) AS max_emergence,
+                        COALESCE(c.label, '') AS label
+                    FROM events e
+                    LEFT JOIN clusters c ON e.cluster = c.id
+                    WHERE e.t0 >= ? AND e.t0 <= ? AND e.cluster IS NOT NULL
+                    GROUP BY e.cluster
+                    ORDER BY event_count DESC, max_emergence DESC;
+                    """,
+                    (t0_val - correlation_window_s, t0_val + correlation_window_s),
+                ).fetchall()
+                correlated = [
+                    {
+                        "cluster_id": int(crow["cluster"]),
+                        "count": int(crow["event_count"]),
+                        "avg_freq": float(crow["avg_freq"])
+                        if crow["avg_freq"] is not None
+                        else 0.0,
+                        "max_emergence": float(crow["max_emergence"])
+                        if crow["max_emergence"] is not None
+                        else 0.0,
+                        "label": str(crow["label"] or ""),
+                    }
+                    for crow in cl_rows
+                ]
+                r["correlated_clusters"] = correlated
+                r["cluster_ids"] = [c["cluster_id"] for c in correlated]
+
+                if sdir and sdir.is_dir():
                     meta_path = sdir / f"snap_{r['id']}.json"
                     npz_path = sdir / f"snap_{r['id']}.npz"
                     if meta_path.is_file():
@@ -915,8 +955,7 @@ class EventStore:
                         r["has_snapshot"] = True
                     else:
                         r["has_snapshot"] = False
-            else:
-                for r in rows:
+                else:
                     r["has_snapshot"] = False
             return rows
 

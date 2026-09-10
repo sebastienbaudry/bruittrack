@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 from bruittrack.config import Config
@@ -278,3 +279,183 @@ def test_discomfort_snapshot_store_and_api(tmp_path: Path) -> None:
     assert not json_file.is_file()
 
     store.close()
+
+
+def test_store_discomfort_correlated_clusters(tmp_path: Path) -> None:
+    """Test that EventStore.get_discomfort_logs calculates correlated clusters within +-5min window."""
+    from bruittrack.events import SoundEvent
+
+    db_path = tmp_path / "test_correl.db"
+    store = EventStore(db_path=db_path)
+
+    t0_base = 1787000000.0
+    fp_dummy = b"\x00" * 16
+
+    # 1. Add events with cluster 1 near t0_base (at t0_base - 30s and t0_base + 40s)
+    store.add_event(
+        SoundEvent(
+            t0=t0_base - 30.0,
+            dur=4.0,
+            bin_i=48,
+            freq=23.4,
+            lvl_g=14.5,
+            lvl_d=12.0,
+            off_ms=0.0,
+            fp=fp_dummy,
+            cluster=1,
+        )
+    )
+    store.add_event(
+        SoundEvent(
+            t0=t0_base + 40.0,
+            dur=6.0,
+            bin_i=48,
+            freq=23.4,
+            lvl_g=18.2,
+            lvl_d=15.0,
+            off_ms=0.0,
+            fp=fp_dummy,
+            cluster=1,
+        )
+    )
+
+    # 2. Add event with cluster 2 near t0_base (at t0_base + 10s)
+    store.add_event(
+        SoundEvent(
+            t0=t0_base + 10.0,
+            dur=2.5,
+            bin_i=110,
+            freq=53.7,
+            lvl_g=10.0,
+            lvl_d=22.0,
+            off_ms=1.2,
+            fp=fp_dummy,
+            cluster=2,
+        )
+    )
+
+    # 3. Add event with cluster 3 far away (at t0_base + 3600s)
+    store.add_event(
+        SoundEvent(
+            t0=t0_base + 3600.0,
+            dur=1.0,
+            bin_i=200,
+            freq=97.6,
+            lvl_g=8.0,
+            lvl_d=9.0,
+            off_ms=-0.5,
+            fp=fp_dummy,
+            cluster=3,
+        )
+    )
+
+    # Flush events to DB
+    store.flush()
+
+    # Label cluster 1
+    store.set_cluster_triage(1, flags=1, label="VMC Cuisine")
+
+    # Insert discomfort log at t0_base
+    log_id1 = store.log_discomfort(t0=t0_base, level=4, note="Vibration continue")
+    # Insert another discomfort log far away (at t0_base + 7200s) with no events nearby
+    log_id2 = store.log_discomfort(t0=t0_base + 7200.0, level=2, note="Calme relatif")
+
+    logs = store.get_discomfort_logs()
+    assert len(logs) == 2
+
+    # Log 2 is newest (t0_base + 7200)
+    l2 = logs[0]
+    assert l2["id"] == log_id2
+    assert l2["correlated_clusters"] == []
+    assert l2["cluster_ids"] == []
+
+    # Log 1 (t0_base) has clusters 1 and 2 correlated
+    l1 = logs[1]
+    assert l1["id"] == log_id1
+    assert len(l1["correlated_clusters"]) == 2
+    assert l1["cluster_ids"] == [1, 2]
+
+    # Cluster 1 checks (2 events, label 'VMC Cuisine')
+    c1 = next(c for c in l1["correlated_clusters"] if c["cluster_id"] == 1)
+    assert c1["count"] == 2
+    assert abs(c1["avg_freq"] - 23.4) < 0.1
+    assert c1["max_emergence"] == 18.2
+    assert c1["label"] == "VMC Cuisine"
+
+    # Cluster 2 checks (1 event)
+    c2 = next(c for c in l1["correlated_clusters"] if c["cluster_id"] == 2)
+    assert c2["count"] == 1
+    assert abs(c2["avg_freq"] - 53.7) < 0.1
+    assert c2["max_emergence"] == 22.0
+
+    # Verify cluster 3 (far away) is NOT present in log 1
+    assert not any(c["cluster_id"] == 3 for c in l1["correlated_clusters"])
+
+    store.close()
+
+
+def test_dashboard_contains_correlated_clusters_elements() -> None:
+    """Verify HTML_DASHBOARD contains UI elements for cluster correlation in discomfort log."""
+    assert "Clusters corrélés" in HTML_DASHBOARD
+    assert "getCorrelatedClustersForLog" in HTML_DASHBOARD
+    assert "filterByCluster" in HTML_DASHBOARD
+
+
+def test_cmd_discomfort_logs_output(tmp_path: Path, capsys: Any) -> None:
+    """Test CLI cmd_discomfort_logs display with correlated clusters."""
+    import argparse
+
+    from bruittrack.__main__ import cmd_discomfort_logs
+    from bruittrack.events import SoundEvent
+
+    cfg_file = tmp_path / "config.toml"
+    db_file = tmp_path / "cli_disc.db"
+    cfg_file.write_text(f'[storage]\ndb_path = "{db_file.as_posix()}"\n', encoding="utf-8")
+
+    store = EventStore(db_path=db_file)
+    t0 = 1787000000.0
+    store.add_event(
+        SoundEvent(
+            t0=t0,
+            dur=2.0,
+            bin_i=48,
+            freq=23.4,
+            lvl_g=12.0,
+            lvl_d=10.0,
+            off_ms=0.0,
+            fp=b"\x00" * 16,
+            cluster=5,
+        )
+    )
+    store.set_cluster_triage(5, flags=1, label="Compresseur")
+    store.log_discomfort(t0=t0, level=3, note="Vrombissement")
+    store.close()
+
+    # 1. Text output
+    args_text = argparse.Namespace(
+        config=str(cfg_file),
+        since=None,
+        limit=10,
+        json=False,
+    )
+    res_text = cmd_discomfort_logs(args_text)
+    assert res_text == 0
+    out_text = capsys.readouterr().out
+    assert "Signalements de gêne enregistrés" in out_text
+    assert "#5 (Compresseur)" in out_text
+    assert "23.4Hz" in out_text
+
+    # 2. JSON output
+    args_json = argparse.Namespace(
+        config=str(cfg_file),
+        since=None,
+        limit=10,
+        json=True,
+    )
+    res_json = cmd_discomfort_logs(args_json)
+    assert res_json == 0
+    out_json = capsys.readouterr().out
+    data = json.loads(out_json)
+    assert len(data) == 1
+    assert data[0]["cluster_ids"] == [5]
+    assert data[0]["correlated_clusters"][0]["label"] == "Compresseur"

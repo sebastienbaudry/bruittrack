@@ -67,3 +67,8 @@
 3. git add -A && commit « I59b : union-find cluster merge, chaîne transitive canonique min-id » + entry decision-log.
 - FAIT it.6 : patch fp_a=fps[a] (membre) → test_store.py 14/14 ; check.sh CHECK OK **158 tests** ; commit ffb303b + entry decision-log.
 - Prochain tour : M9 smoke pi-t620 ou I70 style hardening du viz.
+
+## Corrélation Gênes↔Clusters (±5 min)
+- Fait : `store.get_discomfort_logs()` enrichi par agrégation SQL par cluster dans la fenêtre ±300 s (nb occurrences, fréq moy, émergence max, label) → `correlated_clusters` / `cluster_ids` ; badges cliquables (couleur cluster, info-bulle, filtrage 1-clic) dans le journal des gênes + bandeau de crise ; ligne d'export textuel ; CLI `discomfort-logs` (texte + --json).
+- Gate : 190 tests verts, ruff propre sur les fichiers modifiés ; entry decision-log ajoutée.
+- Commité ce tour. Prochain : déploiement pi-t620 puis M9 smoke / I70 style hardening.
