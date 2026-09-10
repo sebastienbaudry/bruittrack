@@ -31,6 +31,14 @@ deploy.tar
 output/
 tmp/
 
+# Cas réels et rapports de référence (documents de travail, racine uniquement)
+/*.pdf
+/*.docx
+/*.jpeg
+/*_TEXT.txt
+/*_extracted.txt
+/fetch_data.py
+
 # Fichiers résidus créés par erreur
 /f
 /~
