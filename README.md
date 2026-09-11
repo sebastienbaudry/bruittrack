@@ -53,7 +53,7 @@ python -m bruittrack perf                  # Mesure CPU/RSS sur 15 s vs budget 1
 BruitTrack intègre les règles officielles de calcul de l'**émergence acoustique** définies par le Code de la santé publique (Article R1336-7) pour qualifier objectivement les infractions et nuisances.
 
 ### 1. Variables et calculs
-* **Émergence mesurée** : $E_{\text{mesurée}} = \text{bruit\_ambiant} - \text{bruit\_résiduel}$ (en dB).
+* **Émergence mesurée** : $E_{\text{mesurée}} = \text{bruit ambiant} - \text{bruit résiduel}$ (en dB).
 * **Période temporelle (seuil de base)** :
   * **Période Diurne** (07:00 à 21:59) : `seuil_base` = **5 dB(A)**.
   * **Période Nocturne** (22:00 à 06:59) : `seuil_base` = **3 dB(A)**.
@@ -65,7 +65,7 @@ BruitTrack intègre les règles officielles de calcul de l'**émergence acoustiq
   * $2\text{ h} < T \le 4\text{ h}$ : **+2 dB(A)**
   * $4\text{ h} < T \le 8\text{ h}$ : **+1 dB(A)**
   * $> 8\text{ h}$ : **+0 dB(A)**
-* **Émergence limite autorisée** : $E_{\text{limite}} = \text{seuil\_base} + \text{correctif}$.
+* **Émergence limite autorisée** : $E_{\text{limite}} = \text{seuil de base} + \text{correctif}$.
 * **Contrainte de contrôle** : Si la durée cumulée est $< 10\text{ s}$, la durée d'enregistrement du bruit ambiant doit obligatoirement être $\ge 10\text{ s}$ sous peine d'invalidation du relevé.
 
 ### 2. Rapports de conformité
@@ -134,7 +134,7 @@ Syntaxe générale : `python -m bruittrack [-c CONFIG] <sous-commande> [options]
 | `report` | `--since`, `--json`, `-o/--output` | Génère un rapport de conformité acoustique légale (CSP Art. R1336-7). |
 | `log-discomfort` | `-l/--level` (1-5), `-n/--note`, `-t/--time` | Enregistre un signalement de gêne / crise avec déclenchement de cliché HD. |
 | `discomfort-logs` | `--since`, `--limit`, `--json` | Liste l'historique des signalements de gêne enregistrés. |
-| `purge-spectrum` | `-d/--days` | Purge manuelle des trames du spectrogramme plus anciennes que $N$ jours. |
+| `purge-spectrum` | `-d/--days` | Purge manuelle des trames du spectrogramme plus anciennes que *N* jours. |
 | `perf` | `--pid` | Vérifie la consommation CPU et mémoire RSS sur 15 s vs les budgets M9. |
 | `prune` | — | Supprime les extraits audio exemplaires orphelins (clusters absents de la base). |
 
