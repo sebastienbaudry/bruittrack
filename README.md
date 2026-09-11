@@ -1,22 +1,61 @@
 # BruitTrack
 
-Traqueur de **bruits récurrents et infrasons** : capture audio stéréo synchronisée (micro aérien IN1 + capteur structurel/piézo IN2) → détection d'événements par émergence spectrale au-dessus du bruit de fond dynamique → persistance minimale SQLite WAL (1 ligne par événement + empreinte acoustique) → clustering et fusion automatique → visualisation interactive et rapports de conformité légale.
+**BruitTrack** est un système autonome de surveillance, de caractérisation et de qualification juridique des **nuisances sonores répétitives, bruits sourds et infrasons** (0 à 150 Hz). 
 
-Conçu spécifiquement pour tourner **24/7 sur thin client HP T620** (Debian 13, x86 ~1,5 GHz, 4 Go RAM, 16 Go SSD, fanless) avec un budget strict : **CPU < 15 %** et **RAM < 150 Mo**.
+Conçu pour fonctionner **24 h / 24 et 7 j / 7 sur un mini-PC silencieux basse consommation (HP T620)**, il enregistre les caractéristiques physiques et temporelles objectives des perturbations sans stocker de flux audio continu (respect strict de la vie privée et empreinte disque minimale).
+
+---
+
+## 🎯 À quoi sert BruitTrack ? (Description fonctionnelle)
+
+Dans un logement ou un local professionnel, objectiver et faire cesser une nuisance sonore intermittente est un défi majeur :
+* **Bruits sourds et infrasons nocturnes** : Les vibrations de pompes à chaleur (PAC), VMC industrielles, compresseurs frigorifiques, chaudières, ascenseurs ou transformateurs électriques se propagent souvent la nuit par voie solidienne (murs, planchers). Ces basses fréquences sont difficilement audibles sur un smartphone classique mais provoquent des sensations physiques réelles (vibrations corporelles, réveils en sursaut, acouphènes, nausées).
+* **Preuve juridique et aléas des mesures** : Les mesures ponctuelles d'experts ou constats d'huissier arrivent rarement au moment de la crise.
+* **Respect de la vie privée** : L'enregistrement audio continu est exclu dans un espace privé.
+
+### Ce que fait le système :
+1. **Surveillance continue 24/7 & Détection en temps réel** : Analyse le spectre sonore basse fréquence 10 fois par seconde (blocs de 100 ms) et calcule en temps réel le niveau de fond habituel. Tout événement dépassant le plancher de bruit de plus de 10 dB est automatiquement détecté et chronométré.
+2. **Double écoute synchronisée (Air + Structure)** : En couplant un microphone aérien et un capteur de vibration piézoélectrique de contact, BruitTrack détermine si le bruit provient de l'air ou de la structure du bâtiment et calcule le décalage temporel d'arrivée.
+3. **Identification et regroupement des sources (Clustering)** : Chaque événement reçoit une empreinte spectrale compacte de 16 octets. Le système regroupe automatiquement les bruits récurrents par signature identique (ex. *Cluster #1 : Compresseur s'enclenchant toutes les 45 min*, *Cluster #3 : Résonance à 41 Hz*).
+4. **Journal des gênes ressenties & Clichés HD** : En cas de nuisance ressentie, l'habitant consigne l'instant en 1 clic. Le système capture immédiatement 30 secondes d'audio HD non compressé pour analyse détaillée et corrèle le ressenti avec les clusters sonores actifs.
+5. **Qualification légale automatique (CSP Art. R1336-7)** : Évalue automatiquement chaque émergence selon les critères officiels du Code de la santé publique (période diurne/nocturne, durée cumulée, correctifs légaux) et génère des rapports d'infraction.
+6. **Tableau de bord web interactif** : Visualisation en direct sans installation client (chronogramme par bulles colorées, spectrogramme continu 24h, zoom fréquentiel et temporel, écoute d'extraits audio représentatifs).
+
+---
+
+## 🎙️ Chaîne d'acquisition et matériel
+
+Le système s'articule autour d'une station de mesure autonome, économique et silencieuse :
+
+| Composant | Matériel utilisé | Rôle et caractéristiques |
+|---|---|---|
+| **Station de calcul 24/7** | Thin client **HP T620** (ou mini-PC x86 / Raspberry Pi)<br>*(Debian 13, x86 ~1,5 GHz, 4 Go RAM, 16 Go SSD)* | Fonctionnement fanless 100 % silencieux, basse consommation (< 10 W), assurant le traitement DSP continu sans surchauffe. Budget strict : **CPU < 15 %** et **RAM < 150 Mo**. |
+| **Interface audio (Carte son)** | **M-Audio M-Track Plus** (USB)<br>*(ou toute interface audio USB stéréo 24-bit / 48 kHz supportée par ALSA)* | Numérisation haute fidélité à 48 kHz / 2 canaux synchronisés, préamplis à faible bruit, entrées combo XLR / Jack 6.35 mm indépendantes et gain réglable. |
+| **Canal 1 (IN1 / Gauche) — Voie Aérienne** | **Behringer ECM8000**<br>*(Microphone de mesure à condensateur à réponse en fréquence linéaire)* | Capture fidèle de la pression acoustique dans l'air ambiant de la pièce (courbe de réponse ultra-plate pour une mesure objective des émergences audibles et basses fréquences). |
+| **Canal 2 (IN2 / Droite) — Voie Solidienne** | **Micro Piezo sans marque**<br>*(Transducteur / pastille piézoélectrique de contact)* | Plaqué ou collé contre une paroi (mur porteur, plancher, tuyauterie, cadre de fenêtre) pour capter directement les vibrations mécaniques et bruits d'impact transmis par la structure du bâtiment. |
+
+> [!NOTE]
+> **Pourquoi analyser systématiquement les deux canaux ensemble ?**
+> La corrélation croisée inter-canaux (calculée à $\pm 8\text{ ms}$) et le ratio d'énergie Air vs Structure permettent de localiser l'origine de la gêne :
+> * Émergence dominante sur **IN1 (Air)** $\to$ Bruit transmis par voie aérienne (rue, fenêtre, voisinage direct).
+> * Émergence dominante sur **IN2 (Piézo)** $\to$ Bruit transmis par voie solidienne (moteur/pompe fixé au bâtiment, tuyauterie, dalle).
+> * Émergence sur les deux canaux $\to$ Phénomène combiné ou couplage mécano-acoustique fort.
 
 ---
 
 ## Sommaire
 
-1. [Démarrage rapide](#démarrage-rapide)
-2. [Conformité légale (CSP Art. R1336-7)](#conformité-légale-csp-art-r1336-7)
-3. [Architecture et pipeline DSP](#architecture-et-pipeline-dsp)
-4. [Référence des commandes CLI](#référence-des-commandes-cli)
-5. [Interface web et API REST](#interface-web-et-api-rest)
-6. [Journal des gênes et clichés HD](#journal-des-gênes-et-clichés-hd)
-7. [Installation et déploiement (HP T620)](#installation-et-déploiement-hp-t620)
-8. [Configuration (`config.toml`)](#configuration-configtoml)
-9. [Tests et qualité](#tests-et-qualité)
+1. [À quoi sert BruitTrack ? (Description fonctionnelle)](#-à-quoi-sert-bruittrack--description-fonctionnelle)
+2. [Chaîne d'acquisition et matériel](#️-chaîne-dacquisition-et-matériel)
+3. [Démarrage rapide](#démarrage-rapide)
+4. [Conformité légale (CSP Art. R1336-7)](#conformité-légale-csp-art-r1336-7)
+5. [Architecture et pipeline DSP](#architecture-et-pipeline-dsp)
+6. [Référence des commandes CLI](#référence-des-commandes-cli)
+7. [Interface web et API REST](#interface-web-et-api-rest)
+8. [Journal des gênes et clichés HD](#journal-des-gênes-et-clichés-hd)
+9. [Installation et déploiement (HP T620)](#installation-et-déploiement-hp-t620)
+10. [Configuration (`config.toml`)](#configuration-configtoml)
+11. [Tests et qualité](#tests-et-qualité)
 
 ---
 
